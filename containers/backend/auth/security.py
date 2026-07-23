@@ -42,7 +42,7 @@ def check_account_lockout(email: str, client_ip: str = "") -> bool:
     incorporate behavioral backoff, per-IP throttling, or CAPTCHA validation prior to incrementing
     global account lockout counters.
 
-    Security finding #1 remediation: checks IP-scoped key first (e.g. 5 attempts per IP),
+    Account lockout logic checks IP-scoped key first (e.g. 5 attempts per IP),
     and falls back to checking a global per-email counter at a higher threshold (25 attempts)
     to prevent single-email spam from locking out legitimate users on other IPs while stopping
     distributed botnet brute-forcing.
@@ -147,7 +147,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def check_pwned_password(plain_password: str) -> bool:
     """
     Check if the password has appeared in known public data breaches using the
-    Have I Been Pwned (HIBP) k-Anonymity API (Security finding #7).
+    Have I Been Pwned (HIBP) k-Anonymity API.
     Only the first 5 characters of the SHA-1 hash (`prefix`) are sent over the wire.
     """
     if not plain_password:
@@ -184,7 +184,7 @@ def record_hibp_failure_metric() -> None:
     """
     Increment telemetry counter when HIBP API reachability fails.
     Allows operations to alert on prolonged external API outages while failing open.
-    Security finding #9 remediation: emits structured critical warning for SIEM/Slack alerts when threshold is breached.
+    Emits structured critical warning for SIEM/Slack alerts when failure threshold is breached.
     """
     if _redis_auth_client:
         try:

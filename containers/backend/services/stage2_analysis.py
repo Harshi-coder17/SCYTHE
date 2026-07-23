@@ -4,7 +4,7 @@ services/stage2_analysis.py
 Stage 2 analysis intake: receives browser screenshot + DOM snapshot,
 validates and persists them, then queues the Celery pipeline.
 
-Security hardening (finding #10):
+Security hardening:
   - Strict image validation via PIL.Image.verify() before writing to disk.
     Without this check, an attacker who controls the Chrome extension could
     send arbitrary binary payloads that are later fed to OCR / vision /
@@ -178,7 +178,7 @@ def run_stage2_analysis(payload: Stage2Request, user, db) -> Stage2Response:
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
 
-    # ── Malware verification via ClamAV (security finding #2) ─────────────
+    # ── Malware verification via ClamAV ─────────────
     clean_png, png_details = scan_file_clamav(png_path)
     clean_html, html_details = scan_file_clamav(html_path)
     if not clean_png or not clean_html:

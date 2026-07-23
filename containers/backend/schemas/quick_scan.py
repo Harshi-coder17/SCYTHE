@@ -3,11 +3,11 @@ schemas/quick_scan.py
 ======================
 Pydantic models for the /api/scans/quick endpoint.
 
-Security hardening (findings #1 & #2):
-  - QuickScanResponse now includes is_placeholder: bool so the browser
+Security hardening:
+  - QuickScanResponse includes is_placeholder: bool so the browser
     extension can structurally distinguish between a real ML verdict and a
-    random-number placeholder. The extension must render a neutral
-    "Processing…" state (not a definitive verdict badge) when this is True.
+    random-number placeholder. The extension renders a neutral
+    "Processing…" state when this is True.
   - The service layer (services/quickscan.py) must NOT write placeholder
     results to Redis cache (prevents cache-poisoning with fabricated scores).
 """
@@ -54,7 +54,7 @@ class QuickScanResponse(BaseModel):
     is_whitelisted: bool = False
     cached: bool = Field(default=False, description="True if this result came from Redis cache")
 
-    # ── Security finding #1 fix ──────────────────────────────────────────
+    # ── Security Hardening ──────────────────────────────────────────
     # Clients (browser extension) MUST check this flag before rendering a
     # definitive risk badge. When True the ML model is not yet wired in and
     # the score is a random placeholder — render "Scanning / Processing"

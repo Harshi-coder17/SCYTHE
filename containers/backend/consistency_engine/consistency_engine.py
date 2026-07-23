@@ -4,7 +4,7 @@ consistency_engine/consistency_engine.py
 Compares the browser's view of a URL against the sandbox's independent
 view to detect cloaking — the core AEGIS detection primitive.
 
-Bug fix:
+Architecture note:
   compare_dom() previously hardcoded indeterminate=False. The sandbox
   container never writes an independent sandbox.html file (its DOM data
   lives in sandbox_metadata.json). Passing browser.html as a fallback
@@ -267,7 +267,7 @@ class ConsistencyEngine:
         sandbox_png_path = sandbox_artifacts["png_path"]
         sandbox_html_path = sandbox_artifacts["html_path"]
         sandbox_metadata = sandbox_artifacts.get("metadata", {})
-        # Bug fix: read the availability flag set by tasks/consistency.py.
+        # Read the availability flag set by tasks/consistency.py.
         # When False, compare_dom() returns indeterminate=True and the DOM
         # channel is excluded from the weighted consistency score.
         sandbox_html_available = sandbox_artifacts.get("sandbox_html_available", True)

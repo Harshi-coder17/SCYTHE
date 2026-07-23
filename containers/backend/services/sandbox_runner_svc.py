@@ -4,7 +4,7 @@ services/sandbox_runner_svc.py
 Purpose-built admission-control microservice (`aegis_sandbox_runner`) that sits
 in front of `docker_socket_proxy`.
 
-Security Hardening (DevSecOps Critical Finding #1):
+Security Hardening:
   - `celery_worker` processes untrusted image data (via OpenCV / pytesseract / Vision).
     Previously, `celery_worker` had direct access to `docker_socket_proxy` with
     `CONTAINERS=1, POST=1`, allowing any parser RCE inside the worker to call
@@ -240,7 +240,7 @@ async def detonate(request: DetonateRequest, x_runner_auth: str = Header(None)):
 
         timeout_sec = min(max(request.timeout_sec, 10), 300)
 
-        # Hardcoded immutable container shape (Critical Finding #1)
+        # Hardcoded immutable container shape
         cmd = [
             "docker", "run", "--rm",
             "--network", SANDBOX_NETWORK,

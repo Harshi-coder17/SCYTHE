@@ -3,10 +3,10 @@ services/quickscan.py
 ======================
 Quick scan service: synchronous pre-flight threat assessment.
 
-Security hardening (findings #1 & #2):
+Security hardening:
   - is_placeholder is mapped from the risk fusion result onto the response
     schema so the browser extension can render a neutral state.
-  - Placeholder scores are NOT written to Redis cache (finding #2 fix):
+  - Placeholder scores are NOT written to Redis cache:
     caching a random number would create a false consistency loop where
     every request for that domain within the TTL window receives the same
     fabricated score, giving an artificial appearance of determinism.
@@ -191,7 +191,7 @@ def run_quickscan(payload: QuickScanRequest, user, db) -> QuickScanResponse:
         reasons=reasons,
     )
 
-    # ── Security finding #2 fix: NEVER cache placeholder scores ────────────
+    # ── Security Hardening: NEVER cache placeholder scores ────────────
     # Caching a random number would make every user who hits the same domain
     # within the TTL window receive the identical fabricated score, creating
     # a false appearance of deterministic confidence.

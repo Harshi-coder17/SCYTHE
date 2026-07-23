@@ -3,12 +3,11 @@ schemas/auth.py
 ================
 Pydantic models for authentication endpoints.
 
-Security hardening (finding #17):
+Security hardening:
   - Password minimum length raised from 8 → 12 characters.
   - Complexity enforced: must contain at least one uppercase, one lowercase,
     one digit, and one special character.
-  - UserRegisterAcceptedResponse added for the opaque 202 registration shape
-    (supports the registration oracle fix in auth/routes.py).
+  - UserRegisterAcceptedResponse added for the opaque 202 registration shape.
 """
 
 import re
@@ -72,7 +71,7 @@ class UserRegisterRequest(BaseModel):
                 "Password must contain: " + ", ".join(errors)
             )
 
-        # High Finding #5: Entropy & pattern resistance (preventing e.g. Aaaaaaaaaa1!)
+        # Entropy & pattern resistance (preventing e.g. Aaaaaaaaaa1!)
         if len(set(v)) < 5:
             raise ValueError("Password entropy too low: must contain at least 5 unique characters")
         if any(v.count(c) > len(v) * 0.5 for c in set(v)):
@@ -106,7 +105,7 @@ class UserRegisterRequest(BaseModel):
 class UserRegisterAcceptedResponse(BaseModel):
     """
     Opaque 202 response for both new registrations and duplicate-email
-    attempts (security finding #6 — registration oracle prevention).
+    attempts (registration oracle prevention).
     The caller cannot distinguish between these two cases.
     """
     message: str = (

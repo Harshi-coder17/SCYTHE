@@ -36,7 +36,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # Always run verify_password() against this hash when the looked-up user is
 # None. bcrypt takes the same wall-clock time regardless of whether the user
 # exists, so an attacker cannot enumerate valid accounts by measuring response
-# latency (security finding #5).
+# latency.
 #
 # The hash is for the string "dummy-password-that-will-never-match" and was
 # generated once with hash_password(). It never changes at runtime; it exists
@@ -58,7 +58,7 @@ def register(
 
     Always returns 202 Accepted with a generic message — never 409
     Conflict — so that unauthenticated callers cannot determine whether a
-    given email address already exists in the system (security finding #6).
+    given email address already exists in the system.
     """
     try:
         if check_pwned_password(payload.password):
@@ -107,7 +107,7 @@ def login(
     """
     Authenticate and return a JWT access token.
 
-    Timing-attack mitigation (security finding #5):
+    Timing-attack mitigation:
     verify_password_with_migration() is called unconditionally. When the user is not
     found we compare against _DUMMY_HASH, ensuring the bcrypt work-factor
     is always paid and response time does not leak whether the email exists.
@@ -180,7 +180,7 @@ def logout(
     token: str = Depends(oauth2_scheme),
 ) -> Response:
     """
-    Revoke the current JWT bearer token (security finding #6).
+    Revoke the current JWT bearer token.
     Adds the token's jti to the Redis blacklist with a TTL matching the token expiration.
     """
     revoke_token(token)
@@ -190,7 +190,7 @@ def logout(
 @router.post("/password-reset/request", status_code=status.HTTP_501_NOT_IMPLEMENTED)
 def request_password_reset():
     """
-    Password reset / account recovery endpoint placeholder (Finding #6 note).
+    Password reset / account recovery endpoint placeholder.
 
     For an internal analyst tool, user registration and credentials are managed by admins.
     For customer-facing production deployments, integrate an out-of-band email delivery service
