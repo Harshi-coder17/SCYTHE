@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-background">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberWeb — New Scan</title>
+  <meta name="description" content="Submit a URL, screenshot or file for threat analysis." />
+  <meta name="theme-color" content="#0a0b0a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body data-page="scan">
+  <div class="app">
+    <aside class="ribbon" id="ribbon"></aside>
+    <div class="main">
+      <div class="appbar">
+        <h1>New Scan</h1>
+        <div class="actions">
+          <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" data-icon="theme"></button>
+          <a href="dashboard.html" class="btn btn-sm">Dashboard</a>
+        </div>
+      </div>
+
+      <div class="page-body">
+        <div class="scanbox" style="text-align: center;">
+          <p class="eyebrow accent" style="margin-bottom: 20px;">Analyse a target</p>
+          <h2 style="font-size: clamp(1.4rem, 3vw, 2.2rem); margin-bottom: 20px;">Found something suspicious? <br /> Let us check it for you.</h2>
+          <p class="muted" style="margin-bottom: 35px;">Paste a link or upload evidence. We&apos;ll run scanning, threat intel and an AI verdict.</p>
+
+          <div class="pill-slider-container">
+            <div class="pill-slider" id="input-type-slider" data-selected="url">
+              <div class="slider-bg"></div>
+              <button class="pill-btn active" data-target="url-section" onclick="switchInputType('url')">URL</button>
+              <button class="pill-btn" data-target="file-section" onclick="switchInputType('file')">File</button>
+            </div>
+          </div>
+
+          <form onsubmit="return startScan(event)">
+            <div id="url-section" class="input-section">
+              <div class="field" style="margin-bottom: 35px;">
+                <label style="text-align: center;">Paste URL</label>
+                <input class="input" id="url-input" type="text" placeholder="https://suspicious-site.example/login" />
+              </div>
+
+              <div>
+                <label class="field" style="display:block; text-align: center; margin-bottom: 16px;">
+                  <span style="display:block;font-size:0.75rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);font-weight:600;">Analysis options</span>
+                </label>
+                <div class="check-row" id="checks" style="justify-content: center; margin: 0;">
+                  <label class="check active"><input type="radio" name="scan_type" value="quick" checked /> Quick scan</label>
+                  <label class="check"><input type="radio" name="scan_type" value="deep" /> Deep scan</label>
+                </div>
+              </div>
+            </div>
+
+            <div id="file-section" class="input-section" style="display: none;">
+              <div class="field" style="margin-bottom: 35px;">
+                <label style="text-align: center;">Upload file</label>
+                <label class="file-drop">
+                  <span data-icon="upload"></span>
+                  <span id="file-name">Drop a file or click to browse</span>
+                  <input type="file" style="display:none" onchange="document.getElementById('file-name').textContent = this.files[0]?.name || 'Drop a file or click to browse'" />
+                </label>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: center; margin-top: 35px;">
+              <button class="btn btn-primary" style="min-width: 240px; padding: 18px 26px; font-size: 1rem;" type="submit">Analyze</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/common.js"></script>
+  <script src="../js/mock.js"></script>
+  <script>
+    // toggle check active state
+    document.getElementById("checks").addEventListener("change", (e) => {
+      const label = e.target.closest(".check");
+      if (label && e.target.type === "radio") {
+        document.querySelectorAll("#checks .check").forEach(l => l.classList.remove("active"));
+        label.classList.add("active");
+      }
+    });
+
+    function switchInputType(type) {
+      const slider = document.getElementById('input-type-slider');
+      slider.setAttribute('data-selected', type);
+      
+      document.querySelectorAll('.pill-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('onclick').includes(type));
+      });
+
+      document.getElementById('url-section').style.display = type === 'url' ? 'block' : 'none';
+      document.getElementById('file-section').style.display = type === 'file' ? 'block' : 'none';
+    }
+
+    function startScan(e) {
+      e.preventDefault();
+      let url = document.getElementById("url-input").value.trim();
+      if (!url) url = "secure-login-paypa1.com/verify"; // demo fallback
+      const report = generateReport(url);
+      saveLastReport(report);
+      window.location.href = "loading.html";
+      return false;
+    }
+  </script>
+</body>
+</html>

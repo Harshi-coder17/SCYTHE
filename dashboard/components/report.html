@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-background">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberWeb — Analysis Report</title>
+  <meta name="description" content="Detailed threat analysis report with scan, cyber intel and sandbox results." />
+  <meta name="theme-color" content="#0a0b0a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    /* Scoped to the Sandbox tab's Screenshot Capture panel only. */
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+      padding: 22px;
+    }
+
+    .screenshot-card {
+      border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--panel-2, #0d1220);
+    }
+
+    .screenshot-frame {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      background: var(--panel-2, #0d1220);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .screenshot-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top;
+      display: block;
+    }
+
+    .screenshot-frame::after {
+      content: "Screenshot not available";
+      display: none;
+      color: var(--muted, #8b93ac);
+      font-size: 0.8rem;
+      text-align: center;
+      padding: 0 16px;
+    }
+
+    .screenshot-missing .screenshot-frame img {
+      display: none;
+    }
+
+    .screenshot-missing .screenshot-frame::after {
+      display: block;
+    }
+
+    .screenshot-caption {
+      padding: 10px 14px;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted, #8b93ac);
+      border-top: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    }
+
+    @media (max-width: 640px) {
+      .screenshot-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ============================================================
+       Print / PDF styles — only active when printing (Generate PDF
+       calls window.print()). Turns the dark dashboard UI into a
+       clean, light, paginated report instead of printing the app
+       chrome as-is.
+       ============================================================ */
+    .print-heading { display: none; }
+
+    @media print {
+      @page { margin: 10mm 12mm; }
+
+      :root {
+        --pr-ink: #1a1f2c;
+        --pr-muted: #64748b;
+        --pr-border: #dde1ec;
+        --pr-accent: #5b4bdb;
+        --pr-accent-soft: #f1eefe;
+        --pr-danger: #b91c1c;
+        --pr-danger-bg: #fbe7e7;
+        --pr-warn: #92600a;
+        --pr-warn-bg: #fbf1d8;
+        --pr-ok: #0f7a45;
+        --pr-ok-bg: #e4f7ed;
+      }
+
+      html { font-size: 12px; }
+      html, body {
+        background: #ffffff !important;
+        color: var(--pr-ink) !important;
+        line-height: 1.3;
+      }
+
+      /* app chrome that has no place on a printed page */
+      .ribbon,
+      .appbar .icon-btn,
+      #flag-btn,
+      .tabs,
+      .footer { display: none !important; }
+      .btn-primary[onclick*="print"] { display: none !important; }
+
+      .page-body { padding: 0; }
+
+      .appbar {
+        position: static;
+        background: none;
+        border-bottom: 2px solid var(--pr-accent);
+        padding: 0 0 6px;
+        margin-bottom: 8px;
+      }
+      .appbar h1 { color: var(--pr-ink); font-size: 1.15rem; }
+
+      /* tighten every generic spacing utility so the report doesn't
+         sprawl across extra pages */
+      .mb-6 { margin-bottom: 8px !important; }
+      .mb-4 { margin-bottom: 6px !important; }
+      .grid { gap: 8px !important; }
+      div[style*="padding:22px"] { padding: 8px 10px !important; }
+
+      /* show every tab's content stacked, instead of only whichever
+         tab happened to be active on screen — but compactly */
+      .tab-panel {
+        display: block !important;
+        page-break-inside: auto;
+        margin-bottom: 6px;
+      }
+      .print-heading {
+        display: block;
+        font-family: var(--font-display);
+        font-size: 0.8rem;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--pr-accent);
+        border-bottom: 1px solid var(--pr-border);
+        padding-bottom: 4px;
+        margin: 10px 0 6px;
+      }
+      .tab-panel:first-of-type .print-heading { margin-top: 0; }
+
+      /* flatten every card/panel to a plain bordered box — no glow,
+         no gradient, no shadow, nothing dark-theme-specific */
+      .panel, .stat-card, .gauge, .card {
+        background: #ffffff !important;
+        border: 1px solid var(--pr-border) !important;
+        box-shadow: none !important;
+        border-radius: 8px !important;
+        page-break-inside: avoid;
+      }
+      .panel::before, .panel::after,
+      .stat-card::before, .stat-card::after,
+      .card::before, .card::after { display: none !important; }
+
+      .panel-head {
+        border-bottom: 1px solid var(--pr-border);
+        background: var(--pr-accent-soft);
+        padding: 6px 10px !important;
+      }
+      h3, .panel-head h3, .val { color: var(--pr-ink) !important; font-size: 0.85rem; }
+      .muted, .k { color: var(--pr-muted) !important; }
+      .eyebrow { font-size: 0.65rem !important; }
+
+      .alert-row { padding: 4px 10px !important; border-bottom: 1px solid #f0f1f6; break-inside: avoid; }
+      .alert-row:hover { background: none !important; }
+
+      /* gauges: smaller rings, no wasted vertical space */
+      .gauge { padding: 8px !important; }
+      .gauge .ring { width: 74px !important; height: 74px !important; margin: 6px auto !important; }
+      .gauge .ring .val { font-size: 1.05rem; }
+      .gauge h4 { font-size: 0.6rem; }
+
+      .stat-card { padding: 6px 8px !important; }
+      .stat-card .v { font-size: 1.1rem; margin-top: 2px; }
+      .stat-card .k { font-size: 0.6rem; }
+
+      /* controlled, cohesive status palette instead of per-page hardcoded colors */
+      .badge, .status-pill, .pill-tag {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        border: 1px solid currentColor;
+        padding: 1px 8px !important;
+        font-size: 0.68rem;
+      }
+      .badge-danger, .status-danger { background: var(--pr-danger-bg) !important; color: var(--pr-danger) !important; }
+      .badge-warn { background: var(--pr-warn-bg) !important; color: var(--pr-warn) !important; }
+      .badge-ok, .status-safe { background: var(--pr-ok-bg) !important; color: var(--pr-ok) !important; }
+      .pill-tag { background: var(--pr-accent-soft) !important; color: var(--pr-accent) !important; }
+
+      .screenshot-grid { padding: 8px !important; gap: 8px !important; }
+      .screenshot-frame { aspect-ratio: 16 / 7 !important; }
+      .screenshot-card { background: #fff !important; border: 1px solid var(--pr-border) !important; }
+      .screenshot-caption { color: var(--pr-muted) !important; border-top-color: var(--pr-border) !important; padding: 4px 8px; font-size: 0.62rem; }
+
+      /* the Behaviour Summary list is the longest section on the page —
+         lay it out in two columns instead of one long single-column list */
+      #sandbox-notes {
+        column-count: 2;
+        column-gap: 18px;
+        padding: 8px 10px !important;
+      }
+      #sandbox-notes .alert-row { break-inside: avoid; -webkit-column-break-inside: avoid; }
+    }
+  </style>
+</head>
+
+<body data-page="report">
+  <div class="app">
+    <aside class="ribbon" id="ribbon"></aside>
+    <div class="main">
+      <div class="appbar">
+        <h1>Analysis Report</h1>
+        <div class="actions">
+          <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" data-icon="theme"></button>
+          <button class="btn btn-sm" id="flag-btn" onclick="flagIt()"><span data-icon="flag"
+              style="width:16px;height:16px;display:inline-flex"></span> Flag</button>
+          <button class="btn btn-primary btn-sm" onclick="openExportModal()"><span data-icon="download"
+              style="width:16px;height:16px;display:inline-flex"></span> Generate PDF</button>
+        </div>
+      </div>
+
+      <div class="page-body">
+        <!-- URL details + verdict -->
+        <div class="panel mb-6">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow accent" style="margin-bottom:6px">URL Details</p>
+              <h3 id="r-host" style="word-break:break-all">—</h3>
+            </div>
+            <span class="badge" id="r-verdict" style="font-size:0.9rem;padding:8px 16px">—</span>
+          </div>
+          <div style="padding:22px" class="grid grid-4">
+            <div>
+              <div class="k" style="font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">
+                Full URL</div>
+              <div id="r-url" style="word-break:break-all">—</div>
+            </div>
+            <div>
+              <div class="k" style="font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">
+                Scanned</div>
+              <div id="r-time">—</div>
+            </div>
+            <div>
+              <div class="k" style="font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">
+                Risk Score</div>
+              <div id="r-risk">—</div>
+            </div>
+            <div>
+              <div class="k" style="font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">
+                Threats Found</div>
+              <div id="r-threatcount">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <!-- Tabs -->
+        <div class="tabs" id="tabs">
+
+          <div class="tab-slider"></div>
+
+          <button class="tab active" onclick="showTab('scan', this)">
+            Scan
+          </button>
+
+          <button class="tab" onclick="showTab('intel', this)">
+            Cyber Intel
+          </button>
+
+          <button class="tab" onclick="showTab('sandbox', this)">
+            Sandbox
+          </button>
+
+          <button class="tab" onclick="showTab('ai-insights', this)">
+            AI Insights
+          </button>
+
+        </div>
+
+        <!-- Scan tab -->
+        <div class="tab-panel active" id="tab-scan">
+          <div class="print-heading">Scan Results</div>
+          <div class="gauge-wrap mb-6">
+            <div class="gauge">
+              <h4>Legitimacy Score</h4>
+              <div class="ring" id="gauge-legit"></div>
+              <p class="muted" id="legit-label">—</p>
+            </div>
+            <div class="gauge">
+              <h4>AI Model Confidence</h4>
+              <div class="ring" id="gauge-ai"></div>
+              <p class="muted">Verdict certainty</p>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Detected Threats</h3>
+            </div>
+            <div id="threat-list"></div>
+          </div>
+        </div>
+
+        <!-- Intel tab -->
+        <div class="tab-panel" id="tab-intel">
+          <div class="print-heading">Cyber Intelligence</div>
+          <div class="grid grid-2">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Domain Intel</h3>
+              </div>
+              <div id="intel-list"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Reputation</h3>
+              </div>
+              <div id="rep-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sandbox tab -->
+        <div class="tab-panel" id="tab-sandbox">
+          <div class="print-heading">Sandbox Analysis</div>
+          <div class="panel mb-6">
+            <div class="panel-head">
+              <h3>Screenshot Capture</h3>
+            </div>
+            <div class="screenshot-grid" id="screenshot-grid"></div>
+          </div>
+          <div class="grid grid-2 mb-6">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Page &amp; TLS Info</h3>
+              </div>
+              <div id="sandbox-page-list"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Security &amp; Redirects</h3>
+              </div>
+              <div id="sandbox-security-list"></div>
+            </div>
+          </div>
+          <div class="grid grid-4 mb-6" id="sandbox-stats"></div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Behaviour Summary</h3>
+            </div>
+            <div id="sandbox-notes" style="padding:22px"></div>
+          </div>
+        </div>
+
+        <!-- AI Insights tab -->
+        <div class="tab-panel" id="tab-ai-insights">
+          <!-- Self-contained Keyframes & Styles for the Ripple & Jump -->
+          <style>
+            @keyframes aiBubbleSpring {
+              0% { transform: translate(-50%, -50%) scale(1); }
+              40% { transform: translate(-50%, -140%) scale(1.35); }
+              100% { transform: translate(-50%, -50%) scale(1.15); }
+            }
+            @keyframes aiRippleRadiate {
+              0% { transform: translate(-50%, -50%) scale(1); opacity: 1; border-width: 4px; }
+              100% { transform: translate(-50%, -50%) scale(3.8); opacity: 0; border-width: 1px; }
+            }
+            .ai-bubble-base {
+              position: absolute; top: 50%; transform: translate(-50%, -50%); width: 18px; height: 18px; 
+              background: var(--bg); border: 3px solid var(--panel); border-radius: 50%; z-index: 10; 
+              box-shadow: var(--shadow-sm); transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            }
+            .ai-bubble-base::before {
+              content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5); 
+              width: 100%; height: 100%; border-radius: 50%; border: 2px solid var(--danger); opacity: 0; pointer-events: none;
+            }
+            .ai-bubble-base::after {
+              content: 'LIMIT'; position: absolute; top: -24px; left: 50%; transform: translateX(-50%); 
+              font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; font-weight: bold; color: var(--muted); background: var(--bg); 
+              padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); pointer-events: none;
+            }
+            .ai-bubble-pop-ripple {
+              animation: aiBubbleSpring 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+              border-color: #ef4444 !important; box-shadow: 0 0 16px #ef4444 !important;
+            }
+            .ai-bubble-pop-ripple::before {
+              animation: aiRippleRadiate 0.8s ease-out forwards;
+            }
+            .ai-row-card {
+              background: rgba(255, 255, 255, 0.015); border: 1px solid rgba(255, 255, 255, 0.04);
+              border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; transition: all 0.2s ease;
+            }
+            .ai-row-card:hover {
+              transform: translateY(-3px); background: rgba(255, 255, 255, 0.04);
+              border-color: rgba(255, 255, 255, 0.12); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            }
+            .ai-list-row {
+              display: flex; justify-content: space-between; align-items: center; padding: 14px 0;
+              border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            }
+            .ai-list-row:last-child { border-bottom: none; }
+
+            /* Sleek, breathing neon red tag */
+            @keyframes subtleDangerPulse {
+              0%, 100% {
+                background: rgba(239, 68, 68, 0.15);
+                border-color: rgba(239, 68, 68, 0.45);
+                box-shadow: 0 0 12px rgba(239, 68, 68, 0.35), inset 0 0 6px rgba(239, 68, 68, 0.15);
+                filter: brightness(1);
+              }
+              50% {
+                background: rgba(239, 68, 68, 0.08);
+                border-color: rgba(239, 68, 68, 0.2);
+                box-shadow: 0 0 4px rgba(239, 68, 68, 0.1), inset 0 0 0px rgba(239, 68, 68, 0);
+                filter: brightness(0.85);
+              }
+            }
+
+            .ai-badge-soft-red {
+              background: rgba(239, 68, 68, 0.15);
+              color: #ff6b6b;
+              border: 1px solid rgba(239, 68, 68, 0.4);
+              padding: 5px 14px;
+              border-radius: 9999px;
+              font-size: 0.75rem;
+              font-weight: 600;
+              letter-spacing: 0.03em;
+              box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+              animation: subtleDangerPulse 3.2s infinite ease-in-out;
+            }
+          </style>
+
+          <!-- Card 1: Core Inference State -->
+          <div class="panel mb-6">
+            <div class="panel-head"><h3>Core Inference State</h3></div>
+            <div style="padding: 24px;" id="ai-core-metrics"></div>
+          </div>
+
+          <!-- Card 2: Visual Layout Engine -->
+          <div class="panel mb-6">
+            <div class="panel-head"><h3>Visual Layout Engine</h3></div>
+            <div style="padding: 24px;" id="ai-visual-layout"></div>
+          </div>
+
+          <!-- Card 3: Explainable AI (SHAP Analysis) -->
+          <div class="panel mb-6">
+            <div class="panel-head">
+              <h3>Explainable AI (SHAP Analysis)</h3>
+              <span class="pill-tag">Model Weights</span>
+            </div>
+            <div style="padding: 24px;">
+              <p class="muted mb-6" id="ai-shap-desc" style="font-size: 0.9rem; line-height: 1.6; margin-top: 0;"></p>
+              <div id="ai-shap-graph"></div>
+            </div>
+          </div>
+
+          <!-- Card 4: Brand Impersonation Intel -->
+          <div class="panel mb-6">
+            <div class="panel-head"><h3>Brand Impersonation Intel</h3></div>
+            <div style="padding: 24px;" id="ai-brand"></div>
+          </div>
+
+          <!-- Card 5: Policy & Threshold Violations -->
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Policy & Threshold Violations</h3>
+              <span class="pill-tag">Live Guardrails</span>
+            </div>
+            <div style="padding: 24px;" id="ai-thresholds"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Export modal overlay -->
+  <div class="export-overlay" id="export-overlay">
+    <div class="export-modal">
+      <div class="export-header">
+        <h2>Export Report</h2>
+        <button class="export-close" onclick="closeExportModal()" aria-label="Close">&times;</button>
+      </div>
+      <div class="export-layout">
+
+        <!-- LEFT: Controls -->
+        <div class="export-controls">
+
+          <!-- Section: Include in report -->
+          <div>
+            <div class="export-section-label">Include in Report</div>
+            <div class="export-checkbox-group">
+              <label class="export-checkbox">
+                <input type="checkbox" id="ex-basics" checked />
+                <span>Basic Details</span>
+              </label>
+              <label class="export-checkbox">
+                <input type="checkbox" id="ex-scan" checked />
+                <span>Scan Results</span>
+              </label>
+              <label class="export-checkbox">
+                <input type="checkbox" id="ex-intel" checked />
+                <span>Cyber Intel</span>
+              </label>
+              <label class="export-checkbox">
+                <input type="checkbox" id="ex-screenshots" checked />
+                <span>Sandbox Screenshots</span>
+              </label>
+              <label class="export-checkbox">
+                <input type="checkbox" id="ex-aiinsights" checked />
+                <span>AI Insights</span>
+              </label>
+              <label class="export-checkbox">
+                <input type="checkbox" id="ex-security" checked />
+                <span>Security &amp; Redirects</span>
+              </label>
+              <label class="export-checkbox">
+                <input type="checkbox" id="ex-behaviour" checked />
+                <span>Stats &amp; Behaviour</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="export-divider"></div>
+
+          <!-- Section: Format -->
+          <div>
+            <div class="export-section-label">Export Format</div>
+            <div class="export-format-toggle">
+              <input type="radio" name="exportFmt" id="fmt-pdf" checked />
+              <label for="fmt-pdf" class="active" data-format="pdf" onclick="setExportFormat('pdf')">
+                <span class="format-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M9 15h6" />
+                    <path d="M9 11h2" />
+                  </svg>
+                </span>
+                PDF Document
+              </label>
+              <input type="radio" name="exportFmt" id="fmt-jpg" />
+              <label for="fmt-jpg" data-format="jpg" onclick="setExportFormat('jpg')">
+                <span class="format-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="m21 15-5-5L5 21" />
+                  </svg>
+                </span>
+                JPG Image
+              </label>
+            </div>
+          </div>
+
+          <!-- Section: Page Size -->
+          <div id="export-size-group">
+            <div class="export-section-label">Page Size</div>
+            <div class="custom-select-wrapper" id="custom-size-select-wrapper">
+              <div class="export-size-select custom-select-trigger" id="custom-size-trigger">
+                <span id="custom-size-label">A4 — 210 × 297 mm</span>
+              </div>
+              <div class="custom-select-options">
+                <div class="custom-option selected" data-value="a4">A4 — 210 × 297 mm</div>
+                <div class="custom-option" data-value="letter">Letter — 8.5 × 11 in</div>
+                <div class="custom-option" data-value="a3">A3 — 297 × 420 mm</div>
+                <div class="custom-option" data-value="fit">Fit to Content (single page)</div>
+              </div>
+            </div>
+            <input type="hidden" id="export-size" value="a4" />
+          </div>
+
+          <div class="export-divider"></div>
+
+          <!-- Download button -->
+          <button class="export-download-btn" id="export-download-btn" onclick="startExport()">
+            <span class="btn-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </span>
+            <span class="btn-label">Download Report</span>
+          </button>
+
+          <p class="export-hint">Report is generated client-side. No data is uploaded.</p>
+
+        </div>
+
+        <!-- RIGHT: Always-visible preview -->
+        <div class="export-preview-pane">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div class="export-section-label" style="margin-bottom:0;">Live Preview</div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="muted" style="margin-top:1px;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              <label class="theme-toggle" title="Toggle Export Theme">
+                <input type="checkbox" id="export-theme-toggle" onchange="schedulePreviewUpdate()" />
+                <span class="slider round"></span>
+              </label>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="muted" style="margin-top:1px;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </div>
+          </div>
+          <div class="export-preview-viewport" id="export-preview-viewport">
+            <span class="export-preview-badge">Preview</span>
+            <div class="export-preview-inner" id="export-preview-inner"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- CDN libs for export -->
+  <script src="../js/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="../js/common.js"></script>
+  <script src="../js/mock.js"></script>
+  <script src="../js/export.js"></script>
+  <script>
+    // load report or synthesize a demo one
+    let report = loadLastReport();
+    if (!report) report = generateReport("secure-login-paypa1.com/verify");
+
+    const verdictBadge = { SAFE: "badge-ok", SUSPICIOUS: "badge-warn", MALICIOUS: "badge-danger" };
+    const verdictColorVar = { SAFE: "--ok", SUSPICIOUS: "--warn", MALICIOUS: "--danger" };
+
+    // header
+    document.getElementById("r-host").textContent = report.host;
+    document.getElementById("r-url").textContent = report.url;
+    document.getElementById("r-time").textContent = report.scannedAt;
+    document.getElementById("r-risk").textContent = report.riskScore + "/100";
+    document.getElementById("r-threatcount").textContent = report.detected.length;
+    const vb = document.getElementById("r-verdict");
+    vb.textContent = report.verdict;
+    vb.classList.add(verdictBadge[report.verdict]);
+
+    // ---- gauges ----
+    function drawGauge(elId, value, max, colorVar) {
+      const el = document.getElementById(elId);
+      const pct = value / max;
+      const R = 62, C = 2 * Math.PI * R;
+      const color = getComputedStyle(document.documentElement).getPropertyValue(colorVar).trim();
+      el.innerHTML = `
+        <svg viewBox="0 0 150 150">
+          <circle cx="75" cy="75" r="${R}" stroke="var(--border)" stroke-width="12" fill="none"/>
+          <circle cx="75" cy="75" r="${R}" stroke="${color}" stroke-width="12" fill="none"
+            stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}" id="${elId}-arc"/>
+        </svg>
+        <div class="val">${max === 100 ? value + "%" : value.toFixed(1) + "%"}</div>`;
+      // animate
+      requestAnimationFrame(() => {
+        const arc = document.getElementById(elId + "-arc");
+        arc.style.transition = "stroke-dashoffset 1s ease";
+        arc.style.strokeDashoffset = C * (1 - pct);
+      });
+    }
+
+    const legitColor = report.legitimacy >= 70 ? "--ok" : report.legitimacy >= 45 ? "--warn" : "--danger";
+    drawGauge("gauge-legit", report.legitimacy, 100, legitColor);
+    drawGauge("gauge-ai", report.aiConfidence, 100, "--accent");
+    document.getElementById("legit-label").textContent =
+      report.legitimacy >= 70 ? "Looks legitimate" : report.legitimacy >= 45 ? "Proceed with caution" : "Likely malicious";
+
+    // threats
+    document.getElementById("threat-list").innerHTML = report.detected.length
+      ? report.detected
+        .map((t) => `<div class="alert-row"><span class="dot dot-danger"></span><span class="url">${t}</span><span class="time">detected</span></div>`)
+        .join("")
+      : '<div class="alert-row"><span class="dot dot-ok"></span><span class="url">No threats detected</span></div>';
+
+    // intel
+    const i = report.intel;
+    document.getElementById("intel-list").innerHTML = `
+  ${row("Domain name", i.domain, 0)}
+  ${row("Domain age", i.age, 1)}
+  ${row("Confidence score", i.confidence, 2)}
+  ${row("IP address", i.ip, 3)}
+  ${row("Threat count", i.threat, 4)}
+  ${row("Expiration duration", i.expiration, 5)}`;
+
+    document.getElementById("rep-list").innerHTML = `
+  ${row("Brand Similarity", i.brandSimilarity, 0)}
+  ${row("Fake Characters", i.fakeCharacters, 1)}
+  ${row("URL Shortener Used", i.urlShortener, 2)}
+  ${row("Host Reputation", i.reputation, 3)}`;
+
+    function row(k, v, idx) {
+      const safeValues = ["Safe", "No", "Not Detected"];
+      const dangerValues = ["Unsafe", "Yes", "Detected"];
+
+      let value;
+
+      if (safeValues.includes(v)) {
+        value = `<span class="status-pill status-safe">${v}</span>`;
+      } else if (dangerValues.includes(v)) {
+        value = `<span class="status-pill status-danger">${v}</span>`;
+      } else {
+        value = `<span class="time" style="color:var(--text)">${v}</span>`;
+      }
+
+      let classes = idx !== undefined ? "alert-row intel-row" : "alert-row";
+      let style = idx !== undefined ? `style="animation-delay: ${idx * 0.1}s"` : "";
+
+      return `
+    <div class="${classes}" ${style}>
+      <span class="muted">${k}</span>
+      ${value}
+    </div>
+  `;
+    }
+
+    // sandbox
+    const s = report.sandbox;
+
+    // Screenshot capture
+    const screenshotCard = (label, src) => `
+      <div class="screenshot-card">
+        <div class="screenshot-frame">
+          <img src="${src}" alt="${label}" loading="lazy"
+            onerror="this.closest('.screenshot-card').classList.add('screenshot-missing')" />
+        </div>
+        <div class="screenshot-caption">${label}</div>
+      </div>`;
+    document.getElementById("screenshot-grid").innerHTML =
+      screenshotCard("Homepage Capture", s.screenshots.homepage) +
+      screenshotCard("Full Page Capture", s.screenshots.fullpage);
+
+    // Scoped to sandbox only — does not touch the shared row() function
+    // used by the Intel tab above.
+    function sandboxPill(k, label, danger) {
+      return `<div class="alert-row"><span class="muted">${k}</span><span class="status-pill ${danger ? "status-danger" : "status-safe"}">${label}</span></div>`;
+    }
+    function behaviourRow(label, value, flagged) {
+      return flagged ? sandboxPill(label, String(value), true) : row(label, value);
+    }
+
+    // Page & TLS info
+    document.getElementById("sandbox-page-list").innerHTML = `
+      ${row("Page title", s.pageTitle)}
+      ${row("Final URL", s.finalUrl)}
+      ${row("Page language", s.pageLanguage)}
+      ${row("DOM element count", s.domElementCount)}
+      ${sandboxPill("Certificate present", s.certificatePresent ? "Present" : "Missing", !s.certificatePresent)}
+      ${row("Certificate issuer", s.certificateIssuer ?? "—")}
+      ${row("TLS version", s.tlsVersion ?? "—")}
+      ${row("Certificate issued", s.certificateIssued ?? "—")}`;
+
+    // Security & redirects
+    const sandboxRedirectRows = s.redirects.length
+      ? s.redirects.map((r) => row(`Redirect (${r.httpStatusCode})`, r.redirectUrl)).join("")
+      : row("Redirects", "None");
+    document.getElementById("sandbox-security-list").innerHTML = `
+      ${row("Security headers present", s.securityHeadersPresent)}
+      ${sandboxPill("Brand impersonation match", s.brandImpersonationMatch ? `${s.brandImpersonationMatch.brand} (${Math.round(s.brandImpersonationMatch.similarity * 100)}%)` : "Not detected", !!s.brandImpersonationMatch)}
+      ${sandboxPill("QR code detected", s.qrCodeDetected ? "Detected" : "Not detected", s.qrCodeDetected)}
+      ${sandboxPill("Cloaking detected", s.cloakingDetected ? "Detected" : "Not detected", s.cloakingDetected)}
+      ${sandboxRedirectRows}`;
+
+    // Stats
+    const stats = [
+      ["Total Requests", s.totalRequestCount],
+      ["Third-Party Domains", s.thirdPartyDomainCount],
+      ["Popups", s.popupCount],
+      ["Downloads", s.downloads.length],
+    ];
+    document.getElementById("sandbox-stats").innerHTML = stats
+      .map(([k, v]) => `<div class="stat-card"><span class="k">${k}</span><div class="v">${v}</div></div>`)
+      .join("");
+
+    // Behaviour summary
+    const permissionText = s.permissionRequests.length ? s.permissionRequests.join(", ") : "None";
+    let notesHtml = "";
+    notesHtml += behaviourRow("XHR Requests", s.xhrRequestCount, s.xhrRequestCount >= 15);
+    notesHtml += behaviourRow("WebSocket Connections", s.websocketConnectionCount, s.websocketConnectionCount >= 1);
+    notesHtml += behaviourRow("Fingerprinting API Calls", s.fingerprintingApiCount, s.fingerprintingApiCount >= 1);
+    notesHtml += behaviourRow("New Tabs Opened", s.newTabCount, s.newTabCount >= 1);
+    notesHtml += behaviourRow("Clipboard Read Attempts", s.clipboardReadAttempts, s.clipboardReadAttempts >= 1);
+    notesHtml += behaviourRow("Clipboard Write Attempts", s.clipboardWriteAttempts, s.clipboardWriteAttempts >= 1);
+    notesHtml += s.permissionRequests.length ? sandboxPill("Permission Requests", permissionText, true) : row("Permission Requests", "None");
+    notesHtml += behaviourRow("Password Fields", s.passwordFieldCount, s.passwordFieldCount >= 1);
+    notesHtml += behaviourRow("Email Fields", s.emailFieldCount, s.emailFieldCount >= 1);
+    notesHtml += behaviourRow("Cross-Domain Forms", s.crossDomainFormCount, s.crossDomainFormCount >= 1);
+    notesHtml += behaviourRow("Hidden iFrames", s.hiddenIframeCount, s.hiddenIframeCount >= 1);
+    notesHtml += behaviourRow("External Scripts", s.externalScriptCount, s.externalScriptCount >= 6);
+    notesHtml += behaviourRow("Base64-Encoded Scripts", s.base64EncodedScriptCount, s.base64EncodedScriptCount >= 1);
+
+    notesHtml += s.evasionTechniques.length
+      ? s.evasionTechniques.map((t) => sandboxPill(t.name, t.flagged ? "Flagged" : "Clear", t.flagged)).join("")
+      : row("Evasion Techniques", "None checked");
+
+    notesHtml += s.downloads.length
+      ? s.downloads.map((d) => sandboxPill(d.fileName, (d.fileSizeBytes / 1024).toFixed(1) + " KB", true)).join("")
+      : row("File Downloads", "None");
+
+    notesHtml += sandboxPill("Sandbox Verdict", s.verdict, s.verdict !== "SAFE");
+
+    document.getElementById("sandbox-notes").innerHTML = notesHtml;
+
+    // tabs
+    function showTab(tabName, button) {
+      document.querySelectorAll(".tab").forEach(tab => {
+        tab.classList.remove("active");
+      });
+      button.classList.add("active");
+      moveSlider(button);
+
+      document.querySelectorAll(".tab-panel").forEach(panel => {
+        panel.classList.remove("active");
+      });
+      document.getElementById("tab-" + tabName).classList.add("active");
+    }
+
+    let isFlagged = false;
+    let flagBtnDefaultHTML = null;
+
+    function flagIt() {
+      const btn = document.getElementById("flag-btn");
+      if (flagBtnDefaultHTML === null) flagBtnDefaultHTML = btn.innerHTML;
+
+      isFlagged = !isFlagged;
+
+      if (isFlagged) {
+        btn.innerHTML = `<span data-icon="flag" style="width:16px;height:16px;display:inline-flex"></span> Unflag`;
+        btn.classList.add("btn-primary");
+        btn.title = "Click to remove this flag";
+        hydrateIcons();
+      } else {
+        btn.innerHTML = flagBtnDefaultHTML;
+        btn.classList.remove("btn-primary");
+        btn.title = "Flag this site";
+        hydrateIcons();
+      }
+    }
+
+    // Custom Dropdown Logic
+    document.addEventListener("DOMContentLoaded", () => {
+      const wrapper = document.getElementById("custom-size-select-wrapper");
+      const trigger = document.getElementById("custom-size-trigger");
+      const label = document.getElementById("custom-size-label");
+      const hiddenInput = document.getElementById("export-size");
+      const options = document.querySelectorAll(".custom-option");
+
+      if (trigger) {
+        trigger.addEventListener("click", (e) => {
+          wrapper.classList.toggle("open");
+          e.stopPropagation();
+        });
+      }
+
+      options.forEach(opt => {
+        opt.addEventListener("click", (e) => {
+          // Update selected style
+          options.forEach(o => o.classList.remove("selected"));
+          opt.classList.add("selected");
+          
+          // Update label and hidden input
+          label.textContent = opt.textContent;
+          hiddenInput.value = opt.getAttribute("data-value");
+          
+          // Close dropdown
+          wrapper.classList.remove("open");
+          e.stopPropagation();
+        });
+      });
+
+      // Close dropdown when clicking outside
+      document.addEventListener("click", () => {
+        if (wrapper) wrapper.classList.remove("open");
+      });
+    });
+
+    // ==========================================================================
+    // AI INSIGHTS MODULE (Clear Threshold UI + Guaranteed Video Demo Breaches)
+    // ==========================================================================
+    (function initAiInsightsModule() {
+      const isMal = report.verdict !== "SAFE";
+      
+      // FORCE high scores (88.8% - 98.6%) for video demos so it ALWAYS breaches the limit!
+      const conf = isMal ? parseFloat((88.8 + Math.random() * 9.8).toFixed(1)) : 14.2;
+      const brandConf = isMal ? parseFloat((89.2 + Math.random() * 8.5).toFixed(1)) : 8.0;
+
+      if (!report.aiInsights || report.aiInsights._forced) {
+        report.aiInsights = {
+          _forced: true,
+          core: { status: "Completed", globalRisk: report.riskScore || 89 },
+          visual: {
+            isClone: isMal,
+            verdict: isMal ? "Visual Clone Detected" : "Authentic Layout Structure",
+            confidence: conf,
+            threshold: 85.0,
+            summary: isMal 
+              ? `The webpage layout shares a ${conf}% structural match with standard login matrices (e.g., PayPal/Microsoft), exceeding the clone guardrail limit of 85.0%.`
+              : `The visual layout architecture demonstrates organic design patterns with a low structural similarity (${conf}%) to known phishing templates.`
+          },
+          shap: {
+            description: "Model feature attribution analysis indicating key signals influencing the final inference verdict.",
+            features: [
+              { name: "has_login_form", weight: isMal ? "+4.2" : "-1.4", pct: isMal ? "88" : "25", impact: isMal ? "negative" : "positive" },
+              { name: "domain_age_low", weight: isMal ? "+2.8" : "-0.8", pct: isMal ? "72" : "15", impact: isMal ? "negative" : "positive" },
+              { name: "brand_similarity_high", weight: isMal ? "+2.1" : "-0.5", pct: isMal ? "64" : "10", impact: isMal ? "negative" : "positive" },
+              { name: "ssl_cert_valid", weight: "-1.2", pct: "35", impact: "positive" },
+              { name: "external_script_count", weight: isMal ? "+1.8" : "-0.4", pct: isMal ? "55" : "20", impact: isMal ? "negative" : "positive" }
+            ]
+          },
+          brand: {
+            target: isMal ? "PayPal Inc." : "None Detected",
+            domain: isMal ? "paypal.com" : "N/A",
+            confidence: brandConf,
+            threshold: 75.0, // Second threshold marker for video demo!
+            rankings: [
+              { rank: 1, name: "PayPal Login Portal", score: isMal ? "0.94 similarity" : "0.08 similarity" },
+              { rank: 2, name: "Microsoft 365 Sign-in", score: isMal ? "0.41 similarity" : "0.05 similarity" },
+              { rank: 3, name: "Amazon Billing Update", score: isMal ? "0.22 similarity" : "0.02 similarity" }
+            ]
+          },
+          policy: isMal ? [
+            { name: "GUARDRAIL_VISUAL_CLONE", value: `${conf}%`, limit: "85.0%" },
+            { name: "GUARDRAIL_DOMAIN_AGE", value: report.intel?.age || "14 days", limit: "30 days" },
+            { name: "GUARDRAIL_BRAND_SPOOF", value: "DETECTED", limit: "NONE" }
+          ] : []
+        };
+      }
+
+      const ai = report.aiInsights;
+      if (!ai) return;
+
+      // 1. Render Core Metrics
+      const statusClass = ai.core?.status === "Completed" ? "status-safe" : "status-danger";
+      document.getElementById("ai-core-metrics").innerHTML = `
+        <div class="ai-list-row" style="padding-top: 0;">
+          <span class="muted">Analysis Status</span>
+          <span class="status-pill ${statusClass}">● ${ai.core?.status || "Completed"}</span>
+        </div>
+        <div class="ai-list-row" style="border-bottom: none; padding-bottom: 0;">
+          <span class="muted">Global Risk Score</span>
+          <strong style="font-size: 2.5rem; color: #ef4444; line-height: 1; font-family: 'Chakra Petch', sans-serif;">
+            <span id="ai-risk-score-anim" data-target="${ai.core?.globalRisk || 0}">0</span>
+            <span class="muted" style="font-size: 1rem; font-family: 'Inter', sans-serif;">/100</span>
+          </strong>
+        </div>
+      `;
+
+      // 2. Render Visual Layout Engine (UPGRADED CLEAR LABELS)
+      const visualConf = parseFloat(ai.visual?.confidence || 98.4);
+      const visualThresh = parseFloat(ai.visual?.threshold || 85.0);
+      const visualBreached = visualConf > visualThresh;
+      const verdictColor = visualBreached ? "#ef4444" : "#10b981";
+      document.getElementById("ai-visual-layout").innerHTML = `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 24px;">
+          <span class="muted" style="font-size: 1.1em;">Clone Verdict</span>
+          <strong style="color: ${verdictColor}; font-size: 1.3em;">${ai.visual?.verdict || "Visual Clone Detected"}</strong>
+        </div>
+        <div>
+          <!-- Clear Separated Labeling -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px;">
+            <div>
+              <div style="font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 2px;">Model Confidence</div>
+              <strong style="font-size: 1.4rem; color: var(--text); font-family: 'Chakra Petch', sans-serif;">${visualConf}%</strong>
+            </div>
+            <span style="background: var(--accent-soft); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace;">
+              Guardrail Limit: <strong style="color: var(--text);">${visualThresh}%</strong>
+            </span>
+          </div>
+          <div id="ai-track-container" style="width: 100%; background: var(--border); height: 12px; border-radius: 6px; position: relative; margin: 26px 0 18px 0; overflow: visible !important;">
+            <div id="ai-thresh-bubble" class="ai-bubble-base" style="left: ${visualThresh}%;" title="Limit: ${visualThresh}%"></div>
+            <div id="ai-conf-bar" style="width: 0%; height: 100%; border-radius: 6px; background: #10b981; transition: none;"></div>
+          </div>
+        </div>
+        <div style="background: var(--accent-2-soft); border-left: 4px solid var(--accent-2); padding: 16px 20px; border-radius: 0 8px 8px 0; margin-top: 28px;">
+          <p style="font-size: 1em; line-height: 1.7; margin: 0; color: var(--text);">${ai.visual?.summary || ""}</p>
+        </div>
+      `;
+
+      // 3. Render Explainable AI (SHAP)
+      document.getElementById("ai-shap-desc").textContent = ai.shap?.description || "";
+      const shapGraph = document.getElementById("ai-shap-graph");
+      if (shapGraph && ai.shap?.features) {
+        shapGraph.innerHTML = ai.shap.features.map(s => {
+          const isNeg = s.impact === "negative";
+          const barColor = isNeg ? "#ef4444" : "#10b981"; 
+          const barShadow = isNeg ? "0 0 10px rgba(239, 68, 68, 0.4)" : "0 0 10px rgba(16, 185, 129, 0.4)";
+          const badgeStyle = isNeg ? "color: #ef4444; background: rgba(239, 68, 68, 0.1);" : "color: #10b981; background: rgba(16, 185, 129, 0.1);";
+          return `
+            <div class="ai-row-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; color: var(--text);">${s.name}</span>
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; ${badgeStyle}">${s.weight}</span>
+              </div>
+              <div style="width: 100%; background: var(--border); height: 10px; border-radius: 5px; overflow: hidden; position: relative;">
+                <div class="shap-anim-bar" data-target="${parseFloat(s.pct || 0)}" style="width: 0%; height: 100%; border-radius: 5px; background: ${barColor}; box-shadow: ${barShadow};"></div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      // 4. Render Brand Intel (UPGRADED CLEAR LABELS)
+      const brandEl = document.getElementById("ai-brand");
+      if (brandEl && ai.brand) {
+        const bConf = parseFloat(ai.brand.confidence || 0);
+        const bThresh = parseFloat(ai.brand.threshold || 75.0);
+        const rankingsHtml = (ai.brand.rankings || []).map(r => `
+          <div class="ai-list-row" style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+            <span class="muted">#${r.rank} ${r.name}</span>
+            <span style="font-weight: 600; color: var(--text);">${r.score}</span>
+          </div>
+        `).join("");
+        brandEl.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <span class="muted" style="font-size: 1.1em;">Target Profile</span>
+            <span style="font-weight: 600; font-size: 1.05em;">
+              ${ai.brand.target} 
+              <a href="https://${ai.brand.domain}" target="_blank" class="pill-tag" style="font-family: 'IBM Plex Mono', monospace; text-decoration: none; margin-left: 8px; font-size: 0.85rem; background: rgba(59, 130, 246, 0.1); padding: 4px 8px; border-radius: 6px; color: #3b82f6;">${ai.brand.domain} ↗</a>
+            </span>
+          </div>
+          <div id="ai-brand-track-container" style="padding: 10px 0 16px 0;">
+            <!-- Clear Separated Labeling -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px;">
+              <div>
+                <div style="font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 2px;">Impersonation Confidence</div>
+                <strong style="font-size: 1.4rem; color: var(--danger); font-family: 'Chakra Petch', sans-serif;">${bConf}%</strong>
+              </div>
+              <span style="background: var(--accent-soft); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; color: var(--muted); font-family: 'IBM Plex Mono', monospace;">
+                Guardrail Limit: <strong style="color: var(--text);">${bThresh}%</strong>
+              </span>
+            </div>
+            <div style="width: 100%; background: var(--border); height: 12px; border-radius: 6px; position: relative; margin: 26px 0 18px 0; overflow: visible !important;">
+              <div id="ai-brand-thresh-bubble" class="ai-bubble-base" style="left: ${bThresh}%;" title="Limit: ${bThresh}%"></div>
+              <div id="ai-brand-conf-bar" style="width: 0%; height: 100%; border-radius: 6px; background: #10b981; transition: none;"></div>
+            </div>
+          </div>
+          <div style="margin-top: 18px;">
+            <span class="muted" style="font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;">Match Rankings</span>
+            <div style="margin-top: 8px;">${rankingsHtml}</div>
+          </div>
+        `;
+      }
+
+      // 5. Render Policy Violations
+      const threshEl = document.getElementById("ai-thresholds");
+      if (threshEl) {
+        threshEl.innerHTML = (ai.policy && ai.policy.length) ? ai.policy.map((p, idx) => `
+          <div class="ai-row-card" style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--text); font-weight: 500;">${p.name}</span>
+            </div>
+            <span class="ai-badge-soft-red" style="font-family: 'IBM Plex Mono', monospace; animation-delay: ${idx * 0.6}s;">
+              ${p.value} <span style="color: #94a3b8; font-weight: 400; margin-left: 6px;">(${p.limit})</span>
+            </span>
+          </div>
+        `).join("") : `<p class="muted">No policy thresholds breached.</p>`;
+      }
+
+      // --- ANIMATION FUNCTIONS ---
+      function animateValue(id, start, end, duration) {
+        if (start === end) return;
+        const obj = document.getElementById(id);
+        if (!obj) return;
+        let startTimestamp = null;
+        const step = (ts) => {
+          if (!startTimestamp) startTimestamp = ts;
+          const prog = Math.min((ts - startTimestamp) / duration, 1);
+          obj.innerHTML = Math.floor((1 - Math.pow(1 - prog, 3)) * (end - start) + start);
+          if (prog < 1) window.requestAnimationFrame(step);
+          else obj.innerHTML = end;
+        };
+        window.requestAnimationFrame(step);
+      }
+
+      function animateSimpleBar(el, targetPct, duration) {
+        if (!el) return;
+        let startTimestamp = null;
+        const step = (ts) => {
+          if (!startTimestamp) startTimestamp = ts;
+          const prog = Math.min((ts - startTimestamp) / duration, 1);
+          el.style.width = ((1 - Math.pow(1 - prog, 3)) * targetPct) + "%";
+          if (prog < 1) window.requestAnimationFrame(step);
+          else el.style.width = targetPct + "%";
+        };
+        window.requestAnimationFrame(step);
+      }
+
+      function runConfidenceAnimation(barId, bubbleId, targetConf, limitPct) {
+        const bar = document.getElementById(barId);
+        const bubble = document.getElementById(bubbleId);
+        if (!bar || !bubble) return;
+        let startTimestamp = null;
+        let rippleFired = false;
+        const step = (ts) => {
+          if (!startTimestamp) startTimestamp = ts;
+          const prog = Math.min((ts - startTimestamp) / 1800, 1);
+          const currentPct = (1 - Math.pow(1 - prog, 3)) * targetConf;
+          bar.style.width = currentPct + "%";
+          
+          let r = 16, g = 185, b = 129;
+          if (currentPct < 50) {
+            const t = currentPct / 50;
+            r = Math.round(16 + t * (245 - 16)); g = Math.round(185 + t * (158 - 185)); b = Math.round(129 + t * (11 - 129));
+          } else {
+            const t = (currentPct - 50) / 50;
+            r = Math.round(245 + t * (239 - 245)); g = Math.round(158 + t * (68 - 158)); b = Math.round(11 + t * (68 - 11));
+          }
+          const liveColor = `rgb(${r}, ${g}, ${b})`;
+          bar.style.backgroundColor = liveColor;
+          bar.style.boxShadow = `0 0 12px ${liveColor}`;
+
+          if (currentPct >= limitPct && !rippleFired) {
+            rippleFired = true;
+            bubble.classList.add("ai-bubble-pop-ripple");
+          }
+          if (prog < 1) window.requestAnimationFrame(step);
+          else bar.style.width = targetConf + "%";
+        };
+        window.requestAnimationFrame(step);
+      }
+
+      // --- SCROLL & TAB OBSERVERS ---
+      setTimeout(() => {
+        if ("IntersectionObserver" in window) {
+          const trackEl = document.getElementById("ai-track-container");
+          if (trackEl) new IntersectionObserver((e, o) => e.forEach(ent => { if (ent.isIntersecting) { runConfidenceAnimation("ai-conf-bar", "ai-thresh-bubble", visualConf, visualThresh); o.disconnect(); } }), { threshold: 0.1 }).observe(trackEl);
+
+          const shapContainer = document.getElementById("ai-shap-graph");
+          if (shapContainer) new IntersectionObserver((e, o) => e.forEach(ent => { if (ent.isIntersecting) { shapContainer.querySelectorAll(".shap-anim-bar").forEach((bar, idx) => setTimeout(() => animateSimpleBar(bar, parseFloat(bar.getAttribute("data-target") || 0), 1600), idx * 120)); o.disconnect(); } }), { threshold: 0.15 }).observe(shapContainer);
+
+          const brandContainer = document.getElementById("ai-brand-track-container");
+          if (brandContainer) new IntersectionObserver((e, o) => e.forEach(ent => { if (ent.isIntersecting) { runConfidenceAnimation("ai-brand-conf-bar", "ai-brand-thresh-bubble", parseFloat(ai.brand.confidence || 0), parseFloat(ai.brand.threshold || 75.0)); o.disconnect(); } }), { threshold: 0.2 }).observe(brandContainer);
+        }
+
+        let scoreAnimated = false;
+        const aiTabPanel = document.getElementById("tab-ai-insights");
+        if (aiTabPanel && "MutationObserver" in window) {
+          new MutationObserver(() => {
+            if (aiTabPanel.classList.contains("active") && !scoreAnimated) {
+              animateValue('ai-risk-score-anim', 0, parseInt(ai.core?.globalRisk || 0, 10), 1500);
+              scoreAnimated = true;
+            }
+          }).observe(aiTabPanel, { attributes: true, attributeFilter: ["class"] });
+        }
+      }, 100);
+    })();
+  </script>
+</body>
+
+</html>
