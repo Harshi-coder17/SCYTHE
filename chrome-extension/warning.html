@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS Security Warning</title>
+
+    <link rel="stylesheet" href="warning.css">
+</head>
+<body>
+
+<div class="container">
+
+    <div class="shield">
+    <img src="https://img.icons8.com/fluency/96/shield.png" alt="Shield">
+    </div>
+
+    <h1>Dangerous Website Blocked</h1>
+
+    <p class="subtitle">
+        AEGIS has prevented this page from loading because it appears to be unsafe.
+    </p>
+
+    <div class="card">
+
+        <div class="row">
+            <span>Website</span>
+            <strong id="website">Loading...</strong>
+        </div>
+
+        <div class="row">
+            <span>Severity</span>
+            <strong id="severity">Loading...</strong>
+        </div>
+
+        <div class="row">
+            <span>Risk Score</span>
+            <strong id="score">Loading...</strong>
+        </div>
+
+    </div>
+
+    <div class="reason">
+
+        <h3>Reason</h3>
+
+        <p id="explanation">
+            Loading...
+        </p>
+
+    </div>
+
+    <div class="indicators">
+
+        <h3>Threat Indicators</h3>
+
+        <ul id="indicatorList"></ul>
+
+    </div>
+
+    <div class="buttons">
+
+        <button id="backBtn">
+            ← Go Back
+        </button>
+
+        <button id="dashboardBtn">
+            View Report
+        </button>
+
+        <button class="danger" id="continueBtn">
+            Continue Anyway
+        </button>
+
+    </div>
+
+</div>
+
+<script src="warning.js"></script>
+
+</body>
+</html>
