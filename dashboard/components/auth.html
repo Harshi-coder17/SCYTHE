@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-background">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberWeb — Login / Sign up</title>
+  <meta name="description" content="Access your CyberWeb security dashboard." />
+  <meta name="theme-color" content="#0a0b0a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body data-page="auth">
+  <div class="auth-wrap">
+    <div class="auth-glow"></div>
+    <div class="auth-card">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="brand"><span class="logo" data-icon="logo"></span><span class="brand-name">CyberWeb</span></span>
+      </div>
+
+      <div class="auth-switch">
+        <button id="tab-login" class="active" onclick="setMode('login')">Login</button>
+        <button id="tab-signup" onclick="setMode('signup')">Sign up</button>
+      </div>
+
+      <h1 id="auth-title">Welcome back</h1>
+      <p class="muted mb-6" id="auth-sub">Log in to access your threat dashboard.</p>
+
+      <form id="auth-form" onsubmit="return submitAuth(event)">
+        <div class="field" id="name-field" style="display:none">
+          <label>Full name</label>
+          <input class="input" type="text" placeholder="Ada Lovelace" />
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input class="input" type="email" placeholder="you@company.com" required />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input class="input" type="password" placeholder="••••••••" required />
+        </div>
+        <button class="btn btn-primary btn-block mt-4" type="submit" id="auth-submit">Login</button>
+      </form>
+
+      <p class="muted mt-6 text-center" style="font-size:0.85rem">
+        Frontend demo — any credentials will take you to the dashboard.
+      </p>
+      <p class="mt-4 text-center"><a href="index.html" class="muted">← Back to home</a></p>
+    </div>
+  </div>
+
+  <script src="../js/common.js"></script>
+  <script>
+    let mode = "login";
+    function setMode(m) {
+      mode = m;
+      document.getElementById("tab-login").classList.toggle("active", m === "login");
+      document.getElementById("tab-signup").classList.toggle("active", m === "signup");
+      document.getElementById("name-field").style.display = m === "signup" ? "block" : "none";
+      document.getElementById("auth-title").textContent = m === "signup" ? "Create account" : "Welcome back";
+      document.getElementById("auth-sub").textContent =
+        m === "signup" ? "Start scanning suspicious links in seconds." : "Log in to access your threat dashboard.";
+      document.getElementById("auth-submit").textContent = m === "signup" ? "Create account" : "Login";
+    }
+    function submitAuth(e) {
+      e.preventDefault();
+      window.location.href = "dashboard.html";
+      return false;
+    }
+  </script>
+</body>
+</html>

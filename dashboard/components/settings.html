@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-background">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberWeb — Settings</title>
+  <meta name="description" content="Manage your CyberWeb appearance, scan defaults, notifications and account." />
+  <meta name="theme-color" content="#0a0b0a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body data-page="settings">
+  <div class="app">
+    <aside class="ribbon" id="ribbon"></aside>
+    <div class="main">
+      <div class="appbar">
+        <h1>Settings</h1>
+        <div class="actions">
+          <button class="icon-btn" onclick="toggleTheme(); syncThemeSwitch();" title="Toggle theme" data-icon="theme"></button>
+        </div>
+      </div>
+
+      <div class="page-body">
+
+        <div class="grid grid-2 mb-6">
+          <!-- Appearance -->
+          <div class="panel">
+            <div class="panel-head"><h3>Appearance</h3></div>
+            <div style="padding:22px">
+              <div class="field">
+                <label>Theme</label>
+                <div class="auth-switch" id="theme-switch" style="max-width:280px">
+                  <button id="theme-dark" onclick="setTheme('dark')">Dark</button>
+                  <button id="theme-light" onclick="setTheme('light')">Light</button>
+                </div>
+              </div>
+              <p class="muted" style="font-size:0.85rem">Applies instantly and is remembered on this device.</p>
+            </div>
+          </div>
+
+          <!-- Account -->
+          <div class="panel">
+            <div class="panel-head"><h3>Account</h3></div>
+            <div style="padding:22px">
+              <div class="field">
+                <label>Full name</label>
+                <input class="input" id="acc-name" type="text" placeholder="Ada Lovelace" />
+              </div>
+              <div class="field">
+                <label>Email</label>
+                <input class="input" id="acc-email" type="email" placeholder="you@company.com" />
+              </div>
+              <button class="btn btn-primary" id="acc-save" onclick="saveAccount()">Save Changes</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-2 mb-6">
+          <!-- Scan defaults -->
+          <div class="panel">
+            <div class="panel-head"><h3>Scan Defaults</h3><span class="pill-tag">Applied to new scans</span></div>
+            <div style="padding:22px">
+              <div class="check-row" id="scan-defaults">
+                <label class="check active"><input type="checkbox" data-key="mail" checked /> Mail extension check</label>
+                <label class="check active"><input type="checkbox" data-key="deep" checked /> Deep scan</label>
+                <label class="check active"><input type="checkbox" data-key="sandbox" checked /> Sandbox detonation</label>
+                <label class="check"><input type="checkbox" data-key="ocr" /> Screenshot OCR</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notifications -->
+          <div class="panel">
+            <div class="panel-head"><h3>Notifications</h3></div>
+            <div style="padding:22px">
+              <div class="check-row" id="notif-defaults">
+                <label class="check active"><input type="checkbox" data-key="critical" checked /> Email on critical alerts</label>
+                <label class="check"><input type="checkbox" data-key="weekly" /> Weekly summary report</label>
+                <label class="check"><input type="checkbox" data-key="push" /> Browser push notifications</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="panel">
+          <div class="panel-head"><h3>Danger Zone</h3></div>
+          <div class="alert-row">
+            <span class="muted">Clear all locally saved settings and scan history on this device.</span>
+            <button class="btn btn-sm" onclick="clearLocalData()">Clear local data</button>
+          </div>
+          <div class="alert-row">
+            <span class="muted">Sign out of CyberWeb on this device.</span>
+            <button class="btn btn-sm" onclick="window.location.href='auth.html'">Log out</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/common.js"></script>
+  <script>
+    const LS = {
+      account: "sw-account",
+      scanDefaults: "sw-scan-defaults",
+      notifDefaults: "sw-notif-defaults",
+    };
+
+    /* ---- Theme switch buttons (kept in sync with the shared toggleTheme()) ---- */
+    function syncThemeSwitch() {
+      const isLight = document.documentElement.getAttribute("data-theme") === "light";
+      document.getElementById("theme-dark").classList.toggle("active", !isLight);
+      document.getElementById("theme-light").classList.toggle("active", isLight);
+    }
+    function setTheme(mode) {
+      if (mode === "light") document.documentElement.setAttribute("data-theme", "light");
+      else document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("sw-theme", mode);
+      syncThemeSwitch();
+    }
+
+    /* ---- Account ---- */
+    function loadAccount() {
+      const saved = JSON.parse(localStorage.getItem(LS.account) || "{}");
+      document.getElementById("acc-name").value = saved.name || "";
+      document.getElementById("acc-email").value = saved.email || "";
+    }
+    function saveAccount() {
+      const name = document.getElementById("acc-name").value.trim();
+      const email = document.getElementById("acc-email").value.trim();
+      localStorage.setItem(LS.account, JSON.stringify({ name, email }));
+      const btn = document.getElementById("acc-save");
+      const original = btn.textContent;
+      btn.textContent = "✓ Saved";
+      setTimeout(() => (btn.textContent = original), 1500);
+    }
+
+    /* ---- Generic checkbox-row persistence (scan defaults + notifications) ---- */
+    function wireCheckRow(rowId, storageKey) {
+      const row = document.getElementById(rowId);
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+
+      row.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+        const key = cb.dataset.key;
+        if (key in saved) cb.checked = saved[key];
+        cb.closest(".check").classList.toggle("active", cb.checked);
+      });
+
+      row.addEventListener("change", (e) => {
+        const cb = e.target;
+        const label = cb.closest(".check");
+        if (label) label.classList.toggle("active", cb.checked);
+
+        const state = {};
+        row.querySelectorAll("input[type=checkbox]").forEach((c) => (state[c.dataset.key] = c.checked));
+        localStorage.setItem(storageKey, JSON.stringify(state));
+      });
+    }
+
+    /* ---- Danger zone ---- */
+    function clearLocalData() {
+      Object.values(LS).forEach((k) => localStorage.removeItem(k));
+      localStorage.removeItem("sw-last-report");
+      loadAccount();
+      wireCheckRow("scan-defaults", LS.scanDefaults);
+      wireCheckRow("notif-defaults", LS.notifDefaults);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      syncThemeSwitch();
+      loadAccount();
+      wireCheckRow("scan-defaults", LS.scanDefaults);
+      wireCheckRow("notif-defaults", LS.notifDefaults);
+    });
+  </script>
+</body>
+</html>

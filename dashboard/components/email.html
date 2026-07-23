@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-background">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberWeb — Email Analysis</title>
+  <meta name="description" content="Email forensics: headers, authentication, delivery chain, content scoring and attachments." />
+  <meta name="theme-color" content="#0a0b0a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+
+<body data-page="email">
+  <div class="app">
+    <aside class="ribbon" id="ribbon"></aside>
+    <div class="main">
+      <div class="appbar">
+        <h1>Email Analysis</h1>
+        <div class="actions">
+          <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" data-icon="theme"></button>
+          <button class="btn btn-primary btn-sm" onclick="refreshEmails()">Refresh</button>
+        </div>
+      </div>
+
+      <div class="page-body">
+
+        <!-- List view -->
+        <div id="email-list-view">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Recent Emails</h3>
+              <span class="pill-tag" id="email-count-tag">— emails</span>
+            </div>
+            <div id="email-list"></div>
+          </div>
+        </div>
+
+        <!-- Detail view -->
+        <div id="email-detail-view" hidden>
+          <div class="panel mb-6">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow accent" style="margin-bottom:6px">Message</p>
+                <h3 id="d-subject" style="word-break:break-all">—</h3>
+              </div>
+              <button class="btn btn-sm" onclick="closeEmail()">&larr; Back to list</button>
+            </div>
+            <div style="padding:18px 22px 22px" class="grid grid-4">
+              <div>
+                <div class="k" style="font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">From</div>
+                <div id="d-from" style="word-break:break-all">—</div>
+              </div>
+              <div>
+                <div class="k" style="font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Sent</div>
+                <div id="d-sent">—</div>
+              </div>
+              <div>
+                <div class="k" style="font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Thread ID</div>
+                <div id="d-thread">—</div>
+              </div>
+              <div>
+                <div class="k" style="font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)">Recipients</div>
+                <div id="d-recipcount">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tabs" id="email-tabs">
+            <div class="tab-slider"></div>
+            <button class="tab active" onclick="showEmailTab('overview', this)">Overview</button>
+            <button class="tab" onclick="showEmailTab('recipients', this)">Recipients</button>
+            <button class="tab" onclick="showEmailTab('auth', this)">Auth</button>
+            <button class="tab" onclick="showEmailTab('chain', this)">Chain</button>
+            <button class="tab" onclick="showEmailTab('content', this)">Content</button>
+            <button class="tab" onclick="showEmailTab('attachments', this)">Attachments</button>
+          </div>
+
+          <!-- Overview -->
+          <div class="tab-panel active" id="etab-overview">
+            <div class="grid grid-2">
+              <div class="panel">
+                <div class="panel-head"><h3>Message &amp; Sender</h3></div>
+                <div id="ov-message"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>Risk Signals</h3></div>
+                <div id="ov-impersonation"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recipients -->
+          <div class="tab-panel" id="etab-recipients">
+            <div class="grid grid-2">
+              <div class="panel">
+                <div class="panel-head"><h3>Recipients</h3></div>
+                <div id="rc-recipients"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>Sending Domain</h3></div>
+                <div id="rc-domains"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Auth -->
+          <div class="tab-panel" id="etab-auth">
+            <div class="panel">
+              <div class="panel-head"><h3>Email Authentication</h3></div>
+              <div id="auth-list"></div>
+            </div>
+          </div>
+
+          <!-- Chain -->
+          <div class="tab-panel" id="etab-chain">
+            <div class="panel mb-6">
+              <div class="panel-head"><h3>Delivery Summary</h3></div>
+              <div id="chain-summary"></div>
+            </div>
+            <div class="grid grid-2">
+              <div class="panel">
+                <div class="panel-head"><h3>Received Hops</h3></div>
+                <div id="chain-hops" style="padding:14px"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>Raw Headers</h3></div>
+                <div id="chain-headers"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Content -->
+          <div class="tab-panel" id="etab-content">
+            <div class="grid grid-2">
+              <div class="panel">
+                <div class="panel-head"><h3>Content Scoring</h3></div>
+                <div id="content-scores"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>Extracted URLs</h3></div>
+                <div id="content-urls"></div>
+              </div>
+            </div>
+            <div class="panel mt-6">
+              <div class="panel-head"><h3>Message Body</h3></div>
+              <div id="content-body"></div>
+            </div>
+          </div>
+
+          <!-- Attachments -->
+          <div class="tab-panel" id="etab-attachments">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Attachments</h3>
+                <span class="pill-tag" id="attach-count-tag">0 file(s)</span>
+              </div>
+              <div id="attach-list" style="padding:14px"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/common.js"></script>
+  <script src="../js/mock.js"></script>
+  <script>
+    let currentEmails = [];
+
+    function row(k, v) {
+      const safeValues = ["Safe", "No", "Not Detected", "pass", "aligned"];
+      const dangerValues = ["Unsafe", "Yes", "Detected", "fail"];
+      const display = (v === null || v === undefined || v === "") ? "—" : v;
+      let value;
+      if (safeValues.includes(display)) {
+        value = `<span class="status-pill status-safe">${display}</span>`;
+      } else if (dangerValues.includes(display)) {
+        value = `<span class="status-pill status-danger">${display}</span>`;
+      } else {
+        value = `<span class="time" style="color:var(--text)">${escapeXml(String(display))}</span>`;
+      }
+      return `<div class="alert-row"><span class="muted">${k}</span>${value}</div>`;
+    }
+
+    /* row() reuses the .time class for values, which is white-space:nowrap -
+       fine for short fields, wrong for paragraph-length text like body_text.
+       block() is a plain wrapping paragraph row instead. */
+    function block(label, value) {
+      const display = (value === null || value === undefined || value === "") ? "—" : escapeXml(String(value));
+      return `<div class="alert-row" style="display:block">
+        <div class="muted" style="font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px">${label}</div>
+        <div style="white-space:normal;word-break:break-word;line-height:1.5">${display}</div>
+      </div>`;
+    }
+
+    function itemCard(title, rowsHtml) {
+      return `<div class="panel mb-4" style="padding:0">
+        <div class="panel-head" style="padding:14px 18px"><h3 style="font-size:0.95rem">${escapeXml(title)}</h3></div>
+        <div>${rowsHtml}</div>
+      </div>`;
+    }
+
+    /* ---- list view ---- */
+    function emailListRow(e, idx) {
+      const risky = e.authentication.overall_auth_result !== "pass" || e.impersonation.spoofing_detected;
+      return `
+        <div class="alert-row" style="cursor:pointer" onclick="openEmail(${idx})">
+          <span class="dot ${risky ? "dot-danger" : "dot-ok"}"></span>
+          <span class="url">${escapeXml(e.display_name)} &lt;${escapeXml(e.from_address)}&gt; — ${escapeXml(e.subject)}</span>
+          <span class="pill-tag">${e.authentication.overall_auth_result}</span>
+          <span class="time">${e.sent_at}</span>
+        </div>`;
+    }
+
+    function renderList() {
+      document.getElementById("email-count-tag").textContent = currentEmails.length + " emails";
+      document.getElementById("email-list").innerHTML = currentEmails.map(emailListRow).join("");
+    }
+
+    function refreshEmails() {
+      currentEmails = generateEmailList(10);
+      renderList();
+      closeEmail();
+    }
+
+    /* ---- detail view: tab renderers, one per source table group ---- */
+    function renderOverview(e) {
+      document.getElementById("ov-message").innerHTML = `
+        ${row("From address", e.from_address)}
+        ${row("Display name", e.display_name)}
+        ${row("Reply-To", e.reply_to.reply_to)}
+        ${row("Subject", e.subject)}
+        ${row("Sent at", e.sent_at)}
+        ${row("Created at", e.created_at)}
+        ${row("Recipient count", e.recipient_count)}
+      `;
+      const anyMalware = e.attachments.some((a) => a.malware_detected);
+      const suspiciousLink = e.content.link_mentioned &&
+        (e.authentication.overall_auth_result !== "pass" || e.content.homoglyph_in_subject_or_body);
+      document.getElementById("ov-impersonation").innerHTML = `
+        ${row("Typosquatting", e.impersonation.typo_squatting ? "Yes" : "No")}
+        ${row("Display name spoof", e.impersonation.display_name_spoof ? "Yes" : "No")}
+        ${row("Spoofing detected", e.impersonation.spoofing_detected ? "Yes" : "No")}
+        ${row("Malware detected", anyMalware ? "Detected" : "Not Detected")}
+        ${row("Suspicious link", suspiciousLink ? "Detected" : "Not Detected")}
+      `;
+    }
+
+    function renderRecipients(e) {
+      document.getElementById("rc-recipients").innerHTML = e.recipients.length
+        ? e.recipients.map((r) => row(r.recipient_type, r.recipient_address)).join("")
+        : row("Recipients", "None recorded");
+      document.getElementById("rc-domains").innerHTML = `
+        ${row("Sender domain", e.domains_info.sender_domain)}
+        ${row("Return-path domain", e.domains_info.return_path_domain)}
+        ${row("Message-ID domain", e.domains_info.message_id_domain)}
+        ${row("DKIM domain", e.domains_info.dkim_domain)}
+        ${row("Domain registry name", e.domain_master.email_domain_name)}
+        ${row("DNSSEC enabled", e.domain_master.dnssec_enabled ? "Yes" : "No")}
+        ${row("MX records", e.domain_master.mx_records)}
+      `;
+    }
+
+    function renderAuth(e) {
+      const a = e.authentication;
+      document.getElementById("auth-list").innerHTML = `
+        ${row("Auth ID", a.auth_id)}
+        ${row("SPF result", a.spf_result)}
+        ${row("SPF domain", a.spf_domain)}
+        ${row("DKIM result", a.dkim_result)}
+        ${row("DKIM domain", a.dkim_domain)}
+        ${row("DKIM selector", a.dkim_selector)}
+        ${row("DMARC result", a.dmarc_result)}
+        ${row("DMARC policy", a.dmarc_policy)}
+        ${row("Overall auth result", a.overall_auth_result)}
+        ${row("Alignment status", a.alignment_status)}
+      `;
+    }
+
+    function renderChain(e) {
+      const c = e.received_chain;
+      document.getElementById("chain-summary").innerHTML = `
+        ${row("Hop number (received_chain)", c.hop_number)}
+        ${row("Hop count (received_count)", c.received_count)}
+        ${row("Originating IP", c.originating_ip)}
+        ${row("Sender hostname", c.sender_hostname)}
+        ${row("Sender country", c.sender_country)}
+        ${row("Sender ASN", c.sender_asn)}
+        ${row("Reverse DNS", c.reverse_dns)}
+      `;
+      document.getElementById("chain-hops").innerHTML = e.received_hops
+        .map((h) => itemCard(`Hop ${h.hop_number}`, `
+          ${row("Received ID", h.received_id)}
+          ${row("Received from", h.received_from)}
+          ${row("Received by", h.received_by)}
+          ${row("Received with", h.received_with)}
+          ${row("Received for", h.received_for)}
+          ${row("Timestamp", new Date(h.received_timestamp).toLocaleString())}
+        `))
+        .join("");
+      document.getElementById("chain-headers").innerHTML = e.headers
+        .map((h) => row(h.header_name, h.header_value))
+        .join("");
+    }
+
+    function renderContent(e) {
+      const c = e.content;
+      document.getElementById("content-scores").innerHTML = `
+        ${row("Language", c.language)}
+        ${row("Urgency score", c.urgency_score)}
+        ${row("Credential theft score", c.credential_theft_score)}
+        ${row("Financial score", c.financial_score)}
+        ${row("Spam score", c.spam_score)}
+        ${row("Link mentioned", c.link_mentioned ? "Yes" : "No")}
+        ${row("Homoglyph in subject/body", c.homoglyph_in_subject_or_body ? "Detected" : "Not Detected")}
+        ${row("Embedded tracking pixels", c.embedded_tracking_pixel_count)}
+      `;
+      document.getElementById("content-urls").innerHTML = e.extracted_urls.length
+        ? e.extracted_urls.map((u) => row(`URL #${u.url_sequence}`, u.extracted_url)).join("")
+        : row("Extracted URLs", "None found");
+      document.getElementById("content-body").innerHTML =
+        block("body_text", c.body_text) + block("html_body", c.html_body);
+    }
+
+    function renderAttachments(e) {
+      document.getElementById("attach-count-tag").textContent = e.attachment_count.attachment_count + " file(s)";
+      document.getElementById("attach-list").innerHTML = e.attachments.length
+        ? e.attachments
+            .map((a) => itemCard(a.attachment_name, `
+              ${row("Attachment ID", a.attachment_id)}
+              ${row("Size", (a.attachment_size / 1024).toFixed(1) + " KB")}
+              ${row("MIME type", a.mime_type)}
+              ${row("File extension", a.file_extension)}
+              ${row("SHA-256", a.sha256_hash.slice(0, 16) + "…")}
+              ${row("Malware detected", a.malware_detected ? "Detected" : "Not Detected")}
+              ${row("Macro present", a.macro_present ? "Yes" : "No")}
+              ${row("Content disposition", a.content_disposition)}
+              ${row("Inline", a.is_inline ? "Yes" : "No")}
+              ${row("Password protected", a.attachment_password_protected ? "Yes" : "No")}
+            `))
+            .join("")
+        : `<div style="padding:22px" class="muted">No attachments.</div>`;
+    }
+
+    function renderEmailDetail(e) {
+      document.getElementById("d-subject").textContent = e.subject;
+      document.getElementById("d-from").textContent = `${e.display_name} <${e.from_address}>`;
+      document.getElementById("d-sent").textContent = e.sent_at;
+      document.getElementById("d-thread").textContent = e.thread_id;
+      document.getElementById("d-recipcount").textContent = e.recipient_count;
+      renderOverview(e);
+      renderRecipients(e);
+      renderAuth(e);
+      renderChain(e);
+      renderContent(e);
+      renderAttachments(e);
+    }
+
+    /* ---- list <-> detail switching ---- */
+    function openEmail(idx) {
+      renderEmailDetail(currentEmails[idx]);
+      document.getElementById("email-list-view").hidden = true;
+      document.getElementById("email-detail-view").hidden = false;
+
+      const firstTab = document.querySelector("#email-tabs .tab");
+      document.querySelectorAll("#email-detail-view .tab").forEach((t) => t.classList.remove("active"));
+      firstTab.classList.add("active");
+      document.querySelectorAll("#email-detail-view .tab-panel").forEach((p) => p.classList.remove("active"));
+      document.getElementById("etab-overview").classList.add("active");
+      requestAnimationFrame(() => moveSlider(firstTab));
+    }
+
+    function closeEmail() {
+      document.getElementById("email-detail-view").hidden = true;
+      document.getElementById("email-list-view").hidden = false;
+    }
+
+    function showEmailTab(tabName, button) {
+      document.querySelectorAll("#email-detail-view .tab").forEach((t) => t.classList.remove("active"));
+      button.classList.add("active");
+      moveSlider(button);
+      document.querySelectorAll("#email-detail-view .tab-panel").forEach((p) => p.classList.remove("active"));
+      document.getElementById("etab-" + tabName).classList.add("active");
+    }
+
+    /* ---- init ---- */
+    currentEmails = generateEmailList(10);
+    renderList();
+  </script>
+</body>
+
+</html>

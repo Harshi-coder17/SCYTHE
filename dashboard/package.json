@@ -1,0 +1,12 @@
+{
+  "name": "CyberWeb-cyber",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "serve -l 3000 .",
+    "start": "serve -l 3000 ."
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}
