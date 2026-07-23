@@ -1,0 +1,611 @@
+# =======================================================
+# AEGIS — Master Docker Compose  (v4 — network pool fix + pinned socket proxy)
+# 8 containers + 1 socket proxy + shared volumes
+#
+# Containers:
+#   nginx              — Receptionist (port 80 → 443, terminates TLS)
+#   backend            — FastAPI / Uvicorn
+#   redis              — Broker + result backend + final verdict cache
+#   postgres           — Primary datastore (users, scans, incidents, IOCs)
+#   celery_worker      — Task runner (OCR, vision, sandbox, risk_fusion, alerts)
+#   celery_beat        — Periodic scheduler (file cleanup, health sweeps)
+#   docker_socket_proxy— Scoped Docker API proxy (replaces raw socket mount)
+#   sandbox            — Playwright detonation container (isolated network)
+#
+# Networks:
+#   aegis_net        — Internal bridge for core services (nginx/backend/db/redis/beat)
+#   docker_proxy_net — Isolated bridge, ONLY aegis_sandbox_runner + docker_socket_proxy.
+#   sandbox_net      — Isolated bridge for sandbox only (no route to aegis_net)
+#
+# =======================================================
+
+
+# -------------------------------------------------------
+# SHARED CONFIGURATION ANCHORS
+# Common environment variables reused across all backend services
+x-common-env: &common-env
+  AEGIS_DB_PASSWORD: ${AEGIS_DB_PASSWORD:?AEGIS_DB_PASSWORD must be set in .env}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+  REDIS_SECURITY_PASSWORD: ${REDIS_SECURITY_PASSWORD:-${REDIS_PASSWORD}}
+  REQUIRE_REAL_CERT: ${REQUIRE_REAL_CERT:-false}
+
+x-backend-common: &backend-common
+  env_file:
+    - ./.env
+  environment:
+    <<: *common-env
+  volumes:
+    - ./shared/scans:/shared/scans
+  # Python (FastAPI, Celery worker, Beat) requires read_only: false for runtime bytecode compilation
+  # (__pycache__) across dynamic module loads and Celery Beat schedule database synchronization.
+  # Hardening is enforced via non-root execution (UID 1001), cap_drop: [ALL], and no-new-privileges: true.
+  read_only: false
+  tmpfs:
+    - /tmp
+    - /app/.cache
+  networks:
+    - aegis_net
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    redis_security:
+      condition: service_healthy
+    clamav:
+      condition: service_healthy
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  restart: unless-stopped
+
+# Resource limit anchor reused by all long-running services
+x-default-resources: &default-resources
+  deploy:
+    resources:
+      limits:
+        cpus: "1.0"
+        memory: 1024M
+      reservations:
+        cpus: "0.25"
+        memory: 256M
+
+# -------------------------------------------------------
+# SERVICES
+# -------------------------------------------------------
+services:
+
+  # ---------------------------------------------------
+  # 1. NGINX — Receptionist
+  # ---------------------------------------------------
+  nginx:
+    container_name: aegis_nginx
+    build:
+      context: ./containers/nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - REQUIRE_REAL_CERT=${REQUIRE_REAL_CERT:-false}
+    networks:
+      - aegis_net
+    depends_on:
+      backend:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid,size=64m
+      - /var/run:rw,noexec,nosuid,size=16m
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /etc/nginx/certs:rw,noexec,nosuid,size=16m
+      - /var/log/nginx:rw,noexec,nosuid,size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    restart: unless-stopped
+    <<: *default-resources
+
+  # ---------------------------------------------------
+  # 2. BACKEND — FastAPI / Uvicorn
+  # ---------------------------------------------------
+  backend:
+    <<: *backend-common
+    build:
+      context: ./containers/backend
+      dockerfile: Dockerfile
+    container_name: aegis_backend
+    command: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers ${WORKER_COUNT:-2}
+      --log-level info
+      --proxy-headers
+      --forwarded-allow-ips='*'
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # ---------------------------------------------------
+  # 3. REDIS — Broker + Cache
+  # ---------------------------------------------------
+  redis:
+    container_name: aegis_redis
+    image: redis:7.2-alpine@sha256:dfa18828cbc07b3ae6a95ec7343f6c214fdee2d836197b4be8e9904420762cd8
+    user: "999"
+    command: >
+      redis-server
+      --save 60 1
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+    volumes:
+      - redis_data:/data
+    networks:
+      - aegis_net
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    <<: *default-resources
+
+  redis_security:
+    container_name: aegis_redis_security
+    image: redis:7.2-alpine@sha256:dfa18828cbc07b3ae6a95ec7343f6c214fdee2d836197b4be8e9904420762cd8
+    user: "999"
+    command: >
+      redis-server
+      --save 60 1
+      --appendonly yes
+      --maxmemory 128mb
+      --maxmemory-policy noeviction
+      --requirepass ${REDIS_SECURITY_PASSWORD:-${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}}
+    volumes:
+      - redis_security_data:/data
+    networks:
+      - aegis_net
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_SECURITY_PASSWORD:-${REDIS_PASSWORD}}", "ping"]
+      interval: 10s
+      timeout: 5s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    <<: *default-resources
+
+  # ---------------------------------------------------
+  # 4. POSTGRES — Primary Datastore
+  # ---------------------------------------------------
+  postgres:
+    container_name: aegis_postgres
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD:?POSTGRES_ROOT_PASSWORD must be set in .env}
+      POSTGRES_DB: postgres
+      AEGIS_DB_PASSWORD: ${AEGIS_DB_PASSWORD:?AEGIS_DB_PASSWORD must be set in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./containers/postgres/init.sh:/docker-entrypoint-initdb.d/01_init.sh:ro
+    networks:
+      - aegis_net
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Required capability set for official postgres:16-alpine during container boot and initdb
+    # (CHOWN/SETUID/SETGID/DAC_OVERRIDE/FOWNER needed by gosu/su-exec before switching from root to postgres user).
+    # Accepted risk / future hardening: migrate boot initialization to a dedicated init-container to allow cap_drop: ALL at runtime.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  # ---------------------------------------------------
+  # 5. DOCKER SOCKET PROXY — Scoped API gateway
+  #    Pinned repo:tag@digest — see change log at the top of this file.
+  #    Scope note: Exposes CONTAINERS=1, IMAGES=1, and POST=1. This allows container creation,
+  #    start, stop, kill, and image inspection/pulling (POST /images/create).
+  #    Because tecnativa/docker-socket-proxy applies POST globally across enabled endpoints,
+  #    CONTAINERS=1 + POST=1 covers stop/kill on any container reachable on this daemon socket.
+  #    Security relies entirely on strict network isolation: ONLY aegis_sandbox_runner sits on
+  #    docker_proxy_net, and it is protected by non-root execution and X-Runner-Auth HMAC gating.
+  #
+  #    Production Hardening Note (Finding #3):
+  #    If this blast radius is unacceptable for your threat model, run `aegis_sandbox_runner`
+  #    against a dedicated isolated/rootless Docker daemon or remote Docker context (`DOCKER_HOST`)
+  #    so that compromised runner credentials cannot touch core infrastructure containers.
+  # ---------------------------------------------------
+  docker_socket_proxy:
+    container_name: aegis_socket_proxy
+    image: tecnativa/docker-socket-proxy:v0.4.2@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476
+    environment:
+      CONTAINERS: 1
+      POST: 1
+      # Explicitly disable container actions not needed for sandbox detonation
+      STOP: 0
+      KILL: 0
+      RESTART: 0
+      PAUSE: 0
+      UNPAUSE: 0
+      # AUTH: 0 — Disables Docker /auth endpoint.
+      # WARNING: Tecnativa/docker-socket-proxy is an ACL gateway filtering by API endpoint.
+      # It does NOT natively enforce HTTP Basic Auth (BASIC_AUTH_INFO is unsupported).
+      # Security relies entirely on network isolation inside docker_proxy_net and endpoint ACLs below.
+      # Treat any addition of containers to docker_proxy_net as a critical security review item.
+      AUTH: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EXEC: 0
+      IMAGES: 1
+      INFO: 0
+      NETWORKS: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - docker_proxy_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
+      - CHOWN
+      - DAC_OVERRIDE
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  # ---------------------------------------------------
+  # 5b. SANDBOX RUNNER — Purpose-Built Admission Control
+  # ---------------------------------------------------
+  aegis_sandbox_runner:
+    build:
+      context: ./containers/backend
+      dockerfile: Dockerfile.runner
+    container_name: aegis_sandbox_runner
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DOCKER_HOST: tcp://docker_socket_proxy:2375
+      SANDBOX_NETWORK: aegis_sandbox_net
+      SHARED_SCANS_VOLUME: aegis_shared_scans
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-aegis-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767}
+      SANDBOX_RUNNER_SECRET: ${SANDBOX_RUNNER_SECRET:?SANDBOX_RUNNER_SECRET must be set in .env}
+      MAX_CONCURRENT_DETONATIONS: "10"
+    networks:
+      - aegis_net          # celery_worker communicates here via RPC
+      - docker_proxy_net   # docker_socket_proxy ONLY reachable by this service
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/runner/.docker
+    restart: unless-stopped
+    depends_on:
+      docker_socket_proxy:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ---------------------------------------------------
+  # 6. CELERY WORKER — Task Runner
+  # ---------------------------------------------------
+  celery_worker:
+    <<: *backend-common
+    build:
+      context: ./containers/backend
+      dockerfile: Dockerfile.worker
+    container_name: aegis_celery_worker
+    volumes:
+      - ./shared/scans:/shared/scans
+      - db_backups:/backups
+    networks:
+      - aegis_net          # Postgres, Redis, aegis_sandbox_runner
+    entrypoint: ["/app/celery_entrypoint.sh"]
+    command: >
+      celery -A celery_worker worker
+      --loglevel=info
+      --concurrency=2
+      --queues=default,sandbox,alerts
+      --hostname=worker@%h
+    environment:
+      <<: *common-env
+      SANDBOX_RUNNER_URL: http://aegis_sandbox_runner:8002/detonate
+      SANDBOX_RUNNER_SECRET: ${SANDBOX_RUNNER_SECRET:?SANDBOX_RUNNER_SECRET must be set in .env}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      SANDBOX_NETWORK: aegis_sandbox_net
+      SHARED_SCANS_VOLUME: aegis_shared_scans
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redis_security:
+        condition: service_healthy
+      aegis_sandbox_runner:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A celery_worker inspect ping --timeout 5 2>&1 | grep -c pong || exit 1"]
+      interval: 45s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 3072M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # ---------------------------------------------------
+  # 7. CELERY BEAT — Periodic Scheduler
+  # ---------------------------------------------------
+  celery_beat:
+    <<: [*backend-common,  *default-resources]
+    build:
+      context: ./containers/backend
+      dockerfile: Dockerfile.worker
+    container_name: aegis_celery_beat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redis_security:
+        condition: service_healthy
+    entrypoint: ["/app/celery_entrypoint.sh"]
+    command: >
+      celery -A celery_beat beat
+      --loglevel=info
+      --scheduler celery.beat:PersistentScheduler
+      --schedule /app/celerybeat-schedule/celerybeat-schedule
+    volumes:
+      - ./shared/scans:/shared/scans
+      - celery_beat_data:/app/celerybeat-schedule
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /app/celerybeat-schedule/celerybeat-schedule"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------
+  # 8. CLAMAV — Anti-Malware Sidecar Daemon
+  # ---------------------------------------------------
+  clamav:
+    container_name: aegis_clamav
+    image: clamav/clamav:stable@sha256:83130a3b60654a4f226feffea549792cfcf28ea6b9de1dee210c8064cd114006
+    environment:
+      - CLAMAV_NO_FRESHCLAM=false
+    volumes:
+      - clamav_db:/var/lib/clamav
+    networks:
+      - aegis_net
+    expose:
+      - "3310"
+    healthcheck:
+      test: ["CMD-SHELL", "echo PING | nc localhost 3310 | grep -q PONG || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.25"
+
+  # ---------------------------------------------------
+  # 8b. SANDBOX NET HOLDER — Keeps `aegis_sandbox_net` active
+  # ---------------------------------------------------
+  sandbox_net_holder:
+    image: alpine:3.19
+    container_name: aegis_sandbox_net_holder
+    command: ["tail", "-f", "/dev/null"]
+    networks:
+      - sandbox_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    user: "65534:65534"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.05"
+          memory: 16M
+
+  # ---------------------------------------------------
+  # 9. SANDBOX — Playwright Detonation Container
+  # ---------------------------------------------------
+  sandbox:
+    container_name: aegis_sandbox
+    build:
+      context: ./containers
+      dockerfile: sandbox/docker/Dockerfile
+    image: ${SANDBOX_DEBUG_IMAGE:-aegis-sandbox:local}
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    # --- Security notice (Volume Scoping & Isolation - Finding #3) ---
+    # This standalone/manual profile mounts the entire `shared_scans` volume at `/app/output`
+    # for local debugging (`aegis.ps1 sandbox <url>`). Any container executed via this profile
+    # can read or overwrite existing scan artifacts across all past scans on the shared volume.
+    # For automated production pipelines, ALWAYS use the `aegis_sandbox_runner` admission-control
+    # microservice (POST /detonate), which dynamically isolates each scan using `--mount
+    # type=volume,source=shared_scans,target=/app/output,volume-subpath=<scan_id>`.
+    volumes:
+      - ./shared/scans:/app/output
+    networks:
+      - sandbox_net
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /home/sandbox/.config:rw,noexec,nosuid,size=32m
+      - /home/sandbox/.pki:rw,noexec,nosuid,size=16m
+      - /home/sandbox/.local:rw,noexec,nosuid,size=32m
+    shm_size: "1gb"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 2048M
+          pids: 512
+        reservations:
+          cpus: "0.25"
+          memory: 512M
+    profiles:
+      - sandbox
+
+
+# -------------------------------------------------------
+# VOLUMES
+# -------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+    name: aegis_postgres_data
+  db_backups:
+    driver: local
+    name: aegis_db_backups
+  celery_beat_data:
+    driver: local
+    name: aegis_celery_beat_data
+  clamav_db:
+    driver: local
+    name: aegis_clamav_db
+  redis_data:
+    driver: local
+    name: aegis_redis_data
+  redis_security_data:
+    driver: local
+    name: aegis_redis_security_data
+
+# -------------------------------------------------------
+# NETWORKS
+# -------------------------------------------------------
+networks:
+  aegis_net:
+    driver: bridge
+    name: aegis_net
+
+  docker_proxy_net:
+    driver: bridge
+    internal: true
+    name: aegis_docker_proxy_net
+
+  sandbox_net:
+    driver: bridge
+    attachable: true
+    internal: false   # internet egress allowed for URL detonation
+    name: aegis_sandbox_net
