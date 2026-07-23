@@ -1,31 +1,79 @@
-*.pyc
+# ── Python & Caching ───────────────────────────────────────────────────────────
 __pycache__/
-.env
-*.log
+*.py[cod]
+*.pyo
+*.pyd
+.Python
 .pytest_cache/
-.coverage
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
 htmlcov/
+.coverage
+.coverage.*
+*.egg-info/
 dist/
 build/
-*.egg-info/
+
+# ── Virtual Environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Environment & Secrets ─────────────────────────────────────────────────────
+.env
+*.env
+*.env.local
+containers/backend/.env
+
+# ── Certificates & Keys ───────────────────────────────────────────────────────
+*.pem
+*.key
+*.p12
+containers/nginx/certs/*.crt
+containers/nginx/certs/*.key
+
+# ── Database Dumps & ML Models ────────────────────────────────────────────────
+*.sqlite3
+*.sql
+*.dump
+containers/backend/models/*.pkl
+containers/backend/models/*.joblib
+
+# ── AEGIS Shared Storage Volumes ──────────────────────────────────────────────
 shared/scans/*
 shared/emails/*
 shared/files/*
 !.gitkeep
 
-# frontend
-# v0 sandbox internal files
+# ── Celery & Logs ─────────────────────────────────────────────────────────────
+celerybeat-schedule
+celerybeat.pid
+*.log
+logs/
+
+# ── Frontend & Web Tools ──────────────────────────────────────────────────────
+node_modules/
+.next/
+.vercel/
+.v0-trash/
+.snowflake/
 __v0_runtime_loader.js
 __v0_devtools.tsx
 __v0_jsx-dev-runtime.ts
-.snowflake/
-.v0-trash/
-.vercel/
 
-# Environment variables
-.env*.local
-
-# Common ignores
-node_modules
-.next/
+# ── OS & IDE Generated ────────────────────────────────────────────────────────
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
