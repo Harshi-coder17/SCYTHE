@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Threat Shield",
+  "version": "1.0.0",
+  "description": "Scans the pages you visit for phishing and scam indicators and warns you before you interact with risky sites.",
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Threat Shield"
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js",
+        "bdr.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "scripting",
+    "webNavigation"
+  ],
+
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://*/*",
+    "http://*/*"
+  ]
+}
