@@ -7,8 +7,24 @@
 //   warning.js           -> ALLOW_SITE (user chose "Continue Anyway")
 
 const API_BASE_URL = "http://localhost:8000"; // TODO: update when deployed
-const SCAN_ENDPOINT   = `${API_BASE_URL}/api/scan`;
-const STAGE2_ENDPOINT = `${API_BASE_URL}/api/analysis/stage2`;  // V10 Stage 2
+// CRITICAL FIX: Backend router prefix is /api/scans, endpoints are /quick and /stage2
+const SCAN_ENDPOINT   = `${API_BASE_URL}/api/scans/quick`;
+const STAGE2_ENDPOINT = `${API_BASE_URL}/api/scans/stage2`;  // V10 Stage 2 — fixed from /api/analysis/stage2
+
+// ── Auth token helper ──────────────────────────────────────────────────────
+// All /api/scans/* endpoints require a valid JWT Bearer token.
+// Token is stored in chrome.storage.local by the dashboard login flow.
+async function getAuthToken() {
+  return new Promise((resolve) => {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+      resolve(null);
+      return;
+    }
+    chrome.storage.local.get(['aegis_token'], (result) => {
+      resolve(result?.aegis_token || null);
+    });
+  });
+}
 const RISK_BLOCK_THRESHOLD = 70;
 // Stage 2 (deep scan) is triggered when Quick Scan score >= this threshold.
 // Keeps Stage 2 payload confined to genuinely suspicious pages.
@@ -222,10 +238,14 @@ async function submitStage2Payload(tabId, url, screenshotBase64, html) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000); // 15 s
 
+  const token = await getAuthToken();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   try {
     const resp = await fetch(STAGE2_ENDPOINT, {
       method:  "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         url,
         screenshot_base64: screenshotBase64,
@@ -266,10 +286,14 @@ async function callBackendApi(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
 
+  const token = await getAuthToken();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   try {
     const response = await fetch(SCAN_ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ url }),
       signal: controller.signal,
     });

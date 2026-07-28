@@ -76,8 +76,16 @@
   </div>
 
   <script src="../js/common.js"></script>
-  <script src="../js/mock.js"></script>
   <script>
+    const API_BASE = "http://localhost:8000";
+
+    // Auth guard — redirect to login if no token
+    (function guardAuth() {
+      if (!localStorage.getItem("aegis_token")) {
+        window.location.href = "auth.html";
+      }
+    })();
+
     // toggle check active state
     document.getElementById("checks").addEventListener("change", (e) => {
       const label = e.target.closest(".check");
@@ -90,22 +98,103 @@
     function switchInputType(type) {
       const slider = document.getElementById('input-type-slider');
       slider.setAttribute('data-selected', type);
-      
       document.querySelectorAll('.pill-btn').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('onclick').includes(type));
       });
-
       document.getElementById('url-section').style.display = type === 'url' ? 'block' : 'none';
       document.getElementById('file-section').style.display = type === 'file' ? 'block' : 'none';
     }
 
-    function startScan(e) {
+    function showScanError(msg) {
+      let el = document.getElementById("scan-error");
+      if (!el) {
+        el = document.createElement("p");
+        el.id = "scan-error";
+        el.style.cssText = "color:var(--danger);margin-top:16px;font-size:0.9rem;text-align:center;";
+        document.querySelector(".scanbox form").appendChild(el);
+      }
+      el.textContent = msg;
+    }
+
+    async function startScan(e) {
       e.preventDefault();
-      let url = document.getElementById("url-input").value.trim();
-      if (!url) url = "secure-login-paypa1.com/verify"; // demo fallback
-      const report = generateReport(url);
-      saveLastReport(report);
-      window.location.href = "loading.html";
+      document.getElementById("scan-error") && (document.getElementById("scan-error").textContent = "");
+
+      const token = localStorage.getItem("aegis_token");
+      if (!token) { window.location.href = "auth.html"; return false; }
+
+      const activeType = document.getElementById("input-type-slider").getAttribute("data-selected");
+      const submitBtn  = document.querySelector(".scanbox form button[type='submit']");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Scanning…";
+
+      try {
+        if (activeType === "file") {
+          // ─── File scan ────────────────────────────────────────────────────────────
+          const fileInput = document.querySelector("#file-section input[type='file']");
+          if (!fileInput.files || fileInput.files.length === 0) {
+            showScanError("Please select a file to upload.");
+            submitBtn.disabled = false; submitBtn.textContent = "Analyze";
+            return false;
+          }
+          const formData = new FormData();
+          formData.append("file", fileInput.files[0]);
+
+          const res = await fetch(`${API_BASE}/api/scans/file`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}` },
+            body: formData,
+          });
+
+          if (res.status === 401) { localStorage.removeItem("aegis_token"); window.location.href = "auth.html"; return false; }
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `File scan failed (${res.status})`);
+          }
+
+          const data = await res.json();
+          sessionStorage.setItem("aegis_scan_result", JSON.stringify({ type: "file", ...data }));
+          window.location.href = "report.html";
+
+        } else {
+          // ─── URL scan ─────────────────────────────────────────────────────────────
+          let url = document.getElementById("url-input").value.trim();
+          if (!url) { showScanError("Please enter a URL to scan."); submitBtn.disabled = false; submitBtn.textContent = "Analyze"; return false; }
+          if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+
+          const scanType = document.querySelector('input[name="scan_type"]:checked')?.value || "quick";
+          const formData = new FormData();
+          formData.append("url", url);
+          formData.append("scan_type", scanType);
+
+          const res = await fetch(`${API_BASE}/api/scans/manual-url`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}` },
+            body: formData,
+          });
+
+          if (res.status === 401) { localStorage.removeItem("aegis_token"); window.location.href = "auth.html"; return false; }
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `URL scan failed (${res.status})`);
+          }
+
+          const data = await res.json();
+          sessionStorage.setItem("aegis_scan_result", JSON.stringify({ type: "url", ...data }));
+
+          if (scanType === "deep" && data.job_id) {
+            // Deep scan: store job_id for WebSocket polling on report.html
+            sessionStorage.setItem("aegis_deep_scan_job", JSON.stringify({ job_id: data.job_id, scan_id: data.scan_id, url }));
+          }
+
+          window.location.href = "loading.html";
+        }
+      } catch (err) {
+        showScanError(err.message || "Scan failed. Please check the backend is running.");
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Analyze";
+      }
+
       return false;
     }
   </script>

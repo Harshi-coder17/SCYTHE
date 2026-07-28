@@ -43,16 +43,16 @@
         <button class="btn btn-primary btn-block mt-4" type="submit" id="auth-submit">Login</button>
       </form>
 
-      <p class="muted mt-6 text-center" style="font-size:0.85rem">
-        Frontend demo — any credentials will take you to the dashboard.
-      </p>
       <p class="mt-4 text-center"><a href="index.html" class="muted">← Back to home</a></p>
     </div>
   </div>
 
   <script src="../js/common.js"></script>
   <script>
+    const API_BASE = "http://localhost:8000";
+
     let mode = "login";
+
     function setMode(m) {
       mode = m;
       document.getElementById("tab-login").classList.toggle("active", m === "login");
@@ -62,12 +62,97 @@
       document.getElementById("auth-sub").textContent =
         m === "signup" ? "Start scanning suspicious links in seconds." : "Log in to access your threat dashboard.";
       document.getElementById("auth-submit").textContent = m === "signup" ? "Create account" : "Login";
+      clearError();
     }
-    function submitAuth(e) {
+
+    function showError(msg) {
+      let el = document.getElementById("auth-error");
+      if (!el) {
+        el = document.createElement("p");
+        el.id = "auth-error";
+        el.style.cssText = "color:var(--danger);font-size:0.875rem;margin-top:12px;text-align:center;";
+        document.getElementById("auth-form").appendChild(el);
+      }
+      el.textContent = msg;
+    }
+
+    function clearError() {
+      const el = document.getElementById("auth-error");
+      if (el) el.textContent = "";
+    }
+
+    async function submitAuth(e) {
       e.preventDefault();
-      window.location.href = "dashboard.html";
-      return false;
+      clearError();
+
+      const emailInput    = document.querySelector("#auth-form input[type='email']");
+      const passwordInput = document.querySelector("#auth-form input[type='password']");
+      const submitBtn     = document.getElementById("auth-submit");
+
+      const email    = emailInput.value.trim();
+      const password = passwordInput.value;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = mode === "login" ? "Logging in…" : "Creating account…";
+
+      try {
+        if (mode === "signup") {
+          // Step 1: Register
+          const regRes = await fetch(`${API_BASE}/api/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          if (!regRes.ok) {
+            const err = await regRes.json().catch(() => ({}));
+            throw new Error(err.detail || `Registration failed (${regRes.status})`);
+          }
+        }
+
+        // Login — backend uses OAuth2PasswordRequestForm (form-encoded, not JSON)
+        const formData = new URLSearchParams();
+        formData.append("username", email);   // OAuth2 spec: field is "username"
+        formData.append("password", password);
+
+        const loginRes = await fetch(`${API_BASE}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formData,
+        });
+
+        if (!loginRes.ok) {
+          const err = await loginRes.json().catch(() => ({}));
+          throw new Error(err.detail || `Login failed (${loginRes.status})`);
+        }
+
+        const data = await loginRes.json();
+        const token = data.access_token;
+
+        if (!token) throw new Error("No token received from server.");
+
+        // Persist token for all dashboard pages and chrome extension
+        localStorage.setItem("aegis_token", token);
+        localStorage.setItem("aegis_email", email);
+
+        // Also push to chrome.storage.local if running inside the extension context
+        if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({ aegis_token: token, aegis_email: email });
+        }
+
+        window.location.href = "dashboard.html";
+
+      } catch (err) {
+        showError(err.message || "Authentication failed. Please try again.");
+        submitBtn.disabled = false;
+        submitBtn.textContent = mode === "login" ? "Login" : "Create account";
+      }
     }
+
+    // Auto-redirect if already logged in
+    (function checkAlreadyLoggedIn() {
+      const tok = localStorage.getItem("aegis_token");
+      if (tok) window.location.href = "dashboard.html";
+    })();
   </script>
 </body>
 </html>
