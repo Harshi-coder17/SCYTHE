@@ -1,0 +1,8 @@
+mail-parser
+dnspython
+beautifulsoup4
+langdetect
+confusable_homoglyphs
+py7zr
+rarfile
+oletools

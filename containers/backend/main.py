@@ -18,6 +18,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from api.routes import router
+from api.email_routes import email_router
 from auth.routes import router as auth_router
 from auth.jwt import JWTError, decode_access_token
 from config import settings
@@ -143,6 +144,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(router)
+app.include_router(email_router)  # V10 Email: POST /api/email/investigate
 
 
 @app.exception_handler(HTTPException)

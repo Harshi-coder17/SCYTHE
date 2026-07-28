@@ -56,6 +56,14 @@ beautifulsoup4==4.12.3
 lxml==5.2.2
 nh3==0.2.17
 
+# --- Email Security Engine ---
+mail-parser==3.15.0
+langdetect==1.0.9
+confusable_homoglyphs==3.2.0
+py7zr==0.21.0
+rarfile==4.2
+oletools==0.60.2
+
 # --- Utilities ---
 python-dotenv==1.0.1
 structlog==24.4.0

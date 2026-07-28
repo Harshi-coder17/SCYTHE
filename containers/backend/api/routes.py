@@ -176,6 +176,10 @@ def stage2_scan(
     return result
 
 
+# Email investigation endpoint moved to api/email_routes.py
+# mounted at POST /api/email/investigate (correct V10 prefix)
+
+
 @router.get("/{scan_id}")
 def get_scan(
     scan_id: str,
