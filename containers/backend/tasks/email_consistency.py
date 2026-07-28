@@ -70,85 +70,98 @@ def email_consistency_task(self, results, email_id: str):
     """
     Chord callback — fires when all 4 parallel tasks have completed.
     'results' is a list of return values from the parallel tasks (each is email_id).
+
+    Delegates all cross-signal correlation to EmailConsistencyEngine.analyze()
+    which applies proper weighted scoring and 7 compound detection rules.
     """
     logger.info("email_consistency_task started email_id=%s", email_id)
 
     email_dir = _email_dir(email_id)
 
     # ── Load all 4 feature files ───────────────────────────────────────────
-    header = _load_feature(email_dir, "header_features.json")
-    url    = _load_feature(email_dir, "url_features.json")
-    attach = _load_feature(email_dir, "attachment_features.json")
+    header  = _load_feature(email_dir, "header_features.json")
+    url     = _load_feature(email_dir, "url_features.json")
+    attach  = _load_feature(email_dir, "attachment_features.json")
     content = _load_feature(email_dir, "content_features.json")
 
-    # ── Extract individual scores ──────────────────────────────────────────
-    header_score     = header.get("header_score", 0)
-    url_score        = url.get("url_score", 0)
-    attachment_score = attach.get("attachment_score", 0)
-    content_score    = content.get("content_score", 0)
+    # ── Delegate to EmailConsistencyEngine (Audit 2.0 Fix #2) ─────────────
+    # EmailConsistencyEngine.analyze() applies:
+    #   - Weighted signal scoring: header 30%, url 30%, attachment 25%, content 15%
+    #   - 7 compound cross-signal correlation rules
+    #   - Confidence calculation based on non-zero signal agreement
+    try:
+        from consistency_engine.email_consistency_engine import EmailConsistencyEngine
+        consistency_report_data = EmailConsistencyEngine.analyze(
+            header_features=header,
+            url_features=url,
+            attachment_features=attach,
+            content_features=content,
+        )
+    except Exception:
+        logger.exception(
+            "EmailConsistencyEngine.analyze() failed for email_id=%s — "
+            "falling back to inline aggregation", email_id
+        )
+        # ── Fallback: basic inline aggregation (preserved from original) ──
+        header_score     = header.get("header_score", 0)
+        url_score        = url.get("url_score", 0)
+        attachment_score = attach.get("attachment_score", 0)
+        content_score    = content.get("content_score", 0)
 
-    # ── Collect all reasons from all detectors ─────────────────────────────
-    all_reasons = []
-    for block in [
-        header.get("authentication", {}),
-        header.get("identity", {}),
-        url.get("urls", {}),
-        url.get("infrastructure", {}),
-        attach.get("attachments", {}),
-        content.get("content", {}),
-    ]:
-        all_reasons.extend(block.get("reasons", []))
+        all_reasons = []
+        for block in [
+            header.get("authentication", {}),
+            header.get("identity", {}),
+            url.get("urls", {}),
+            url.get("infrastructure", {}),
+            attach.get("attachments", {}),
+            content.get("content", {}),
+        ]:
+            all_reasons.extend(block.get("reasons", []))
 
-    # ── Correlation checks (cross-signal consistency) ──────────────────────
-    consistency_flags = []
+        consistency_flags = []
+        if url_score >= 50 and attachment_score == 0:
+            consistency_flags.append("High URL risk with no attachments — possible phishing link")
+        if header_score >= 40 and content_score >= 40:
+            consistency_flags.append("Authentication failure combined with urgent content — high phishing confidence")
+        if attachment_score >= 60 and header_score < 20:
+            consistency_flags.append("Dangerous attachment from seemingly legitimate sender — possible targeted attack")
 
-    # Flag: URL score high but no attachments — likely phishing link
-    if url_score >= 50 and attachment_score == 0:
-        consistency_flags.append("High URL risk with no attachments — possible phishing link")
+        overall_score = min(
+            int((header_score + url_score + attachment_score + content_score) / 4),
+            100,
+        )
+        overall_severity = _overall_severity([header_score, url_score, attachment_score, content_score])
 
-    # Flag: Header auth fail + content urgency — classic phishing pattern
-    if header_score >= 40 and content_score >= 40:
-        consistency_flags.append("Authentication failure combined with urgent content — high phishing confidence")
+        consistency_report_data = {
+            "overall_score":    overall_score,
+            "overall_severity": overall_severity,
+            "scores": {
+                "header":     header_score,
+                "url":        url_score,
+                "attachment": attachment_score,
+                "content":    content_score,
+            },
+            "consistency_flags": consistency_flags,
+            "all_reasons":       all_reasons,
+            "classification": (
+                "phishing" if overall_score >= 60
+                else "suspicious" if overall_score >= 30
+                else "clean"
+            ),
+        }
 
-    # Flag: Attachment risk with low header score — malware delivery attempt
-    if attachment_score >= 60 and header_score < 20:
-        consistency_flags.append("Dangerous attachment from seemingly legitimate sender — possible targeted attack")
-
-    # ── Final overall score (average of 4, capped at 100) ─────────────────
-    overall_score = min(
-        int((header_score + url_score + attachment_score + content_score) / 4),
-        100,
-    )
-    overall_severity = _overall_severity([header_score, url_score, attachment_score, content_score])
-
-    consistency_report = {
-        "email_id": email_id,
-        "overall_score": overall_score,
-        "overall_severity": overall_severity,
-        "scores": {
-            "header": header_score,
-            "url": url_score,
-            "attachment": attachment_score,
-            "content": content_score,
-        },
-        "consistency_flags": consistency_flags,
-        "all_reasons": all_reasons,
-        "classification": (
-            "phishing" if overall_score >= 60
-            else "suspicious" if overall_score >= 30
-            else "clean"
-        ),
-    }
+    # ── Attach email_id to the report before persisting ───────────────────
+    consistency_report_data["email_id"] = email_id
 
     output_path = os.path.join(email_dir, "email_consistency.json")
-    tmp_path = output_path + ".tmp"
+    tmp_path    = output_path + ".tmp"
     os.makedirs(email_dir, exist_ok=True)
     with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(consistency_report, f, indent=2)
+        json.dump(consistency_report_data, f, indent=2)
     os.replace(tmp_path, output_path)  # atomic write
 
     logger.info(
         "email_consistency_task done email_id=%s overall_score=%s severity=%s classification=%s",
-        email_id, overall_score, overall_severity, consistency_report["classification"],
     )
     return email_id

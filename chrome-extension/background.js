@@ -7,11 +7,18 @@
 //   warning.js           -> ALLOW_SITE (user chose "Continue Anyway")
 
 const API_BASE_URL = "http://localhost:8000"; // TODO: update when deployed
-const SCAN_ENDPOINT = `${API_BASE_URL}/api/scan`;
+const SCAN_ENDPOINT   = `${API_BASE_URL}/api/scan`;
+const STAGE2_ENDPOINT = `${API_BASE_URL}/api/analysis/stage2`;  // V10 Stage 2
 const RISK_BLOCK_THRESHOLD = 70;
+// Stage 2 (deep scan) is triggered when Quick Scan score >= this threshold.
+// Keeps Stage 2 payload confined to genuinely suspicious pages.
+const STAGE2_THRESHOLD = 40;
 
-const scanCache = new Map(); // tabId -> { url, result, timestamp }
+const scanCache    = new Map(); // tabId -> { url, result, timestamp }
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Tracks Stage 2 jobs in-flight: tabId -> { jobId, url, startedAt }
+const stage2Jobs = new Map();
 
 // tabId -> { score, indicators: [event_type,...], reasons }
 // Populated live from content.js / bdr.js as they detect things.
@@ -84,6 +91,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: true });
       return true;
 
+    // ── V10 Stage 2: Manual trigger from popup.js ───────────────────────
+    case "TRIGGER_STAGE2": {
+      const tabId = message.tabId ?? sender.tab?.id;
+      const url   = message.url;
+      if (!tabId || !url) {
+        sendResponse({ ok: false, error: "tabId and url are required" });
+        return true;
+      }
+      triggerStage2(tabId, url)
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((err)  => sendResponse({ ok: false, error: err.message }));
+      return true; // async response
+    }
+
+    // ── V10 Stage 2: Receive screenshot+DOM from content.js ────────────
+    case "STAGE2_PAYLOAD": {
+      const tabId = sender.tab?.id;
+      const url   = sender.tab?.url;
+      if (!tabId || !url) return false;
+      const { screenshotBase64, html } = message;
+      submitStage2Payload(tabId, url, screenshotBase64, html)
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ ok: false, error: err.message }));
+      return true;
+    }
+
     default:
       return false;
   }
@@ -136,6 +169,97 @@ async function scanUrl(url) {
   }
 
   return localHeuristicScan(url);
+}
+
+/* ---------- V10 Stage 2 — Deep Scan (Screenshot + DOM → /api/analysis/stage2) ---------- */
+
+/**
+ * Capture a screenshot and DOM snapshot for the given tab and POST them to
+ * the Stage 2 endpoint.  Returns { jobId } on success.
+ *
+ * Called automatically when Quick Scan score >= STAGE2_THRESHOLD, and
+ * manually via the TRIGGER_STAGE2 message from popup.js.
+ */
+async function triggerStage2(tabId, url) {
+  // Guard: only one Stage 2 job per tab at a time
+  if (stage2Jobs.has(tabId)) {
+    console.debug("[AEGIS] Stage 2 already running for tab", tabId);
+    return stage2Jobs.get(tabId);
+  }
+
+  console.info("[AEGIS] Stage 2 triggered tab=", tabId, "url=", url);
+
+  // 1. Capture screenshot via chrome.tabs.captureVisibleTab
+  let screenshotBase64 = "";
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const windowId = tab.windowId;
+    const dataUrl  = await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
+    // Strip data URI header  ("data:image/png;base64,")
+    screenshotBase64 = dataUrl.split(",")[1] ?? "";
+  } catch (err) {
+    console.warn("[AEGIS] Screenshot capture failed:", err);
+    // Continue — backend accepts empty screenshot but scores it lower
+  }
+
+  // 2. Inject content script to capture the live DOM snapshot
+  let html = "";
+  try {
+    const [{ result: domHtml } = {}] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => document.documentElement.outerHTML,
+    });
+    html = domHtml ?? "";
+  } catch (err) {
+    console.warn("[AEGIS] DOM capture failed:", err);
+  }
+
+  return submitStage2Payload(tabId, url, screenshotBase64, html);
+}
+
+/** POST screenshot + DOM to the backend Stage 2 endpoint. */
+async function submitStage2Payload(tabId, url, screenshotBase64, html) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000); // 15 s
+
+  try {
+    const resp = await fetch(STAGE2_ENDPOINT, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        screenshot_base64: screenshotBase64,
+        html: html,
+        tab_id: tabId,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => resp.statusText);
+      throw new Error(`Stage 2 backend error ${resp.status}: ${errText}`);
+    }
+
+    const data = await resp.json();
+    const jobRecord = {
+      jobId:     data.job_id,
+      scanId:    data.scan_id,
+      url,
+      startedAt: Date.now(),
+    };
+
+    stage2Jobs.set(tabId, jobRecord);
+    console.info("[AEGIS] Stage 2 queued job_id=", data.job_id, "scan_id=", data.scan_id);
+    return jobRecord;
+
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Clear Stage 2 job tracking when a tab navigates away or is closed. */
+function clearStage2Job(tabId) {
+  stage2Jobs.delete(tabId);
 }
 
 async function callBackendApi(url) {
@@ -309,8 +433,10 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
   if (!/^https?:\/\//.test(url)) return;
   if (bypassedTabs.get(tabId) === url) return;
 
-  // Fresh navigation — clear any stale runtime detections from the previous page.
+  // Fresh navigation — clear any stale runtime detections and Stage 2 jobs
+  // from the previous page.
   runtimeEvents.delete(tabId);
+  clearStage2Job(tabId);
 
   const result = await scanUrl(url);
   scanCache.set(tabId, { url, result, timestamp: Date.now() });
@@ -318,6 +444,15 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 
   if (result.riskScore >= RISK_BLOCK_THRESHOLD) {
     blockTabWithWarning(tabId, url, result);
+  }
+
+  // ── V10: Trigger Stage 2 for suspicious pages (non-blocking) ────────
+  // Score between STAGE2_THRESHOLD and RISK_BLOCK_THRESHOLD: suspicious
+  // but not blocked — start deep analysis in the background.
+  if (result.riskScore >= STAGE2_THRESHOLD && result.riskScore < RISK_BLOCK_THRESHOLD) {
+    triggerStage2(tabId, url).catch((err) =>
+      console.warn("[AEGIS] Stage 2 dispatch failed:", err)
+    );
   }
 });
 
@@ -345,6 +480,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   scanCache.delete(tabId);
   bypassedTabs.delete(tabId);
   runtimeEvents.delete(tabId);
+  clearStage2Job(tabId);  // V10: clean up Stage 2 job tracking
 });
 
 /* ---------- Theme sync: match popup/warning theme to the site's theme ---------- */

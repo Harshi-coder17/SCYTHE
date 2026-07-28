@@ -3,7 +3,7 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,8 @@ from schemas.full_scan import FullScanRequest, FullScanResponse
 
 from services.quickscan import run_quickscan
 from services.stage2_analysis import run_stage2_analysis, _validate_scan_id, _scan_dir
+from services.manual_url_scan_service import run_manual_url_scan
+from services.manual_file_scan_service import run_manual_file_scan
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +180,98 @@ def stage2_scan(
 
 # Email investigation endpoint moved to api/email_routes.py
 # mounted at POST /api/email/investigate (correct V10 prefix)
+
+
+# ── GT Page 13: Dashboard Manual URL Scan ─────────────────────────────────────
+# Handles both quick (synchronous CyberIntel + LightGBM) and deep (Celery
+# chord via Stage 2) scan types from the dashboard scan.html page.
+
+@router.post("/manual-url")
+def manual_url_scan(
+    url: str = Form(..., description="Target URL to scan"),
+    scan_type: str = Form("quick", description="'quick' or 'deep'"),
+    screenshot_base64: str = Form("", description="Base64 PNG — required for deep scan"),
+    html: str = Form("", description="DOM HTML snapshot — required for deep scan"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    POST /api/scans/manual-url
+
+    Dashboard manual URL scan entry point (GT Page 13).
+    Routes to 'quick' (synchronous) or 'deep' (async Celery chord) scan
+    based on the scan_type field.
+
+    Quick: returns full verdict immediately.
+    Deep:  returns job_id for WebSocket polling.
+    """
+    try:
+        return run_manual_url_scan(
+            url=url,
+            scan_type=scan_type,
+            screenshot_base64=screenshot_base64,
+            html=html,
+            tab_id=None,
+            user=current_user,
+            db=db,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(
+            "Manual URL scan failed url=%s scan_type=%s user_id=%s",
+            url, scan_type, current_user.id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Manual URL scan failed. Please try again shortly.",
+        )
+
+
+# ── GT Page 13: Dashboard Manual File Scan ────────────────────────────────────
+# Accepts an uploaded file, computes SHA-256, checks Redis cache, runs static
+# analysis (magic bytes, extension, MIME, malware signatures, ClamAV), stores
+# the result in Postgres, and returns a full verdict immediately.
+
+@router.post("/file")
+async def manual_file_scan(
+    file: UploadFile = File(..., description="File to scan (PDF, DOCX, PNG, EXE …)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    POST /api/scans/file
+
+    Dashboard manual file scan entry point (GT Page 13).
+    Performs static analysis, optional ClamAV scan, and SHA-256 hash caching.
+    Returns a synchronous full verdict.
+    """
+    MAX_UPLOAD = 50 * 1024 * 1024  # 50 MB — enforced in service too, but guard here
+    content = await file.read()
+    if len(content) > MAX_UPLOAD:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large ({len(content)} bytes). Maximum is 50 MB.",
+        )
+
+    try:
+        return run_manual_file_scan(
+            filename=file.filename or "uploaded_file",
+            content=content,
+            user=current_user,
+            db=db,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(
+            "Manual file scan failed filename=%r user_id=%s",
+            file.filename, current_user.id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="File scan failed. Please try again shortly.",
+        )
 
 
 @router.get("/{scan_id}")
