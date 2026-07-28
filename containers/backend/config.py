@@ -207,6 +207,12 @@ class Settings(BaseSettings):
     # -------------------------
     SHARED_DIR: str = "/shared/scans"
 
+    # Root for email analysis artifacts on the shared volume.
+    # All email tasks write to: EMAIL_SHARED_DIR/emails/{email_id}/*.json
+    # This resolves to /shared/scans/emails/{email_id}/ which is covered by
+    # the docker-compose volume mount: ./shared/scans:/shared/scans
+    EMAIL_SHARED_DIR: str = "/shared/scans"
+
     # How many days to retain per-scan artifact directories on the shared
     # volume before the hourly file_cleanup task purges them (finding #8).
     ARTIFACT_RETENTION_DAYS: int = 14
