@@ -1,6 +1,6 @@
 #!/bin/bash
 # =======================================================
-# AEGIS Backend — Container Entrypoint
+# SCYTHE Backend — Container Entrypoint
 # 1. Wait for Postgres to be ready
 # 2. Run Alembic database migrations (upgrade or stamp existing schema)
 # 3. Start Uvicorn

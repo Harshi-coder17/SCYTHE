@@ -1,5 +1,5 @@
 # =======================================================
-# AEGIS — Production Docker Compose Overlay
+# SCYTHE — Production Docker Compose Overlay
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # DevSecOps Hardening (Finding #1):

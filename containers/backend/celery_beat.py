@@ -1,7 +1,7 @@
 """
 celery_beat.py
 ==============
-Celery Beat periodic scheduler for AEGIS.
+Celery Beat periodic scheduler for SCYTHE.
 
 Run via:
     celery -A celery_beat beat --loglevel=info
@@ -30,7 +30,7 @@ from config import settings
 
 # Beat uses the same broker — app name can differ from worker's
 celery = Celery(
-    "aegis_beat",
+    "scythe_beat",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
     # Beat doesn't run tasks — worker does. No include= needed here.

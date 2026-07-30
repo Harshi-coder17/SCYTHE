@@ -1,5 +1,5 @@
 # =======================================================
-# AEGIS — Master Docker Compose  (v4 — network pool fix + pinned socket proxy)
+# SCYTHE — Master Docker Compose  (v4 — network pool fix + pinned socket proxy)
 # 8 containers + 1 socket proxy + shared volumes
 #
 # Containers:
@@ -13,9 +13,9 @@
 #   sandbox            — Playwright detonation container (isolated network)
 #
 # Networks:
-#   aegis_net        — Internal bridge for core services (nginx/backend/db/redis/beat)
-#   docker_proxy_net — Isolated bridge, ONLY aegis_sandbox_runner + docker_socket_proxy.
-#   sandbox_net      — Isolated bridge for sandbox only (no route to aegis_net)
+#   scythe_net        — Internal bridge for core services (nginx/backend/db/redis/beat)
+#   docker_proxy_net — Isolated bridge, ONLY scythe_sandbox_runner + docker_socket_proxy.
+#   sandbox_net      — Isolated bridge for sandbox only (no route to scythe_net)
 #
 # =======================================================
 
@@ -24,7 +24,7 @@
 # SHARED CONFIGURATION ANCHORS
 # Common environment variables reused across all backend services
 x-common-env: &common-env
-  AEGIS_DB_PASSWORD: ${AEGIS_DB_PASSWORD:?AEGIS_DB_PASSWORD must be set in .env}
+  SCYTHE_DB_PASSWORD: ${SCYTHE_DB_PASSWORD:?SCYTHE_DB_PASSWORD must be set in .env}
   REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
   REDIS_SECURITY_PASSWORD: ${REDIS_SECURITY_PASSWORD:-${REDIS_PASSWORD}}
   REQUIRE_REAL_CERT: ${REQUIRE_REAL_CERT:-false}
@@ -44,7 +44,7 @@ x-backend-common: &backend-common
     - /tmp
     - /app/.cache
   networks:
-    - aegis_net
+    - scythe_net
   depends_on:
     postgres:
       condition: service_healthy
@@ -80,7 +80,7 @@ services:
   # 1. NGINX — Receptionist
   # ---------------------------------------------------
   nginx:
-    container_name: aegis_nginx
+    container_name: scythe_nginx
     build:
       context: ./containers/nginx
       dockerfile: Dockerfile
@@ -90,7 +90,7 @@ services:
     environment:
       - REQUIRE_REAL_CERT=${REQUIRE_REAL_CERT:-false}
     networks:
-      - aegis_net
+      - scythe_net
     depends_on:
       backend:
         condition: service_healthy
@@ -123,7 +123,7 @@ services:
     build:
       context: ./containers/backend
       dockerfile: Dockerfile
-    container_name: aegis_backend
+    container_name: scythe_backend
     command: >
       uvicorn main:app
       --host 0.0.0.0
@@ -153,7 +153,7 @@ services:
   # 3. REDIS — Broker + Cache
   # ---------------------------------------------------
   redis:
-    container_name: aegis_redis
+    container_name: scythe_redis
     image: redis:7.2-alpine@sha256:dfa18828cbc07b3ae6a95ec7343f6c214fdee2d836197b4be8e9904420762cd8
     user: "999"
     command: >
@@ -166,7 +166,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - aegis_net
+      - scythe_net
     expose:
       - "6379"
     healthcheck:
@@ -182,7 +182,7 @@ services:
     <<: *default-resources
 
   redis_security:
-    container_name: aegis_redis_security
+    container_name: scythe_redis_security
     image: redis:7.2-alpine@sha256:dfa18828cbc07b3ae6a95ec7343f6c214fdee2d836197b4be8e9904420762cd8
     user: "999"
     command: >
@@ -195,7 +195,7 @@ services:
     volumes:
       - redis_security_data:/data
     networks:
-      - aegis_net
+      - scythe_net
     expose:
       - "6379"
     healthcheck:
@@ -213,18 +213,18 @@ services:
   # 4. POSTGRES — Primary Datastore
   # ---------------------------------------------------
   postgres:
-    container_name: aegis_postgres
+    container_name: scythe_postgres
     image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD:?POSTGRES_ROOT_PASSWORD must be set in .env}
       POSTGRES_DB: postgres
-      AEGIS_DB_PASSWORD: ${AEGIS_DB_PASSWORD:?AEGIS_DB_PASSWORD must be set in .env}
+      SCYTHE_DB_PASSWORD: ${SCYTHE_DB_PASSWORD:?SCYTHE_DB_PASSWORD must be set in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./containers/postgres/init.sh:/docker-entrypoint-initdb.d/01_init.sh:ro
     networks:
-      - aegis_net
+      - scythe_net
     expose:
       - "5432"
     healthcheck:
@@ -263,16 +263,16 @@ services:
   #    start, stop, kill, and image inspection/pulling (POST /images/create).
   #    Because tecnativa/docker-socket-proxy applies POST globally across enabled endpoints,
   #    CONTAINERS=1 + POST=1 covers stop/kill on any container reachable on this daemon socket.
-  #    Security relies entirely on strict network isolation: ONLY aegis_sandbox_runner sits on
+  #    Security relies entirely on strict network isolation: ONLY scythe_sandbox_runner sits on
   #    docker_proxy_net, and it is protected by non-root execution and X-Runner-Auth HMAC gating.
   #
   #    Production Hardening Note (Finding #3):
-  #    If this blast radius is unacceptable for your threat model, run `aegis_sandbox_runner`
+  #    If this blast radius is unacceptable for your threat model, run `scythe_sandbox_runner`
   #    against a dedicated isolated/rootless Docker daemon or remote Docker context (`DOCKER_HOST`)
   #    so that compromised runner credentials cannot touch core infrastructure containers.
   # ---------------------------------------------------
   docker_socket_proxy:
-    container_name: aegis_socket_proxy
+    container_name: scythe_socket_proxy
     image: tecnativa/docker-socket-proxy:v0.4.2@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476
     environment:
       CONTAINERS: 1
@@ -334,21 +334,21 @@ services:
   # ---------------------------------------------------
   # 5b. SANDBOX RUNNER — Purpose-Built Admission Control
   # ---------------------------------------------------
-  aegis_sandbox_runner:
+  scythe_sandbox_runner:
     build:
       context: ./containers/backend
       dockerfile: Dockerfile.runner
-    container_name: aegis_sandbox_runner
+    container_name: scythe_sandbox_runner
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       DOCKER_HOST: tcp://docker_socket_proxy:2375
-      SANDBOX_NETWORK: aegis_sandbox_net
-      SHARED_SCANS_VOLUME: aegis_shared_scans
-      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-aegis-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767}
+      SANDBOX_NETWORK: scythe_sandbox_net
+      SHARED_SCANS_VOLUME: scythe_shared_scans
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-scythe-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767}
       SANDBOX_RUNNER_SECRET: ${SANDBOX_RUNNER_SECRET:?SANDBOX_RUNNER_SECRET must be set in .env}
       MAX_CONCURRENT_DETONATIONS: "10"
     networks:
-      - aegis_net          # celery_worker communicates here via RPC
+      - scythe_net          # celery_worker communicates here via RPC
       - docker_proxy_net   # docker_socket_proxy ONLY reachable by this service
     security_opt:
       - no-new-privileges:true
@@ -382,12 +382,12 @@ services:
     build:
       context: ./containers/backend
       dockerfile: Dockerfile.worker
-    container_name: aegis_celery_worker
+    container_name: scythe_celery_worker
     volumes:
       - ./shared/scans:/shared/scans
       - db_backups:/backups
     networks:
-      - aegis_net          # Postgres, Redis, aegis_sandbox_runner
+      - scythe_net          # Postgres, Redis, scythe_sandbox_runner
     entrypoint: ["/app/celery_entrypoint.sh"]
     command: >
       celery -A celery_worker worker
@@ -397,12 +397,12 @@ services:
       --hostname=worker@%h
     environment:
       <<: *common-env
-      SANDBOX_RUNNER_URL: http://aegis_sandbox_runner:8002/detonate
+      SANDBOX_RUNNER_URL: http://scythe_sandbox_runner:8002/detonate
       SANDBOX_RUNNER_SECRET: ${SANDBOX_RUNNER_SECRET:?SANDBOX_RUNNER_SECRET must be set in .env}
       CLAMAV_HOST: clamav
       CLAMAV_PORT: 3310
-      SANDBOX_NETWORK: aegis_sandbox_net
-      SHARED_SCANS_VOLUME: aegis_shared_scans
+      SANDBOX_NETWORK: scythe_sandbox_net
+      SHARED_SCANS_VOLUME: scythe_shared_scans
     depends_on:
       postgres:
         condition: service_healthy
@@ -410,7 +410,7 @@ services:
         condition: service_healthy
       redis_security:
         condition: service_healthy
-      aegis_sandbox_runner:
+      scythe_sandbox_runner:
         condition: service_healthy
       clamav:
         condition: service_healthy
@@ -437,7 +437,7 @@ services:
     build:
       context: ./containers/backend
       dockerfile: Dockerfile.worker
-    container_name: aegis_celery_beat
+    container_name: scythe_celery_beat
     depends_on:
       postgres:
         condition: service_healthy
@@ -465,14 +465,14 @@ services:
   # 8. CLAMAV — Anti-Malware Sidecar Daemon
   # ---------------------------------------------------
   clamav:
-    container_name: aegis_clamav
+    container_name: scythe_clamav
     image: clamav/clamav:stable@sha256:83130a3b60654a4f226feffea549792cfcf28ea6b9de1dee210c8064cd114006
     environment:
       - CLAMAV_NO_FRESHCLAM=false
     volumes:
       - clamav_db:/var/lib/clamav
     networks:
-      - aegis_net
+      - scythe_net
     expose:
       - "3310"
     healthcheck:
@@ -501,11 +501,11 @@ services:
           cpus: "0.25"
 
   # ---------------------------------------------------
-  # 8b. SANDBOX NET HOLDER — Keeps `aegis_sandbox_net` active
+  # 8b. SANDBOX NET HOLDER — Keeps `scythe_sandbox_net` active
   # ---------------------------------------------------
   sandbox_net_holder:
     image: alpine:3.19
-    container_name: aegis_sandbox_net_holder
+    container_name: scythe_sandbox_net_holder
     command: ["tail", "-f", "/dev/null"]
     networks:
       - sandbox_net
@@ -526,18 +526,18 @@ services:
   # 9. SANDBOX — Playwright Detonation Container
   # ---------------------------------------------------
   sandbox:
-    container_name: aegis_sandbox
+    container_name: scythe_sandbox
     build:
       context: ./containers
       dockerfile: sandbox/docker/Dockerfile
-    image: ${SANDBOX_DEBUG_IMAGE:-aegis-sandbox:local}
+    image: ${SANDBOX_DEBUG_IMAGE:-scythe-sandbox:local}
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     # --- Security notice (Volume Scoping & Isolation - Finding #3) ---
     # This standalone/manual profile mounts the entire `shared_scans` volume at `/app/output`
-    # for local debugging (`aegis.ps1 sandbox <url>`). Any container executed via this profile
+    # for local debugging (`scythe.ps1 sandbox <url>`). Any container executed via this profile
     # can read or overwrite existing scan artifacts across all past scans on the shared volume.
-    # For automated production pipelines, ALWAYS use the `aegis_sandbox_runner` admission-control
+    # For automated production pipelines, ALWAYS use the `scythe_sandbox_runner` admission-control
     # microservice (POST /detonate), which dynamically isolates each scan using `--mount
     # type=volume,source=shared_scans,target=/app/output,volume-subpath=<scan_id>`.
     volumes:
@@ -574,38 +574,38 @@ services:
 volumes:
   postgres_data:
     driver: local
-    name: aegis_postgres_data
+    name: scythe_postgres_data
   db_backups:
     driver: local
-    name: aegis_db_backups
+    name: scythe_db_backups
   celery_beat_data:
     driver: local
-    name: aegis_celery_beat_data
+    name: scythe_celery_beat_data
   clamav_db:
     driver: local
-    name: aegis_clamav_db
+    name: scythe_clamav_db
   redis_data:
     driver: local
-    name: aegis_redis_data
+    name: scythe_redis_data
   redis_security_data:
     driver: local
-    name: aegis_redis_security_data
+    name: scythe_redis_security_data
 
 # -------------------------------------------------------
 # NETWORKS
 # -------------------------------------------------------
 networks:
-  aegis_net:
+  scythe_net:
     driver: bridge
-    name: aegis_net
+    name: scythe_net
 
   docker_proxy_net:
     driver: bridge
     internal: true
-    name: aegis_docker_proxy_net
+    name: scythe_docker_proxy_net
 
   sandbox_net:
     driver: bridge
     attachable: true
     internal: false   # internet egress allowed for URL detonation
-    name: aegis_sandbox_net
+    name: scythe_sandbox_net

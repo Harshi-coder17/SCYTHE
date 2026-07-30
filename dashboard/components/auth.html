@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CyberWeb — Login / Sign up</title>
-  <meta name="description" content="Access your CyberWeb security dashboard." />
+  <title>SCYTHE — Login / Sign up</title>
+  <meta name="description" content="Access your SCYTHE security dashboard." />
   <meta name="theme-color" content="#0a0b0a" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,7 +16,7 @@
     <div class="auth-glow"></div>
     <div class="auth-card">
       <div class="flex items-center gap-3 mb-6">
-        <span class="brand"><span class="logo" data-icon="logo"></span><span class="brand-name">CyberWeb</span></span>
+        <span class="brand"><img src="default_logo.jpeg" alt="SCYTHE" class="auth-logo-img"><span class="brand-name">SCYTHE</span></span>
       </div>
 
       <div class="auth-switch">
@@ -131,12 +131,12 @@
         if (!token) throw new Error("No token received from server.");
 
         // Persist token for all dashboard pages and chrome extension
-        localStorage.setItem("aegis_token", token);
-        localStorage.setItem("aegis_email", email);
+        localStorage.setItem("scythe_token", token);
+        localStorage.setItem("scythe_email", email);
 
         // Also push to chrome.storage.local if running inside the extension context
         if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-          chrome.storage.local.set({ aegis_token: token, aegis_email: email });
+          chrome.storage.local.set({ scythe_token: token, scythe_email: email });
         }
 
         window.location.href = "dashboard.html";
@@ -150,7 +150,7 @@
 
     // Auto-redirect if already logged in
     (function checkAlreadyLoggedIn() {
-      const tok = localStorage.getItem("aegis_token");
+      const tok = localStorage.getItem("scythe_token");
       if (tok) window.location.href = "dashboard.html";
     })();
   </script>

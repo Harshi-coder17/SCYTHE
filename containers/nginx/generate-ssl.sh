@@ -1,6 +1,6 @@
 #!/bin/sh
 # ==============================================================================
-# AEGIS Nginx Startup Script — Dynamic TLS Certificate Generation
+# SCYTHE Nginx Startup Script — Dynamic TLS Certificate Generation
 # ==============================================================================
 # If /etc/nginx/certs/server.key does not exist (i.e. not mounted from a real CA
 # or Let's Encrypt volume in production), generate a fresh self-signed cert
@@ -20,7 +20,7 @@ if [ ! -f /etc/nginx/certs/server.key ] || [ ! -f /etc/nginx/certs/server.crt ];
     fi
     echo "[nginx-ssl-gen] No TLS cert/key found at /etc/nginx/certs/. Generating fresh self-signed RSA-4096 cert..."
     openssl req -x509 -nodes -days 365 \
-        -subj "/C=US/ST=Dev/L=Dev/O=AEGIS/CN=localhost" \
+        -subj "/C=US/ST=Dev/L=Dev/O=SCYTHE/CN=localhost" \
         -newkey rsa:4096 \
         -keyout /etc/nginx/certs/server.key \
         -out    /etc/nginx/certs/server.crt \

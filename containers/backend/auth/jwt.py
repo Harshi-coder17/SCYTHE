@@ -34,7 +34,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         "exp": expire,
         "iat": datetime.now(timezone.utc),
         "iss": getattr(settings, "JWT_ISSUER", settings.APP_NAME),
-        "aud": "aegis-clients",
+        "aud": "scythe-clients",
     })
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -48,7 +48,7 @@ def decode_access_token(token: str) -> dict:
         SECRET_KEY,
         algorithms=[ALGORITHM],
         issuer=getattr(settings, "JWT_ISSUER", settings.APP_NAME),
-        audience="aegis-clients",
+        audience="scythe-clients",
     )
     jti = payload.get("jti")
     if jti:
@@ -74,7 +74,7 @@ def revoke_token(token: str) -> bool:
             SECRET_KEY,
             algorithms=[ALGORITHM],
             issuer=getattr(settings, "JWT_ISSUER", settings.APP_NAME),
-            audience="aegis-clients",
+            audience="scythe-clients",
             options={"verify_exp": False}
         )
         jti = payload.get("jti")

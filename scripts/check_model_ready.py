@@ -66,7 +66,7 @@ def check_file_readiness(model_path: str, expected_sha256: str | None = None) ->
 def check_api_readiness(api_url: str) -> bool:
     logger.info("Checking API readiness endpoint: %s", api_url)
     try:
-        req = urllib.request.Request(api_url, headers={"User-Agent": "AEGIS-PreDeploy-Check/1.0"})
+        req = urllib.request.Request(api_url, headers={"User-Agent": "SCYTHE-PreDeploy-Check/1.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
             status_code = resp.getcode()
             body_bytes = resp.read()
@@ -94,7 +94,7 @@ def check_api_readiness(api_url: str) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AEGIS Pre-deploy Model Readiness Gate")
+    parser = argparse.ArgumentParser(description="SCYTHE Pre-deploy Model Readiness Gate")
     parser.add_argument("--model-path", default=os.getenv("LIGHTGBM_MODEL_PATH", "backend/models/lightgbm.pkl"),
                         help="Path to the LightGBM model file (.pkl)")
     parser.add_argument("--expected-sha256", default=os.getenv("EXPECTED_MODEL_SHA256", None),

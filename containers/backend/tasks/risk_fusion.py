@@ -1,7 +1,7 @@
 """
 tasks/risk_fusion.py
 =========================
-Stage 4 of the AEGIS Celery pipeline: assembles all evidence into a
+Stage 4 of the SCYTHE Celery pipeline: assembles all evidence into a
 final risk verdict, writes it to Redis, and pushes a WebSocket update.
 
 Security hardening:

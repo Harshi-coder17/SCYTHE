@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CyberWeb — New Scan</title>
+  <title>SCYTHE — New Scan</title>
   <meta name="description" content="Submit a URL, screenshot or file for threat analysis." />
   <meta name="theme-color" content="#0a0b0a" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -81,7 +81,7 @@
 
     // Auth guard — redirect to login if no token
     (function guardAuth() {
-      if (!localStorage.getItem("aegis_token")) {
+      if (!localStorage.getItem("scythe_token")) {
         window.location.href = "auth.html";
       }
     })();
@@ -120,7 +120,7 @@
       e.preventDefault();
       document.getElementById("scan-error") && (document.getElementById("scan-error").textContent = "");
 
-      const token = localStorage.getItem("aegis_token");
+      const token = localStorage.getItem("scythe_token");
       if (!token) { window.location.href = "auth.html"; return false; }
 
       const activeType = document.getElementById("input-type-slider").getAttribute("data-selected");
@@ -146,14 +146,14 @@
             body: formData,
           });
 
-          if (res.status === 401) { localStorage.removeItem("aegis_token"); window.location.href = "auth.html"; return false; }
+          if (res.status === 401) { localStorage.removeItem("scythe_token"); window.location.href = "auth.html"; return false; }
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.detail || `File scan failed (${res.status})`);
           }
 
           const data = await res.json();
-          sessionStorage.setItem("aegis_scan_result", JSON.stringify({ type: "file", ...data }));
+          sessionStorage.setItem("scythe_scan_result", JSON.stringify({ type: "file", ...data }));
           window.location.href = "report.html";
 
         } else {
@@ -173,18 +173,18 @@
             body: formData,
           });
 
-          if (res.status === 401) { localStorage.removeItem("aegis_token"); window.location.href = "auth.html"; return false; }
+          if (res.status === 401) { localStorage.removeItem("scythe_token"); window.location.href = "auth.html"; return false; }
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.detail || `URL scan failed (${res.status})`);
           }
 
           const data = await res.json();
-          sessionStorage.setItem("aegis_scan_result", JSON.stringify({ type: "url", ...data }));
+          sessionStorage.setItem("scythe_scan_result", JSON.stringify({ type: "url", ...data }));
 
           if (scanType === "deep" && data.job_id) {
             // Deep scan: store job_id for WebSocket polling on report.html
-            sessionStorage.setItem("aegis_deep_scan_job", JSON.stringify({ job_id: data.job_id, scan_id: data.scan_id, url }));
+            sessionStorage.setItem("scythe_deep_scan_job", JSON.stringify({ job_id: data.job_id, scan_id: data.scan_id, url }));
           }
 
           window.location.href = "loading.html";

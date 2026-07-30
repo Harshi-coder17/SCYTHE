@@ -1,18 +1,18 @@
 #!/usr/bin/env pwsh
 # =======================================================
-# AEGIS — Docker Management Helper (PowerShell)
+# SCYTHE — Docker Management Helper (PowerShell)
 # Run from: C:\Users\armaa\Desktop\docker containers\
 # =======================================================
 # Usage:
-#   .\aegis.ps1 up          - Start all core services (detached)
-#   .\aegis.ps1 down        - Stop and remove containers
-#   .\aegis.ps1 logs        - Follow all logs
-#   .\aegis.ps1 build       - Rebuild all images (no-cache)
-#   .\aegis.ps1 status      - Show container health + ports
-#   .\aegis.ps1 verify      - Verify local container signatures with cosign
-#   .\aegis.ps1 sandbox <URL> - Run one sandbox scan
-#   .\aegis.ps1 shell       - Open shell in backend container
-#   .\aegis.ps1 reset       - DESTRUCTIVE: wipe all volumes + containers
+#   .\scythe.ps1 up          - Start all core services (detached)
+#   .\scythe.ps1 down        - Stop and remove containers
+#   .\scythe.ps1 logs        - Follow all logs
+#   .\scythe.ps1 build       - Rebuild all images (no-cache)
+#   .\scythe.ps1 status      - Show container health + ports
+#   .\scythe.ps1 verify      - Verify local container signatures with cosign
+#   .\scythe.ps1 sandbox <URL> - Run one sandbox scan
+#   .\scythe.ps1 shell       - Open shell in backend container
+#   .\scythe.ps1 reset       - DESTRUCTIVE: wipe all volumes + containers
 # =======================================================
 
 param(
@@ -26,7 +26,7 @@ function Write-Header {
     param([string]$Text)
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "  AEGIS | $Text" -ForegroundColor Cyan
+    Write-Host "  SCYTHE | $Text" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host ""
 }
@@ -36,7 +36,7 @@ switch ($Command) {
     "up" {
         Write-Header "Starting Core Services"
         
-        # Supply chain signature verification is now opt-in via '.\aegis.ps1 verify'
+        # Supply chain signature verification is now opt-in via '.\scythe.ps1 verify'
         # so it doesn't block local development where images are built locally and unsigned.
 
         docker compose -f $COMPOSE_FILE up -d nginx backend redis postgres celery_worker celery_beat
@@ -78,7 +78,7 @@ switch ($Command) {
         }
         
         # Extract the real sandbox image name from .env
-        $sandboxImage = "aegis-sandbox:local"
+        $sandboxImage = "scythe-sandbox:local"
         if (Test-Path .env) {
             $sandboxImageLine = Get-Content .env | Where-Object { $_ -match "^SANDBOX_IMAGE=" }
             if ($sandboxImageLine) {
@@ -99,7 +99,7 @@ switch ($Command) {
             exit 1
         }
         if ($Arg1 -eq "") {
-            Write-Host "[ERROR] Provide a URL: .\aegis.ps1 sandbox https://example.com" -ForegroundColor Red
+            Write-Host "[ERROR] Provide a URL: .\scythe.ps1 sandbox https://example.com" -ForegroundColor Red
             exit 1
         }
         Write-Header "Running Sandbox Scan: $Arg1"
@@ -108,7 +108,7 @@ switch ($Command) {
 
     "shell" {
         Write-Header "Opening Backend Shell"
-        docker exec -it aegis_backend /bin/bash
+        docker exec -it scythe_backend /bin/bash
     }
 
     "reset" {
@@ -125,15 +125,15 @@ switch ($Command) {
 
     default {
         Write-Header "Help"
-        Write-Host "  .\aegis.ps1 up                Start all core services"
-        Write-Host "  .\aegis.ps1 down              Stop services"
-        Write-Host "  .\aegis.ps1 logs              Follow all logs"
-        Write-Host "  .\aegis.ps1 build             Rebuild all images (no-cache)"
-        Write-Host "  .\aegis.ps1 status            Show health + shared volume"
-        Write-Host "  .\aegis.ps1 verify            Verify local container signatures with cosign"
-        Write-Host "  .\aegis.ps1 sandbox <URL>     Run one sandbox scan"
-        Write-Host "  .\aegis.ps1 shell             Backend bash shell"
-        Write-Host "  .\aegis.ps1 reset             Wipe everything (DESTRUCTIVE)"
+        Write-Host "  .\scythe.ps1 up                Start all core services"
+        Write-Host "  .\scythe.ps1 down              Stop services"
+        Write-Host "  .\scythe.ps1 logs              Follow all logs"
+        Write-Host "  .\scythe.ps1 build             Rebuild all images (no-cache)"
+        Write-Host "  .\scythe.ps1 status            Show health + shared volume"
+        Write-Host "  .\scythe.ps1 verify            Verify local container signatures with cosign"
+        Write-Host "  .\scythe.ps1 sandbox <URL>     Run one sandbox scan"
+        Write-Host "  .\scythe.ps1 shell             Backend bash shell"
+        Write-Host "  .\scythe.ps1 reset             Wipe everything (DESTRUCTIVE)"
         Write-Host ""
         Write-Host "  API endpoint:  http://localhost/api/"
         Write-Host "  WebSocket:     ws://localhost/ws/"

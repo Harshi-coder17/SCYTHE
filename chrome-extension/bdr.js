@@ -1,5 +1,5 @@
 // ============================================================
-// AEGIS — BDR (Browser Deception & Reconnaissance) Script
+// SCYTHE — BDR (Browser Deception & Reconnaissance) Script
 // Distinct from content.js:
 //   content.js = DOM STRUCTURE audit (forms, iframes, URL shape)
 //   bdr.js     = RUNTIME BEHAVIOR audit (event hijacking, clipboard,
@@ -144,8 +144,8 @@ function auditAutofillBait() {
       const offscreen = rect.left < -1000 || rect.top < -1000;
       const invisible = style.opacity === '0' || style.visibility === 'hidden';
 
-      if ((offscreen || invisible) && !el.hasAttribute('data-aegis-audited')) {
-        el.setAttribute('data-aegis-audited', 'true');
+      if ((offscreen || invisible) && !el.hasAttribute('data-scythe-audited')) {
+        el.setAttribute('data-scythe-audited', 'true');
         reportCritical('autofill_bait_field', {
           type: el.type,
           name: el.name || null,

@@ -1,5 +1,5 @@
 # ===================================================
-# AEGIS Backend Container
+# SCYTHE Backend Container
 # Stage 1: Build deps (cached layer)
 # Stage 2: Runtime image — non-root, hardened
 # ===================================================
@@ -24,8 +24,8 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 FROM python:3.11-slim@sha256:db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627accd3d51053a93 AS runtime
 
 # Security: non-root user
-RUN groupadd --gid 1001 aegis \
-    && useradd --uid 1001 --gid aegis --shell /bin/bash --create-home aegis
+RUN groupadd --gid 1001 scythe \
+    && useradd --uid 1001 --gid scythe --shell /bin/bash --create-home scythe
 
 WORKDIR /app
 
@@ -41,26 +41,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /install /usr/local
 
 # Copy application source
-COPY --chown=aegis:aegis . .
+COPY --chown=scythe:scythe . .
 
 # Shared volume mount point — Backend writes screenshots here,
 # Celery worker and Sandbox container read from this same volume.
-RUN mkdir -p /shared/scans && chown -R aegis:aegis /shared/scans && chmod 0770 /shared/scans
+RUN mkdir -p /shared/scans && chown -R scythe:scythe /shared/scans && chmod 0770 /shared/scans
 VOLUME ["/shared/scans"]
 
 # Models directory (LightGBM .pkl lives here)
-RUN mkdir -p /app/models && chown -R aegis:aegis /app/models
+RUN mkdir -p /app/models && chown -R scythe:scythe /app/models
 
-COPY --chown=aegis:aegis entrypoint.sh /app/entrypoint.sh
-COPY --chown=aegis:aegis celery_entrypoint.sh /app/celery_entrypoint.sh
+COPY --chown=scythe:scythe entrypoint.sh /app/entrypoint.sh
+COPY --chown=scythe:scythe celery_entrypoint.sh /app/celery_entrypoint.sh
 RUN chmod +x /app/entrypoint.sh /app/celery_entrypoint.sh
 
 # Pre-create the beat schedule directory so the volume mount
-# inherits the aegis ownership rather than defaulting to root.
+# inherits the scythe ownership rather than defaulting to root.
 RUN mkdir -p /app/celerybeat-schedule && \
-    chown -R aegis:aegis /app/celerybeat-schedule
+    chown -R scythe:scythe /app/celerybeat-schedule
 
-USER aegis
+USER scythe
 
 EXPOSE 8000
 

@@ -1,7 +1,7 @@
 """
 tasks/alert_pipeline.py
 =========================
-Stage 5 of the AEGIS Celery pipeline: creates Incident + IOC database rows
+Stage 5 of the SCYTHE Celery pipeline: creates Incident + IOC database rows
 and fires a Slack notification for HIGH and CRITICAL risk verdicts.
 
 Security hardening:

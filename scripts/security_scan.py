@@ -71,7 +71,7 @@ def main():
 
     # 4. Trivy Container Image Scan
     if shutil.which("trivy"):
-        for img in ["aegis-backend:ci", "aegis-sandbox:v1.0.0", "aegis-runner:ci", "nginx:1.27-alpine"]:
+        for img in ["scythe-backend:ci", "scythe-sandbox:v1.0.0", "scythe-runner:ci", "nginx:1.27-alpine"]:
             # Check if image exists locally before attempting scan
             if subprocess.run(["docker", "image", "inspect", img], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
                 success &= check_and_run(

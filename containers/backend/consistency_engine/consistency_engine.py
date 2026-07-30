@@ -2,7 +2,7 @@
 consistency_engine/consistency_engine.py
 ==========================================
 Compares the browser's view of a URL against the sandbox's independent
-view to detect cloaking — the core AEGIS detection primitive.
+view to detect cloaking — the core SCYTHE detection primitive.
 
 Architecture note:
   compare_dom() previously hardcoded indeterminate=False. The sandbox

@@ -74,7 +74,7 @@ function closeRibMenuOnOutsideClick(e) {
 
 /* ---- SVG icon library (inline, no deps) ---- */
 const ICONS = {
-  logo: '<svg fill="#000000" width="800px" height="800px" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"/></svg>',
+  logo: '<img src="../default_logo.jpeg" alt="SCYTHE" class="brand-logo-img" onerror="this.src=\'default_logo.jpeg\'">',
   dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
   scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
   threat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L20 6 v6 c0 5-4 8-8 10 C8 20 4 17 4 12 V6 Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>',
@@ -124,7 +124,7 @@ function renderRibbon(active) {
     .join("");
   return `
     <button class="rib-item" onclick="toggleRibMenu(event)" title="Menu" style="margin-bottom:6px">${icon("menu")}<span class="label">Menu</span></button>
-    <a class="rib-logo" href="index.html" title="Home">${icon("logo")}</a>
+    <a class="rib-logo" href="index.html" title="Home"><img src="../default_logo.jpeg" alt="SCYTHE" class="brand-logo-img rib-logo-img" onerror="this.src='default_logo.jpeg'"></a>
     ${links}
     <div class="rib-spacer"></div>
     <a class="rib-item ${"settings" === active ? "active" : ""}" href="settings.html" title="Settings">${icon("settings")}<span class="label">Settings</span></a>
@@ -141,8 +141,8 @@ function renderTopbar(active) {
   ];
   return `
   <div class="brand">
-    <span class="logo">${icon("logo")}</span>
-    <span class="brand-name">CyberWeb</span>
+    <img src="../default_logo.jpeg" alt="SCYTHE" class="brand-logo-img" onerror="this.src='default_logo.jpeg'">
+    <span class="brand-name">SCYTHE</span>
   </div>
   <nav class="top-links">
     ${links.map((l) => `<a href="${l.href}" class="${l.id === active ? "active" : ""}">${l.label}</a>`).join("")}

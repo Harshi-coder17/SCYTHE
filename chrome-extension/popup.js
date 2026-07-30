@@ -2,6 +2,11 @@
 // Logic for the extension's popup.html — pulls scan data for the active tab,
 // renders it into the UI, and wires up the action buttons, theme toggle, and live protection.
 
+// Read dashboard URL from config.js (loaded as a <script> tag in popup.html)
+const DASHBOARD_URL = (typeof SCYTHE_CONFIG !== "undefined")
+  ? SCYTHE_CONFIG.DASHBOARD_URL
+  : "http://localhost:8000/dashboard";
+
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
@@ -15,6 +20,13 @@ async function init() {
     return;
   }
 
+  // ── Dismiss pulsating alert as soon as the user opens the popup ──────────
+  // The background service worker is animating the icon for this tab.
+  // Now that the user clicked the extension icon, we stop the pulse.
+  if (typeof chrome !== "undefined" && chrome.runtime) {
+    chrome.runtime.sendMessage({ type: "POPUP_OPENED", tabId: tab.id }).catch(() => {});
+  }
+
   // Display URL in top hero card
   const hostname = safeHostname(tab.url);
   document.getElementById("heroUrl").textContent = hostname;
@@ -23,6 +35,7 @@ async function init() {
   try {
     // Ask the background/service worker for the scan result of this tab.
     const result = await sendMessage({ type: "GET_SCAN_RESULT", tabId: tab.id, url: tab.url });
+
     renderResult(result, hostname);
   } catch (err) {
     console.error("Scan lookup failed:", err);
@@ -147,6 +160,40 @@ function setGaugeScore(score, colorVar) {
   }
 }
 
+/**
+ * Swap the header logo (top-left) and hero logo (status panel) between the
+ * 4 variants based on the current severity class:
+ *   default  → icons/default_logo.jpeg  (no scan yet)
+ *   allowed  → icons/green_logo.jpeg    (safe)
+ *   caution  → icons/orange_logo.jpeg   (suspicious)
+ *   blocked  → icons/red_logo.jpeg      (dangerous)
+ *
+ * Coloured logos (green/orange/red) are marked with the 'coloured' CSS class
+ * so the light-mode inversion filter is NOT applied to them — they are already
+ * the right colour and shouldn't be inverted.
+ */
+function updatePopupLogos(severityClass) {
+  const LOGO_MAP = {
+    default: "icons/default_logo.jpeg",
+    allowed: "icons/green_logo.jpeg",
+    caution: "icons/orange_logo.jpeg",
+    blocked: "icons/red_logo.jpeg",
+  };
+
+  const src = LOGO_MAP[severityClass] || LOGO_MAP.default;
+  const isColoured = severityClass !== "default";
+
+  const headerImg = document.getElementById("headerLogoImg");
+  const heroImg   = document.getElementById("heroLogoImg");
+
+  [headerImg, heroImg].forEach((img) => {
+    if (!img) return;
+    img.src = src;
+    // Add/remove 'coloured' class to control CSS filter inversion
+    img.classList.toggle("coloured", isColoured);
+  });
+}
+
 function renderResult(data, hostname) {
   if (!data) {
     renderError("No scan data available.", hostname);
@@ -193,8 +240,9 @@ function renderResult(data, hostname) {
     colorVar = "--warning";
   }
 
-  // 1. Update Hero Status Area
+  // 1. Update Hero Status Area + Logo Images
   if (hShield) hShield.className = `hero-shield-wrapper ${severityClass}`;
+  updatePopupLogos(severityClass);
   if (hTitle) {
     hTitle.textContent = displayTitle;
     hTitle.className = `hero-status-title ${severityClass}`;
@@ -270,6 +318,7 @@ function renderError(message, hostname) {
   const gRating = document.getElementById("securityScoreRating");
 
   if (hShield) hShield.className = "hero-shield-wrapper";
+  updatePopupLogos("default");
   if (hTitle) {
     hTitle.textContent = "SCAN OFFLINE";
     hTitle.className = "hero-status-title";
@@ -323,9 +372,9 @@ function wireButtons(tab) {
   if (dashboardBtn) {
     dashboardBtn.onclick = () => {
       if (typeof chrome !== "undefined" && chrome.tabs) {
-        chrome.tabs.create({ url: "http://localhost:3000/dashboard" });
+        chrome.tabs.create({ url: DASHBOARD_URL });
       } else {
-        window.open("http://localhost:3000/dashboard", "_blank");
+        window.open(DASHBOARD_URL, "_blank");
       }
     };
   }
@@ -354,7 +403,7 @@ function sendMessage(payload) {
         resolve({
           riskScore: 82,
           status: "Blocked",
-          reasons: "AEGIS detected known deceptive credential forms and spoofed brand imagery on this page.",
+          reasons: "SCYTHE detected known deceptive credential forms and spoofed brand imagery on this page.",
           indicators: ["Deceptive login form detected", "Domain matches phishing blocklist", "Connection uses HTTP"],
           scannedAt: Date.now()
         });

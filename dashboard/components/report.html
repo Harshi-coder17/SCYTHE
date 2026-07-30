@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CyberWeb — Analysis Report</title>
+  <title>SCYTHE — Analysis Report</title>
   <meta name="description" content="Detailed threat analysis report with scan, cyber intel and sandbox results." />
   <meta name="theme-color" content="#0a0b0a" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -642,11 +642,11 @@
     let report = null;
     let isRealData = false;
 
-    const rawResult = sessionStorage.getItem("aegis_scan_result");
+    const rawResult = sessionStorage.getItem("scythe_scan_result");
     if (rawResult) {
       try {
         const realData = JSON.parse(rawResult);
-        sessionStorage.removeItem("aegis_scan_result"); // consume once
+        sessionStorage.removeItem("scythe_scan_result"); // consume once
 
         const riskScore  = Math.round(realData.risk_score ?? realData.riskScore ?? 0);
         const severity   = (realData.severity || realData.risk_level || "").toUpperCase();

@@ -1,7 +1,7 @@
 """
 celery_worker.py
 ================
-Celery application entry point for the AEGIS worker process.
+Celery application entry point for the SCYTHE worker process.
 
 Run via:
     celery -A celery_worker worker --loglevel=info --concurrency=2
@@ -20,7 +20,7 @@ from config import settings
 
 
 celery = Celery(
-    "aegis_worker",
+    "scythe_worker",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
     # include= is the correct Celery 5.x pattern for explicit task discovery.

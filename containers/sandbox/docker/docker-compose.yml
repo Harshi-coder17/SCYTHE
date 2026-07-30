@@ -34,9 +34,9 @@ services:
     pids_limit: 512        # caps fork-bomb-style exhaustion (e.g. window.open() spam)
     # --- Security notice (Volume Scoping & Isolation - Finding #3) ---
     # This standalone/manual profile mounts the entire `shared_scans` volume at `/app/output`
-    # for local debugging (`aegis.ps1 sandbox <url>`). Any container executed via this profile
+    # for local debugging (`scythe.ps1 sandbox <url>`). Any container executed via this profile
     # can read or overwrite existing scan artifacts across all past scans on the shared volume.
-    # For automated production pipelines, ALWAYS use the `aegis_sandbox_runner` admission-control
+    # For automated production pipelines, ALWAYS use the `scythe_sandbox_runner` admission-control
     # microservice (POST /detonate), which dynamically isolates each scan using `--mount
     # type=volume,source=shared_scans,target=/app/output,volume-subpath=<scan_id>`.
     volumes:

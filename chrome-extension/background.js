@@ -6,10 +6,14 @@
 //   content.js / bdr.js -> BDR_EVENTS (telemetry) / BDR_CRITICAL (live threat)
 //   warning.js           -> ALLOW_SITE (user chose "Continue Anyway")
 
-const API_BASE_URL = "http://localhost:8000"; // TODO: update when deployed
-// CRITICAL FIX: Backend router prefix is /api/scans, endpoints are /quick and /stage2
-const SCAN_ENDPOINT   = `${API_BASE_URL}/api/scans/quick`;
-const STAGE2_ENDPOINT = `${API_BASE_URL}/api/scans/stage2`;  // V10 Stage 2 — fixed from /api/analysis/stage2
+// ── URL Configuration ─────────────────────────────────────────────────────────
+// Edit config.js to change the backend URL — do NOT hardcode here.
+// importScripts is the MV3-compatible way to load shared scripts in a SW.
+try { importScripts("config.js"); } catch(e) { /* already loaded or unavailable */ }
+
+const _API_BASE   = (typeof SCYTHE_CONFIG !== "undefined" ? SCYTHE_CONFIG.API_BASE_URL  : "http://localhost:8000");
+const SCAN_ENDPOINT   = `${_API_BASE}/api/scans/quick`;
+const STAGE2_ENDPOINT = `${_API_BASE}/api/scans/stage2`;
 
 // ── Auth token helper ──────────────────────────────────────────────────────
 // All /api/scans/* endpoints require a valid JWT Bearer token.
@@ -20,8 +24,8 @@ async function getAuthToken() {
       resolve(null);
       return;
     }
-    chrome.storage.local.get(['aegis_token'], (result) => {
-      resolve(result?.aegis_token || null);
+    chrome.storage.local.get(['scythe_token'], (result) => {
+      resolve(result?.scythe_token || null);
     });
   });
 }
@@ -70,7 +74,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       existing.reasons = "Runtime behavioural analysis detected suspicious activity on this page.";
       runtimeEvents.set(tabId, existing);
 
-      console.debug("[AEGIS] BDR_EVENTS merged for tab", tabId, existing);
+      console.debug("[SCYTHE] BDR_EVENTS merged for tab", tabId, existing);
       return false;
     }
 
@@ -88,7 +92,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       existing.reasons = `Critical runtime threat detected: ${message.alert_type}`;
       runtimeEvents.set(tabId, existing);
 
-      console.warn("[AEGIS] BDR_CRITICAL on tab", tabId, message.alert_type, message.details);
+      console.warn("[SCYTHE] BDR_CRITICAL on tab", tabId, message.alert_type, message.details);
 
       // Don't wait for the popup to be opened — block immediately.
       blockTabWithWarning(tabId, tabUrl, {
@@ -199,11 +203,11 @@ async function scanUrl(url) {
 async function triggerStage2(tabId, url) {
   // Guard: only one Stage 2 job per tab at a time
   if (stage2Jobs.has(tabId)) {
-    console.debug("[AEGIS] Stage 2 already running for tab", tabId);
+    console.debug("[SCYTHE] Stage 2 already running for tab", tabId);
     return stage2Jobs.get(tabId);
   }
 
-  console.info("[AEGIS] Stage 2 triggered tab=", tabId, "url=", url);
+  console.info("[SCYTHE] Stage 2 triggered tab=", tabId, "url=", url);
 
   // 1. Capture screenshot via chrome.tabs.captureVisibleTab
   let screenshotBase64 = "";
@@ -214,7 +218,7 @@ async function triggerStage2(tabId, url) {
     // Strip data URI header  ("data:image/png;base64,")
     screenshotBase64 = dataUrl.split(",")[1] ?? "";
   } catch (err) {
-    console.warn("[AEGIS] Screenshot capture failed:", err);
+    console.warn("[SCYTHE] Screenshot capture failed:", err);
     // Continue — backend accepts empty screenshot but scores it lower
   }
 
@@ -227,7 +231,7 @@ async function triggerStage2(tabId, url) {
     });
     html = domHtml ?? "";
   } catch (err) {
-    console.warn("[AEGIS] DOM capture failed:", err);
+    console.warn("[SCYTHE] DOM capture failed:", err);
   }
 
   return submitStage2Payload(tabId, url, screenshotBase64, html);
@@ -269,7 +273,7 @@ async function submitStage2Payload(tabId, url, screenshotBase64, html) {
     };
 
     stage2Jobs.set(tabId, jobRecord);
-    console.info("[AEGIS] Stage 2 queued job_id=", data.job_id, "scan_id=", data.scan_id);
+    console.info("[SCYTHE] Stage 2 queued job_id=", data.job_id, "scan_id=", data.scan_id);
     return jobRecord;
 
   } finally {
@@ -391,28 +395,163 @@ function localHeuristicScan(url) {
   return { riskScore: score, status, reasons, indicators, scannedAt: Date.now() };
 }
 
-/* ---------- Badge ---------- */
+/* ---------- Dynamic Icon + Pulsating Alert System ---------- */
 
-function updateBadge(tabId, riskScore) {
-  let color = "#72b5ff";
-  let text = "";
+// Icon paths keyed by threat level
+const ICONS = {
+  default: { 16: "icons/default_logo_16.png", 32: "icons/default_logo_32.png", 48: "icons/default_logo_48.png", 128: "icons/default_logo_128.png" },
+  safe:    { 16: "icons/green_logo_16.png",   32: "icons/green_logo_32.png",   48: "icons/green_logo_48.png",   128: "icons/green_logo_128.png"   },
+  warn:    { 16: "icons/orange_logo_16.png",  32: "icons/orange_logo_32.png",  48: "icons/orange_logo_48.png",  128: "icons/orange_logo_128.png"  },
+  danger:  { 16: "icons/red_logo_16.png",     32: "icons/red_logo_32.png",     48: "icons/red_logo_48.png",     128: "icons/red_logo_128.png"     },
+};
 
-  if (riskScore >= RISK_BLOCK_THRESHOLD) {
-    color = "#ff6b6b";
-    text = "!";
-  } else if (riskScore >= 30) {
-    color = "#f5a623";
-    text = "?";
+// Track pulsation intervals: tabId -> intervalId
+const pulseIntervals = new Map();
+// Track whether this tab's pulse has been dismissed by clicking the extension icon
+const pulseDismissed = new Map(); // tabId -> bool
+
+/**
+ * Set the extension icon for a specific tab.
+ * Uses chrome.action.setIcon with the path map.
+ */
+function setTabIcon(tabId, level) {
+  const paths = ICONS[level] || ICONS.default;
+  try {
+    chrome.action.setIcon({ path: paths, tabId }).catch(() => {});
+  } catch { /* tab gone */ }
+}
+
+/**
+ * Draw a pulsating glow ring around the logo on an offscreen canvas
+ * and push it to the action icon, creating a real animation effect.
+ *
+ * The pulse is redrawn every 40ms (25 fps) using a sine wave to smoothly
+ * animate the glow radius and opacity.
+ */
+async function startPulseAnimation(tabId, level) {
+  // Stop any existing pulse on this tab first
+  stopPulseAnimation(tabId);
+
+  // Reset dismissed flag when a new threat is detected
+  pulseDismissed.set(tabId, false);
+
+  const size = 32; // Canvas size — Chrome uses 32px for toolbar
+  const imgPath = ICONS[level]?.[32] || ICONS.default[32];
+
+  // Fetch the base logo image as a blob and decode it
+  let imageBitmap;
+  try {
+    const resp = await fetch(chrome.runtime.getURL(imgPath));
+    const blob = await resp.blob();
+    imageBitmap = await createImageBitmap(blob);
+  } catch (e) {
+    // Fallback: just set the icon statically
+    setTabIcon(tabId, level);
+    return;
   }
 
-  // Wrap in try/catch — the tab may have closed between when the scan
-  // started and when it finished (async), which otherwise throws an
-  // uncaught "No tab with id" promise rejection.
+  let frame = 0;
+  // Glow color depending on level
+  const glowColor = level === "danger" ? "255,40,40" : "255,140,0";
+
+  const intervalId = setInterval(() => {
+    // If tab is gone or dismissed, stop
+    if (pulseDismissed.get(tabId)) {
+      stopPulseAnimation(tabId);
+      setTabIcon(tabId, level); // keep correct icon, just no pulse
+      return;
+    }
+
+    // Sine wave: 0→1→0 over 60 frames (~2.4 s period at 25 fps)
+    const t = Math.sin((frame / 60) * Math.PI);
+    frame = (frame + 1) % 120;
+
+    const glowOpacity  = 0.3 + 0.7 * t;          // 0.3–1.0
+    const glowRadius   = 2 + 5 * t;              // 2–7 px spread
+    const glowBlur     = 1 + 4 * t;              // 1–5 px blur
+
+    // Draw onto offscreen canvas
+    const canvas = new OffscreenCanvas(size, size);
+    const ctx    = canvas.getContext("2d");
+
+    // Clear
+    ctx.clearRect(0, 0, size, size);
+
+    // Draw glow ring (before logo so it appears behind)
+    ctx.save();
+    ctx.shadowColor  = `rgba(${glowColor},${glowOpacity.toFixed(2)})`;
+    ctx.shadowBlur   = glowBlur * 4;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2 - glowRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${glowColor},${(glowOpacity * 0.8).toFixed(2)})`;
+    ctx.lineWidth   = glowRadius * 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // Draw the base logo on top
+    ctx.drawImage(imageBitmap, 0, 0, size, size);
+
+    // Convert to ImageData and push to Chrome
+    const imageData = ctx.getImageData(0, 0, size, size);
+    chrome.action.setIcon({ imageData: { 32: imageData }, tabId }).catch(() => {
+      stopPulseAnimation(tabId);
+    });
+  }, 40); // 25 fps
+
+  pulseIntervals.set(tabId, intervalId);
+}
+
+/** Stop and clear a pulsation animation for a tab. */
+function stopPulseAnimation(tabId) {
+  const id = pulseIntervals.get(tabId);
+  if (id != null) {
+    clearInterval(id);
+    pulseIntervals.delete(tabId);
+  }
+}
+
+/**
+ * Main icon update entry point — called after every scan result.
+ *
+ * Risk levels (mirrors architecture thresholds):
+ *   score < STAGE2_THRESHOLD (40)   → safe    → green logo
+ *   score 40–69                      → warn    → orange logo + pulse
+ *   score >= RISK_BLOCK_THRESHOLD(70)→ danger  → red logo + pulse
+ *   no scan yet / non-http page      → default → default logo
+ */
+function updateBadge(tabId, riskScore) {
+  let level;
+
+  if (riskScore === null || riskScore === undefined) {
+    level = "default";
+  } else if (riskScore >= RISK_BLOCK_THRESHOLD) {
+    level = "danger";
+  } else if (riskScore >= STAGE2_THRESHOLD) {
+    level = "warn";
+  } else {
+    level = "safe";
+  }
+
+  // Clear old text badge (we use icon colour instead)
   try {
-    chrome.action.setBadgeBackgroundColor({ color, tabId }).catch(() => {});
-    chrome.action.setBadgeText({ text, tabId }).catch(() => {});
-  } catch {
-    // tab gone, ignore
+    chrome.action.setBadgeText({ text: "", tabId }).catch(() => {});
+  } catch { /* tab gone */ }
+
+  if (level === "danger" || level === "warn") {
+    // Kick off pulsating glow animation
+    startPulseAnimation(tabId, level);
+  } else {
+    // No pulse needed — stop any running one and set icon immediately
+    stopPulseAnimation(tabId);
+    pulseDismissed.delete(tabId);
+    setTabIcon(tabId, level);
+  }
+}
+
+/** Called when the user clicks the extension icon (opens popup). Dismisses pulse. */
+function dismissPulseForTab(tabId) {
+  if (pulseIntervals.has(tabId)) {
+    pulseDismissed.set(tabId, true); // interval will clean itself up on next tick
   }
 }
 
@@ -444,7 +583,7 @@ async function blockTabWithWarning(tabId, url, result) {
       url: chrome.runtime.getURL(`warning.html?${params.toString()}`),
     });
   } catch (err) {
-    console.warn("[AEGIS] Could not redirect tab to warning page:", err);
+    console.warn("[SCYTHE] Could not redirect tab to warning page:", err);
   }
 }
 
@@ -475,7 +614,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
   // but not blocked — start deep analysis in the background.
   if (result.riskScore >= STAGE2_THRESHOLD && result.riskScore < RISK_BLOCK_THRESHOLD) {
     triggerStage2(tabId, url).catch((err) =>
-      console.warn("[AEGIS] Stage 2 dispatch failed:", err)
+      console.warn("[SCYTHE] Stage 2 dispatch failed:", err)
     );
   }
 });
@@ -497,6 +636,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
 
     detectAndSyncTheme(tabId);
+  } else if (changeInfo.status === "complete" && tab.url && !/^https?:\/\//.test(tab.url)) {
+    // Non-scannable page (chrome://, about:, file://, etc.) — reset to default icon
+    stopPulseAnimation(tabId);
+    pulseDismissed.delete(tabId);
+    setTabIcon(tabId, "default");
   }
 });
 
@@ -504,8 +648,29 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   scanCache.delete(tabId);
   bypassedTabs.delete(tabId);
   runtimeEvents.delete(tabId);
+  stopPulseAnimation(tabId);
+  pulseDismissed.delete(tabId);
   clearStage2Job(tabId);  // V10: clean up Stage 2 job tracking
 });
+
+/* ---------- Dismiss pulse when user opens the popup ---------- */
+// chrome.action.onClicked fires only when there is NO popup set.
+// Since we have a popup, we intercept the POPUP_OPENED message sent by popup.js instead.
+// As a belt-and-suspenders measure, we also hook onActivated so switching to the tab
+// after the popup is closed eventually resets the pulse state.
+chromeRuntime_onMessage_addPulseHandler(); // defined below
+
+function chromeRuntime_onMessage_addPulseHandler() {
+  // Injected after the main onMessage listener so we don't duplicate the switch block.
+  // popup.js sends { type: "POPUP_OPENED", tabId } as its first action on DOMContentLoaded.
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type === "POPUP_OPENED" && message.tabId != null) {
+      dismissPulseForTab(message.tabId);
+      sendResponse({ ok: true });
+      return true;
+    }
+  });
+}
 
 /* ---------- Theme sync: match popup/warning theme to the site's theme ---------- */
 

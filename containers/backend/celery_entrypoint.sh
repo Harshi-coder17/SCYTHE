@@ -1,6 +1,6 @@
 #!/bin/bash
 # =======================================================
-# AEGIS Celery — Entrypoint (Worker + Beat)
+# SCYTHE Celery — Entrypoint (Worker + Beat)
 # 1. Wait for Redis (broker) to be ready
 # 2. Wait for Postgres (models need DB)
 # 3. exec the celery command passed as CMD
