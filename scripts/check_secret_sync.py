@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CI / pre-deploy check to verify zero secret drift between root .env and backend/.env.
-Ensures AEGIS_DB_PASSWORD, REDIS_PASSWORD, REDIS_SECURITY_PASSWORD, and SANDBOX_RUNNER_SECRET
+Ensures SCYTHE_DB_PASSWORD, REDIS_PASSWORD, REDIS_SECURITY_PASSWORD, and SANDBOX_RUNNER_SECRET
 match exactly across both configuration layers (DevSecOps Finding #4).
 """
 
@@ -9,7 +9,7 @@ import os
 import sys
 
 SECRETS_TO_CHECK = [
-    "AEGIS_DB_PASSWORD",
+    "SCYTHE_DB_PASSWORD",
     "REDIS_PASSWORD",
     "REDIS_SECURITY_PASSWORD",
     "SANDBOX_RUNNER_SECRET",

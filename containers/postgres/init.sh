@@ -1,10 +1,10 @@
 #!/bin/sh
 # ===================================================
-# AEGIS PostgreSQL Init Script
+# SCYTHE PostgreSQL Init Script
 # Runs ONCE when the postgres container first starts
 # (placed in /docker-entrypoint-initdb.d/)
 #
-# Reads AEGIS_DB_PASSWORD from the environment (set in
+# Reads SCYTHE_DB_PASSWORD from the environment (set in
 # docker-compose.yml, sourced from the root .env) instead of
 # embedding it as a literal in this file. Only the app user's
 # password moves here -- the superuser password is still handled
@@ -12,29 +12,29 @@
 # ===================================================
 set -e
 
-: "${AEGIS_DB_PASSWORD:?AEGIS_DB_PASSWORD must be set}"
+: "${SCYTHE_DB_PASSWORD:?SCYTHE_DB_PASSWORD must be set}"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "postgres" \
-     -v aegis_pass="$AEGIS_DB_PASSWORD" <<-'EOSQL'
+     -v scythe_pass="$SCYTHE_DB_PASSWORD" <<-'EOSQL'
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'aegis_user') THEN
-        CREATE ROLE aegis_user LOGIN;
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'scythe_user') THEN
+        CREATE ROLE scythe_user LOGIN;
     END IF;
 END
 $$;
 
-SELECT format('ALTER ROLE aegis_user WITH PASSWORD %L;', :'aegis_pass') \gexec
+SELECT format('ALTER ROLE scythe_user WITH PASSWORD %L;', :'scythe_pass') \gexec
 
-SELECT 'CREATE DATABASE aegis_db OWNER aegis_user'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'aegis_db')\gexec
+SELECT 'CREATE DATABASE scythe_db OWNER scythe_user'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'scythe_db')\gexec
 EOSQL
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "aegis_db" <<-'EOSQL'
-GRANT ALL PRIVILEGES ON DATABASE aegis_db TO aegis_user;
-GRANT ALL ON SCHEMA public TO aegis_user;
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "scythe_db" <<-'EOSQL'
+GRANT ALL PRIVILEGES ON DATABASE scythe_db TO scythe_user;
+GRANT ALL ON SCHEMA public TO scythe_user;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 EOSQL
 
-echo "AEGIS database initialized successfully."
+echo "SCYTHE database initialized successfully."

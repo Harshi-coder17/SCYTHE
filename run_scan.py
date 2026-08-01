@@ -10,8 +10,8 @@ import os
 import uuid
 import argparse
 
-parser = argparse.ArgumentParser(description="AEGIS E2E Integration Test Runner")
-parser.add_argument("--host", default=os.environ.get("AEGIS_HOST", "https://localhost"), help="Target API host")
+parser = argparse.ArgumentParser(description="SCYTHE E2E Integration Test Runner")
+parser.add_argument("--host", default=os.environ.get("SCYTHE_HOST", "https://localhost"), help="Target API host")
 parser.add_argument("--email", default=os.environ.get("TEST_EMAIL", "analyst@test.com"), help="Test account email")
 parser.add_argument("--password", help="Test account password (will prompt if omitted)")
 parser.add_argument("--ca-bundle", default=os.environ.get("SSL_CERT_FILE"), help="Path to CA bundle for TLS verification")
@@ -44,7 +44,7 @@ def run_cmd(cmd_args):
     return subprocess.check_output(cmd_args).decode().strip()
 
 print("=======================================================================")
-print("                      AEGIS PIPELINE SCANNER                           ")
+print("                      SCYTHE PIPELINE SCANNER                           ")
 print("=======================================================================")
 
 # 1. Automatically register user if missing (returns 202 Accepted)
@@ -70,7 +70,7 @@ except Exception as e:
     sys.exit(1)
 
 target_url = args.url
-html_payload = f"<html><head><title>Test Page</title></head><body><h1>AEGIS test scan</h1><p>Scanning: {target_url}</p></body></html>"
+html_payload = f"<html><head><title>Test Page</title></head><body><h1>SCYTHE test scan</h1><p>Scanning: {target_url}</p></body></html>"
 
 stage2_payload = json.dumps({
     'url': target_url,
@@ -106,8 +106,8 @@ print(f"\n[4] Tracking progression of stages across Celery workers (timeout: {MA
 start_time = time.time()
 for _ in range(MAX_POLL_SECONDS // POLL_INTERVAL):
     status_query = [
-        "docker", "exec", "-u", "postgres", "aegis_postgres",
-        "psql", "-d", "aegis_db", "-t",
+        "docker", "exec", "-u", "postgres", "scythe_postgres",
+        "psql", "-d", "scythe_db", "-t",
         "-c", f"SELECT status, risk_score, severity FROM scans WHERE id = '{scan_id}';"
     ]
     row = run_cmd(status_query).strip()
@@ -129,9 +129,9 @@ for _ in range(MAX_POLL_SECONDS // POLL_INTERVAL):
 else:
     elapsed = int(time.time() - start_time)
     print(f"\n[!] Polling timed out after {elapsed}s — pipeline may still be running.")
-    print(f"    Check DB manually: docker exec -u postgres aegis_postgres psql -d aegis_db -t -c \"SELECT status, risk_score, severity FROM scans WHERE id = '{scan_id}';\"")
+    print(f"    Check DB manually: docker exec -u postgres scythe_postgres psql -d scythe_db -t -c \"SELECT status, risk_score, severity FROM scans WHERE id = '{scan_id}';\"")
 
 
 print("\n[5] Inspecting generated analysis artifacts in /shared/scans/{scan_id}...")
-files_list = run_cmd(["docker", "exec", "aegis_celery_worker", "ls", "-la", f"/shared/scans/{scan_id}"])
+files_list = run_cmd(["docker", "exec", "scythe_celery_worker", "ls", "-la", f"/shared/scans/{scan_id}"])
 print(files_list)

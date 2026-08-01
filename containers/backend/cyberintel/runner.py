@@ -67,7 +67,7 @@ async def _async_query_google_safe_browsing(client: httpx.AsyncClient, target: s
     try:
         url = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={settings.GOOGLE_SAFE_BROWSING_API_KEY}"
         payload = {
-            "client": {"clientId": "aegis-scanner", "clientVersion": "1.0.0"},
+            "client": {"clientId": "scythe-scanner", "clientVersion": "1.0.0"},
             "threatInfo": {
                 "threatTypes": ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"],
                 "platformTypes": ["ANY_PLATFORM"],

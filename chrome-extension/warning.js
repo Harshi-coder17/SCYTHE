@@ -69,12 +69,11 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     document.getElementById("dashboardBtn").onclick = () => {
-
-        window.open(
-            "http://localhost:3000/dashboard",
-            "_blank"
-        );
-
+        // Read from config.js (injected via <script> in warning.html)
+        const url = (typeof SCYTHE_CONFIG !== "undefined")
+            ? SCYTHE_CONFIG.DASHBOARD_URL
+            : "http://localhost:8000/dashboard";
+        window.open(url, "_blank");
     };
 
     document.getElementById("continueBtn").onclick = () => {

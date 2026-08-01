@@ -1,7 +1,7 @@
 """
 services/sandbox_runner_svc.py
 =================================
-Purpose-built admission-control microservice (`aegis_sandbox_runner`) that sits
+Purpose-built admission-control microservice (`scythe_sandbox_runner`) that sits
 in front of `docker_socket_proxy`.
 
 Security Hardening:
@@ -14,7 +14,7 @@ Security Hardening:
   - This service accepts ONLY `POST /detonate` with `{scan_id, target_url, timeout_sec}`.
   - It strictly enforces canonical UUID format (`_UUID_RE`), validates target URL format,
     and constructs one exact, immutable, hardcoded `docker run` command (`--cap-drop ALL`,
-    `--security-opt no-new-privileges:true`, `--read-only`, `--network aegis_sandbox_net`).
+    `--security-opt no-new-privileges:true`, `--read-only`, `--network scythe_sandbox_net`).
 """
 
 import asyncio
@@ -28,7 +28,7 @@ from pydantic import BaseModel, HttpUrl
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sandbox_runner_svc")
 
-app = FastAPI(title="AEGIS Sandbox Runner Service", version="1.0.0")
+app = FastAPI(title="SCYTHE Sandbox Runner Service", version="1.0.0")
 
 
 
@@ -40,10 +40,10 @@ _UUID_RE = re.compile(
 
 SANDBOX_IMAGE = os.environ.get(
     "SANDBOX_IMAGE",
-    "aegis-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767",
+    "scythe-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767",
 )
-SANDBOX_NETWORK = os.environ.get("SANDBOX_NETWORK", "aegis_sandbox_net")
-SHARED_VOLUME_NAME = os.environ.get("SHARED_SCANS_VOLUME", "aegis_shared_scans")
+SANDBOX_NETWORK = os.environ.get("SANDBOX_NETWORK", "scythe_sandbox_net")
+SHARED_VOLUME_NAME = os.environ.get("SHARED_SCANS_VOLUME", "scythe_shared_scans")
 SANDBOX_RUNNER_SECRET = os.environ.get("SANDBOX_RUNNER_SECRET", "")
 _MAX_CONCURRENT_DETONATIONS = int(os.environ.get("MAX_CONCURRENT_DETONATIONS", "10"))
 _detonate_sem = None
@@ -98,7 +98,7 @@ async def verify_host_firewall_and_image():
             if major > 0 and major < 24:
                 msg = (
                     f"CRITICAL: Host Docker Engine version is {server_version} (< 24.0.0). "
-                    "AEGIS Stage 2 sandbox detonation requires volume-subpath mounts supported in Docker Engine 24.0+. "
+                    "SCYTHE Stage 2 sandbox detonation requires volume-subpath mounts supported in Docker Engine 24.0+. "
                     "Please upgrade the host Docker Engine."
                 )
                 logger.error(msg)

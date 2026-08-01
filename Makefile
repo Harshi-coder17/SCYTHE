@@ -1,5 +1,5 @@
 # ==============================================================================
-# AEGIS Pipeline — Developer & DevSecOps Makefile
+# SCYTHE Pipeline — Developer & DevSecOps Makefile
 # ==============================================================================
 
 .PHONY: help pin-sandbox security-scan test run-scan deploy-prep

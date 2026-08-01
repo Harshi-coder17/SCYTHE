@@ -1,7 +1,7 @@
 """
 config.py
 ==========
-Central settings for the AEGIS backend. All values are loaded from
+Central settings for the SCYTHE backend. All values are loaded from
 environment variables (or the backend/.env file via pydantic-settings).
 """
 
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # -------------------------
     # Application
     # -------------------------
-    APP_NAME: str = "AEGIS Backend"
+    APP_NAME: str = "SCYTHE Backend"
     DEBUG: bool = False
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
     REQUIRE_REAL_CERT: bool = False
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     CLAMAV_PORT: int = 3310
     CLAMAV_FAIL_CLOSED: bool = True
     JWT_REVOCATION_FAIL_CLOSED: bool = True
-    JWT_ISSUER: str = "aegis-auth-v1"
+    JWT_ISSUER: str = "scythe-auth-v1"
     SUPERUSER_EMAILS: list[str] = []
     HIBP_FAIL_CLOSED: bool = False
     MAX_LOGIN_ATTEMPTS: int = 5
@@ -72,8 +72,8 @@ class Settings(BaseSettings):
 
     # -------------------------
     # Database
-    # AEGIS_DB_PASSWORD is the SAME credential postgres/init.sh uses to
-    # create the aegis_user role (sourced from the root .env, and now
+    # SCYTHE_DB_PASSWORD is the SAME credential postgres/init.sh uses to
+    # create the scythe_user role (sourced from the root .env, and now
     # passed through to this container by docker-compose.yml's
     # x-backend-common environment block -- see docker-compose.yml).
     # DATABASE_URL is declared AFTER it so the validator below can read
@@ -81,8 +81,8 @@ class Settings(BaseSettings):
     # only see previously-declared fields — same ordering constraint
     # noted below for REDIS_PASSWORD/REDIS_URL).
     # -------------------------
-    AEGIS_DB_PASSWORD: str = ""
-    DATABASE_URL: str = "postgresql+psycopg2://aegis_user:aegis_pass@postgres:5432/aegis_db"
+    SCYTHE_DB_PASSWORD: str = ""
+    DATABASE_URL: str = "postgresql+psycopg2://scythe_user:scythe_pass@postgres:5432/scythe_db"
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
     DB_ECHO: bool = False
@@ -91,24 +91,24 @@ class Settings(BaseSettings):
     @classmethod
     def _inject_db_password(cls, v: str, info) -> str:
         """
-        Make AEGIS_DB_PASSWORD authoritative over whatever password (if
+        Make SCYTHE_DB_PASSWORD authoritative over whatever password (if
         any) is already embedded in DATABASE_URL.
 
         This is deliberately the OPPOSITE precedence of the Redis
         validator below (which leaves an existing embedded password
         alone). Here, the whole point is to eliminate a second place
-        this credential can drift: AEGIS_DB_PASSWORD is what Postgres
+        this credential can drift: SCYTHE_DB_PASSWORD is what Postgres
         actually used to create the role (postgres/init.sh), so it's
         the one source of truth. If DATABASE_URL's embedded password
-        differs from it, DATABASE_URL was wrong, not AEGIS_DB_PASSWORD --
+        differs from it, DATABASE_URL was wrong, not SCYTHE_DB_PASSWORD --
         overriding it here is the fix, not a trade-off.
 
-        If AEGIS_DB_PASSWORD isn't set at all (e.g. a non-Docker local
+        If SCYTHE_DB_PASSWORD isn't set at all (e.g. a non-Docker local
         run that just wants to point DATABASE_URL at some other
         Postgres directly), this is a no-op and DATABASE_URL is used
         exactly as given.
         """
-        password = (info.data or {}).get("AEGIS_DB_PASSWORD", "")
+        password = (info.data or {}).get("SCYTHE_DB_PASSWORD", "")
         if not password:
             return v
 
@@ -116,20 +116,20 @@ class Settings(BaseSettings):
         if parsed.password and unquote(parsed.password) != password:
             logger.warning(
                 "DATABASE_URL's embedded password does not match "
-                "AEGIS_DB_PASSWORD -- using AEGIS_DB_PASSWORD (the value "
-                "postgres/init.sh actually created the aegis_user role "
+                "SCYTHE_DB_PASSWORD -- using SCYTHE_DB_PASSWORD (the value "
+                "postgres/init.sh actually created the scythe_user role "
                 "with). If you intended to point at a different "
-                "database entirely, leave AEGIS_DB_PASSWORD unset."
+                "database entirely, leave SCYTHE_DB_PASSWORD unset."
             )
 
-        username = parsed.username or "aegis_user"
+        username = parsed.username or "scythe_user"
         host = parsed.hostname or "postgres"
         port = parsed.port or 5432
         new_netloc = f"{quote_plus(username)}:{quote_plus(password)}@{host}:{port}"
         return urlunparse((
             parsed.scheme,
             new_netloc,
-            parsed.path,       # preserves /aegis_db
+            parsed.path,       # preserves /scythe_db
             parsed.params,
             parsed.query,
             parsed.fragment,
@@ -221,10 +221,10 @@ class Settings(BaseSettings):
     # in the database before archival or deletion.
     INCIDENT_RETENTION_DAYS: int = 365
 
-    SANDBOX_NETWORK: Optional[str] = "aegis_sandbox_net"
-    SANDBOX_IMAGE: str = "aegis-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767"
+    SANDBOX_NETWORK: Optional[str] = "scythe_sandbox_net"
+    SANDBOX_IMAGE: str = "scythe-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767"
     SANDBOX_RUNNER_SECRET: str = ""
-    SHARED_SCANS_VOLUME: Optional[str] = "aegis_shared_scans"
+    SHARED_SCANS_VOLUME: Optional[str] = "scythe_shared_scans"
     SANDBOX_TIMEOUT_SEC: int = 120
     ALLOW_GLOB_FALLBACK: bool = False
 
@@ -299,7 +299,7 @@ if settings.is_production and not settings.REQUIRE_REAL_CERT:
     )
 
 if settings.is_production:
-    for secret_name in ("SECRET_KEY", "AEGIS_DB_PASSWORD", "REDIS_PASSWORD", "REDIS_SECURITY_PASSWORD", "SANDBOX_RUNNER_SECRET"):
+    for secret_name in ("SECRET_KEY", "SCYTHE_DB_PASSWORD", "REDIS_PASSWORD", "REDIS_SECURITY_PASSWORD", "SANDBOX_RUNNER_SECRET"):
         val = getattr(settings, secret_name, "")
         if not val or val.startswith("CHANGE_THIS_") or val == "change-this-in-production" or len(val) < 32:
             raise RuntimeError(
@@ -330,7 +330,7 @@ if ":latest" in settings.SANDBOX_IMAGE or ("@sha256:" not in settings.SANDBOX_IM
         "Pin SANDBOX_IMAGE by immutable digest before running."
     )
 
-_PLACEHOLDER_SANDBOX_DIGEST = "aegis-sandbox@sha256:454a806c1149eb37e1c09003c2aa2a86ec5d9c5d5c9650a23308117eb2d00f9c"
+_PLACEHOLDER_SANDBOX_DIGEST = "scythe-sandbox@sha256:454a806c1149eb37e1c09003c2aa2a86ec5d9c5d5c9650a23308117eb2d00f9c"
 if settings.is_production and settings.SANDBOX_IMAGE == _PLACEHOLDER_SANDBOX_DIGEST:
     raise RuntimeError(
         f"Secure-by-default check: SANDBOX_IMAGE ('{settings.SANDBOX_IMAGE}') is still set to the default placeholder digest. "

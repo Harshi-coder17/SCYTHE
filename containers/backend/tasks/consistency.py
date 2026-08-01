@@ -1,7 +1,7 @@
 """
 tasks/consistency.py
 =====================
-Stage 3 of the AEGIS Celery pipeline: compares browser vs sandbox views
+Stage 3 of the SCYTHE Celery pipeline: compares browser vs sandbox views
 using the ConsistencyEngine to detect cloaking.
 
 Bug fix:

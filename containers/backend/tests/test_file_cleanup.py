@@ -101,7 +101,7 @@ def test_file_cleanup_dual_tier_db_retention_and_statistics_sync():
 
     with TestSessionLocal() as db:
         from database.models import User
-        u = User(id="test-user", email="test@aegis.invalid", hashed_password="pw")
+        u = User(id="test-user", email="test@scythe.invalid", hashed_password="pw")
         db.add(u)
         db.commit()
 

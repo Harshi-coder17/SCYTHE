@@ -1,5 +1,5 @@
 """
-AEGIS FastAPI application entry point.
+SCYTHE FastAPI application entry point.
 """
 
 import asyncio

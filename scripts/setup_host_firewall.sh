@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/setup_host_firewall.sh
 # ==============================================================================
-# Host-Layer Defense-in-Depth for AEGIS Sandbox Network (Critical Finding #4)
+# Host-Layer Defense-in-Depth for SCYTHE Sandbox Network (Critical Finding #4)
 # ==============================================================================
 # Purpose:
 #   Application-layer guards (`ssrf_guard.py` and `egress_proxy.py`) block SSRF
@@ -23,16 +23,16 @@ set -euo pipefail
 
 if [[ $# -eq 0 ]]; then
     echo "[-] Error: No subnet CIDRs specified."
-    echo "Usage: sudo $0 <sandbox-subnet-cidr> [aegis-net-subnet-cidr ...]"
+    echo "Usage: sudo $0 <sandbox-subnet-cidr> [scythe-net-subnet-cidr ...]"
     echo "Example: sudo $0 172.28.0.0/16 172.29.0.0/16"
     echo ""
-    echo "To inspect the current subnets for both aegis_sandbox_net and aegis_net:"
-    echo "  docker network inspect aegis_sandbox_net aegis_net -f '{{.Name}}: {{range .IPAM.Config}}{{.Subnet}}{{end}}'"
+    echo "To inspect the current subnets for both scythe_sandbox_net and scythe_net:"
+    echo "  docker network inspect scythe_sandbox_net scythe_net -f '{{.Name}}: {{range .IPAM.Config}}{{.Subnet}}{{end}}'"
     exit 1
 fi
 
 iptables -N DOCKER-USER 2>/dev/null || true
-# Note: Custom bridge subnets (e.g., aegis_sandbox_net, aegis_net) are filtered by CIDR argument below.
+# Note: Custom bridge subnets (e.g., scythe_sandbox_net, scythe_net) are filtered by CIDR argument below.
 
 for SUBNET in "$@"; do
     echo "[+] Configuring DOCKER-USER iptables chain for subnet: ${SUBNET}"
@@ -41,7 +41,7 @@ for SUBNET in "$@"; do
     iptables -I DOCKER-USER -s "${SUBNET}" -m state --state ESTABLISHED,RELATED -j RETURN
 
     # 2. Allow intra-subnet traffic between containers on the same network bridge
-    #    (Required for aegis_net so backend/celery_worker can communicate with postgres/redis/clamav)
+    #    (Required for scythe_net so backend/celery_worker can communicate with postgres/redis/clamav)
     iptables -A DOCKER-USER -s "${SUBNET}" -d "${SUBNET}" -j RETURN
 
     # 3. Block Cloud Metadata endpoints (169.254.169.254 / fe80::/10)

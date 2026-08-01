@@ -111,7 +111,7 @@ function buildReportDom(report, sections) {
     logoBox.style.cssText = `width:40px; height:40px; background:${C.accent}; border-radius:10px; display:flex; align-items:center; justify-content:center;`;
     logoBox.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2 L20 6 v6 c0 5-4 8-8 10 C8 20 4 17 4 12 V6 Z"/></svg>`;
     const brandText = document.createElement("div");
-    brandText.innerHTML = `<div style="font-family:'Chakra Petch','Inter',sans-serif;font-size:20px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;">CyberWeb</div><div style="font-size:11px;color:${C.muted};letter-spacing:0.1em;">THREAT ANALYSIS REPORT</div>`;
+    brandText.innerHTML = `<div style="font-family:'Chakra Petch','Inter',sans-serif;font-size:20px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;">SCYTHE</div><div style="font-size:11px;color:${C.muted};letter-spacing:0.1em;">THREAT ANALYSIS REPORT</div>`;
     brand.appendChild(logoBox);
     brand.appendChild(brandText);
 
@@ -341,7 +341,7 @@ function buildReportDom(report, sections) {
   /* Footer */
   const footer = document.createElement("div");
   footer.style.cssText = `padding:20px 40px; text-align:center; font-size:10px; color:${C.muted}; letter-spacing:0.08em;`;
-  footer.textContent = `CyberWeb Threat Analysis Report • Generated ${new Date().toLocaleString()} • Confidential`;
+  footer.textContent = `SCYTHE Threat Analysis Report • Generated ${new Date().toLocaleString()} • Confidential`;
   wrap.appendChild(footer);
 
   return wrap;
@@ -412,7 +412,7 @@ async function generatePdfReport() {
       pageH = (imgH / imgW) * pageW;
       const pdf = new jsPDF({ unit: "pt", format: [pageW, pageH] });
       pdf.addImage(imgData, "PNG", 0, 0, pageW, pageH);
-      pdf.save(`CyberWeb_Report_${report.id}.pdf`);
+      pdf.save(`SCYTHE_Report_${report.id}.pdf`);
     } else {
       const [pw, ph] = PAGE_SIZES[sizeKey];
       pageW = pw;
@@ -442,7 +442,7 @@ async function generatePdfReport() {
         pdf.addImage(sliceData, "PNG", margin, margin, usableW, sliceRenderedH);
       }
 
-      pdf.save(`CyberWeb_Report_${report.id}.pdf`);
+      pdf.save(`SCYTHE_Report_${report.id}.pdf`);
     }
   } catch (err) {
     console.error("PDF generation error:", err);
@@ -479,7 +479,7 @@ async function generateJpgReport() {
 
     // Download as JPG
     const link = document.createElement("a");
-    link.download = `CyberWeb_Report_${report.id}.jpg`;
+    link.download = `SCYTHE_Report_${report.id}.jpg`;
     link.href = canvas.toDataURL("image/jpeg", 0.92);
     link.click();
   } catch (err) {

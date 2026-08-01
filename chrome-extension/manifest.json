@@ -1,12 +1,25 @@
 {
   "manifest_version": 3,
-  "name": "Threat Shield",
+  "name": "SCYTHE Threat Shield",
   "version": "1.0.0",
-  "description": "Scans the pages you visit for phishing and scam indicators and warns you before you interact with risky sites.",
+  "description": "SCYTHE (Secure Cyber & Threat Heuristic Engine) — Real-time AI-powered phishing and threat detection. Scans every page you visit and warns you before you interact with dangerous sites.",
+
+  "icons": {
+    "16":  "icons/default_logo_16.png",
+    "32":  "icons/default_logo_32.png",
+    "48":  "icons/default_logo_48.png",
+    "128": "icons/default_logo_128.png"
+  },
 
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Threat Shield"
+    "default_title": "SCYTHE Threat Shield",
+    "default_icon": {
+      "16":  "icons/default_logo_16.png",
+      "32":  "icons/default_logo_32.png",
+      "48":  "icons/default_logo_48.png",
+      "128": "icons/default_logo_128.png"
+    }
   },
 
   "background": {
@@ -36,7 +49,6 @@
   ],
 
   "host_permissions": [
-    "http://localhost:8000/*",
     "https://*/*",
     "http://*/*"
   ]

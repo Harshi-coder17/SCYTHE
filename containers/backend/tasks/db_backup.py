@@ -45,13 +45,13 @@ def db_backup_task(self, retention_days: int = 7) -> dict:
     os.makedirs(backup_dir, exist_ok=True)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    dump_filename = f"aegis_db_{timestamp}.dump"
+    dump_filename = f"scythe_db_{timestamp}.dump"
     dump_path = os.path.join(backup_dir, dump_filename)
 
-    db_password = getattr(settings, "AEGIS_DB_PASSWORD", "")
+    db_password = getattr(settings, "SCYTHE_DB_PASSWORD", "")
     if not db_password:
-        logger.error("[db_backup] AEGIS_DB_PASSWORD not set — cannot authenticate to postgres")
-        raise RuntimeError("AEGIS_DB_PASSWORD is empty")
+        logger.error("[db_backup] SCYTHE_DB_PASSWORD not set — cannot authenticate to postgres")
+        raise RuntimeError("SCYTHE_DB_PASSWORD is empty")
 
     # Write .pgpass to /tmp (tmpfs — auto-wiped on container restart) rather than
     # the home directory. If the Celery worker receives SIGKILL mid-task, the
@@ -61,7 +61,7 @@ def db_backup_task(self, retention_days: int = 7) -> dict:
     pgpass_path = f"/tmp/.pgpass_{os.getpid()}"  # nosec B108
     try:
         with open(pgpass_path, "w", encoding="utf-8") as f:
-            f.write(f"postgres:5432:aegis_db:aegis_user:{db_password}\n")
+            f.write(f"postgres:5432:scythe_db:scythe_user:{db_password}\n")
         os.chmod(pgpass_path, 0o600)
     except IOError as e:
         logger.error("[db_backup] Failed to write .pgpass: %s", e)
@@ -75,12 +75,12 @@ def db_backup_task(self, retention_days: int = 7) -> dict:
         "pg_dump",
         "-h", "postgres",
         "-p", "5432",
-        "-U", "aegis_user",
+        "-U", "scythe_user",
         "-F", "c",
         "-b",
         "-v",
         "-f", dump_path,
-        "aegis_db",
+        "scythe_db",
     ]
 
     try:
@@ -150,7 +150,7 @@ def db_backup_task(self, retention_days: int = 7) -> dict:
     # Prune expired backups
     cutoff_time = time.time() - (retention_days * 86400)
     removed_count = 0
-    for file_path in glob.glob(os.path.join(backup_dir, "aegis_db_*.dump*")):
+    for file_path in glob.glob(os.path.join(backup_dir, "scythe_db_*.dump*")):
         try:
             if os.path.getmtime(file_path) < cutoff_time:
                 os.remove(file_path)

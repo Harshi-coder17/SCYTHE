@@ -1,7 +1,7 @@
 """
 tasks/sandbox_analysis.py
 ==========================
-Stage 2 of the AEGIS Celery pipeline: detonates a URL in an isolated
+Stage 2 of the SCYTHE Celery pipeline: detonates a URL in an isolated
 Playwright sandbox container and waits for the result artifacts.
 
 Security hardening (finding #3 fix):
@@ -18,9 +18,9 @@ Security hardening (finding #3 fix):
 
 Network isolation (finding #9 fix):
   The sandbox container is attached to `sandbox_net` only (defined in
-  docker-compose.yml). It cannot reach aegis_net, Postgres, or Redis even
+  docker-compose.yml). It cannot reach scythe_net, Postgres, or Redis even
   if Chromium is fully compromised. The Celery worker that invokes it lives
-  on aegis_net and communicates only via the shared_scans volume.
+  on scythe_net and communicates only via the shared_scans volume.
 """
 
 import asyncio
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", settings.SANDBOX_IMAGE)
 SHARED_VOLUME_NAME = os.environ.get("SHARED_SCANS_VOLUME", settings.SHARED_SCANS_VOLUME)
-SANDBOX_RUNNER_URL = os.environ.get("SANDBOX_RUNNER_URL", "http://aegis_sandbox_runner:8002/detonate")
+SANDBOX_RUNNER_URL = os.environ.get("SANDBOX_RUNNER_URL", "http://scythe_sandbox_runner:8002/detonate")
 SANDBOX_RUNNER_SECRET = os.environ.get("SANDBOX_RUNNER_SECRET", settings.SANDBOX_RUNNER_SECRET)
 
 
@@ -73,12 +73,12 @@ def _get_scan_url(scan_id: str) -> str:
 
 async def _run_sandbox_container(scan_id: str, target_url: str, timeout_sec: int) -> None:
     """
-    Invoke the aegis_sandbox_runner microservice over HTTP (`POST /detonate`)
+    Invoke the scythe_sandbox_runner microservice over HTTP (`POST /detonate`)
     instead of calling `docker run` directly.
 
     Security Hardening (DevSecOps Critical Finding #1):
       Celery workers process untrusted screenshots and image bytes. By offloading
-      container detonation to the single-purpose `aegis_sandbox_runner` service,
+      container detonation to the single-purpose `scythe_sandbox_runner` service,
       the Celery worker has ZERO access to the Docker API (`docker_socket_proxy`).
       If an attacker achieves parser RCE inside the worker via pytesseract or
       OpenCV, they cannot call `docker run -v /:/host` or `privileged: true`.

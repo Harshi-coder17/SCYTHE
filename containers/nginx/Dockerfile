@@ -1,5 +1,5 @@
 # ===================================================
-# AEGIS Nginx Container — Security Hardened
+# SCYTHE Nginx Container — Security Hardened
 # Receptionist: routes REST API + WebSocket traffic
 # to the Backend (Uvicorn) container.
 #

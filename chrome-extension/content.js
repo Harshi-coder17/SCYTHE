@@ -1,5 +1,5 @@
 // ============================================================
-// AEGIS — content.js
+// SCYTHE — content.js
 // DOM Structure Scanner
 // Detects phishing indicators from page structure.
 // Sends BDR_EVENTS and BDR_CRITICAL messages to background.js

@@ -1,5 +1,5 @@
 # ===================================================
-# AEGIS Backend - Direct Python Dependencies (.in)
+# SCYTHE Backend - Direct Python Dependencies (.in)
 # Run pip-compile --generate-hashes backend/requirements.in -o backend/requirements.txt
 # ===================================================
 

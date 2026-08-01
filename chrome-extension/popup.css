@@ -620,3 +620,57 @@ input:checked + .slider:before {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+/* ============================================================
+   SCYTHE Brand Logo — Popup Header & Hero
+   ============================================================ */
+
+/* Header bar logo (small, next to SCYTHE text) */
+.header-logo-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 5px;
+  flex-shrink: 0;
+  /* In dark mode the logos already look great as-is */
+  filter: none;
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+html[data-theme="light"] .header-logo-img {
+  /* Invert for light mode so the logo reads well on light bg */
+  filter: invert(1) hue-rotate(180deg) brightness(0.8);
+}
+
+/* Hero panel logo (larger, replaces the old shield SVG) */
+.hero-logo-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
+  transition: filter 0.25s ease, transform 0.25s ease;
+}
+html[data-theme="light"] .hero-logo-img {
+  filter: invert(1) hue-rotate(180deg) brightness(0.8);
+}
+
+/* Colour logos (green/orange/red) keep their colours — don't invert them */
+.hero-logo-img.coloured,
+.header-logo-img.coloured {
+  filter: none !important;
+}
+
+/* Pulse ring animation on the hero wrapper for threat states */
+.hero-shield-wrapper.caution {
+  animation: pulseRingOrange 2s ease-in-out infinite;
+}
+.hero-shield-wrapper.blocked {
+  animation: pulseRingRed 2s ease-in-out infinite;
+}
+
+@keyframes pulseRingOrange {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,6,0.0), 0 0 0 0 rgba(217,119,6,0.0); }
+  50%       { box-shadow: 0 0 0 6px rgba(217,119,6,0.35), 0 0 14px 6px rgba(217,119,6,0.18); }
+}
+@keyframes pulseRingRed {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.0), 0 0 0 0 rgba(220,38,38,0.0); }
+  50%       { box-shadow: 0 0 0 6px rgba(220,38,38,0.4), 0 0 16px 6px rgba(220,38,38,0.22); }
+}

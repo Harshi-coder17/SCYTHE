@@ -95,7 +95,7 @@ def main():
         if "docker_proxy_net" in net_list:
             proxy_net_services.append(svc_name)
 
-    allowed_proxy_services = {"docker_socket_proxy", "aegis_sandbox_runner"}
+    allowed_proxy_services = {"docker_socket_proxy", "scythe_sandbox_runner"}
     if set(proxy_net_services) != allowed_proxy_services:
         print(f"[check-sandbox-sync] ERROR: Unauthorized service(s) attached to docker_proxy_net! Found: {sorted(proxy_net_services)}, Allowed exactly: {sorted(allowed_proxy_services)}", file=sys.stderr)
         sys.exit(1)

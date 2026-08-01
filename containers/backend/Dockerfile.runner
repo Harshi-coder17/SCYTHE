@@ -1,5 +1,5 @@
 # ==============================================================================
-# AEGIS Sandbox Runner Microservice (`aegis_sandbox_runner`)
+# SCYTHE Sandbox Runner Microservice (`scythe_sandbox_runner`)
 # Purpose: Admission-control API gateway in front of `docker_socket_proxy`.
 # Only this container receives DOCKER_HOST access (`docker_proxy_net`).
 # ==============================================================================

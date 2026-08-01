@@ -41,7 +41,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # The hash is for the string "dummy-password-that-will-never-match" and was
 # generated once with hash_password(). It never changes at runtime; it exists
 # only to ensure the bcrypt work-factor is always paid.
-_DUMMY_HASH: str = hash_password("dummy-password-aegis-timing-guard-v1")
+_DUMMY_HASH: str = hash_password("dummy-password-scythe-timing-guard-v1")
 
 
 @router.post(

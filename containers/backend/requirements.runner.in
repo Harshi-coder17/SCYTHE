@@ -1,5 +1,5 @@
 # ===================================================
-# AEGIS Sandbox Runner Microservice Dependencies (.in)
+# SCYTHE Sandbox Runner Microservice Dependencies (.in)
 # Run pip-compile --generate-hashes backend/requirements.runner.in -o backend/requirements.runner.txt
 # ===================================================
 

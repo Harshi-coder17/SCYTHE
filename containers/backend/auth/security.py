@@ -157,7 +157,7 @@ def check_pwned_password(plain_password: str) -> bool:
     url = f"https://api.pwnedpasswords.com/range/{prefix}"
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": "AEGIS-Security-HIBP-Checker"}
+        headers={"User-Agent": "SCYTHE-Security-HIBP-Checker"}
     )
     try:
         with urllib.request.urlopen(req, timeout=2.0) as resp:  # nosec B310
