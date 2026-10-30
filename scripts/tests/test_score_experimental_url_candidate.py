@@ -1,12 +1,16 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 import score_experimental_url_candidate as scorer  # noqa: E402
 
 
 def test_experimental_scorer_returns_probability_without_verdict():
+    if not scorer.ARTIFACT.is_dir():
+        pytest.skip("Experimental model artifacts not present in this environment")
     result = scorer.score_url("https://example.com/login")
     assert result["availability"] == "observed"
     assert result["status"] == "experimental_only"
