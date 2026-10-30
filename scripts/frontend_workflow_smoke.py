@@ -61,7 +61,7 @@ async def run(origin: str, target: str, output: str | None) -> dict:
                 data = await response.json()
                 if not statuses or statuses[-1] != data["status"]:
                     statuses.append(data["status"])
-                if data.get("risk_report") is not None and data["status"] in {"risk_fusion_done", "file_scan_done"}:
+                if data.get("risk_report") is not None and data["status"] in {"risk_fusion_done", "file_scan_done", "alert_pipeline_done"}:
                     completed_samples = completed_samples + 1 if completed_status == data["status"] else 1
                     completed_status = data["status"]
                     if completed_samples < 2:

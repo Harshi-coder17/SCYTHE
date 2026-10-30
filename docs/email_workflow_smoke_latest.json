@@ -1,19 +1,19 @@
 {
-  "run_id": "c7f52b3873c4",
-  "started_at": "2026-10-30T19:39:16.322084+00:00",
+  "run_id": "b8178d148295",
+  "started_at": "2026-10-30T21:18:19.855889+00:00",
   "base": "https://localhost:8443",
   "fixture_accounts": [
     {
-      "email": "scythe-email-smoke-c7f52b3873c4-1@example.test",
-      "user_id": "e6381157-5532-43f5-87ca-bfc45d8998f0"
+      "email": "scythe-email-smoke-b8178d148295-1@example.test",
+      "user_id": "140764a7-da68-48c6-b85e-f67c2ea68e5e"
     },
     {
-      "email": "scythe-email-smoke-c7f52b3873c4-2@example.test",
-      "user_id": "e9fe171f-59d4-4d96-a1bf-07daf1bad0e3"
+      "email": "scythe-email-smoke-b8178d148295-2@example.test",
+      "user_id": "c17eda08-ae75-4f71-aeac-b40654b670ec"
     }
   ],
-  "email_id": "email-smoke-c7f52b3873c4",
-  "scan_id": "f95620dc-deea-40d8-99aa-f831a985956a",
+  "email_id": "email-smoke-b8178d148295",
+  "scan_id": "5d33a3dc-9e67-49d3-a830-1e25fa9b681e",
   "checks": [
     {
       "check": "register_1",
@@ -80,7 +80,7 @@
       "passed": true
     },
     {
-      "check": "cross_user_scan_artifact_denied_f95620dc-deea-40d8-99aa-f831a985956a",
+      "check": "cross_user_scan_artifact_denied_5d33a3dc-9e67-49d3-a830-1e25fa9b681e",
       "passed": true,
       "http_status": 404
     },
@@ -118,12 +118,12 @@
   "passed": true,
   "fixture_mode": "local RFC822 parser and Celery only; no IMAP or SMTP; DNS enrichment explicitly unavailable",
   "fixture_checksums": {
-    "raw_sha256": "ebc07d1fc02e63cca68873c897c05dcf4f21ef8b4eef65084caea792ec5fae06",
-    "attachment_sha256": "61710c7ceb7ae68aeb70efee7c3dbc2b32793ae289f83df220929b0de9ec6996",
-    "parser_attachment_sha256": "61710c7ceb7ae68aeb70efee7c3dbc2b32793ae289f83df220929b0de9ec6996",
+    "raw_sha256": "8300a03a019d057d7c051a254d6b4ca63fd2a8ffdf0da54620c899bd12d352bb",
+    "attachment_sha256": "c15b0e44d553f0230d2c82cc07d0250812e93b14adb406944dd502f1b0ddc16c",
+    "parser_attachment_sha256": "c15b0e44d553f0230d2c82cc07d0250812e93b14adb406944dd502f1b0ddc16c",
     "manifest_count": 1
   },
-  "job_id": "2b6450e0-3e13-49e7-b910-88bbd9f6776f",
+  "job_id": "f561a509-893e-492f-9b39-03cb75175666",
   "final_status": "email_scan_done",
   "technical_verification": {
     "stage_files": {
@@ -137,7 +137,7 @@
     "av_available": true,
     "av_results": [
       {
-        "sha256": "61710c7ceb7ae68aeb70efee7c3dbc2b32793ae289f83df220929b0de9ec6996",
+        "sha256": "c15b0e44d553f0230d2c82cc07d0250812e93b14adb406944dd502f1b0ddc16c",
         "available": true,
         "malware_detected": false,
         "detail": "Clean (clamd)"
@@ -169,5 +169,5 @@
   "cleanup": {
     "fixture_accounts_disabled": 2
   },
-  "finished_at": "2026-10-30T19:40:13.158221+00:00"
+  "finished_at": "2026-10-30T21:19:18.162633+00:00"
 }
