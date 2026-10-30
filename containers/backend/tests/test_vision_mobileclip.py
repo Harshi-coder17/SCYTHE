@@ -135,6 +135,7 @@ def test_mobileclip_paths_come_from_configured_runtime_assets(tmp_path, monkeypa
 
 
 def test_score_screenshot_mocked_model_inference(tmp_path):
+    torch = pytest.importorskip("torch")
     _reset_mobileclip_cache()
     img_path = tmp_path / "sample.png"
     _create_sample_image(img_path)
@@ -146,7 +147,6 @@ def test_score_screenshot_mocked_model_inference(tmp_path):
     mock_encoder = MagicMock()
     mock_preprocess = MagicMock()
 
-    import torch
     dummy_tensor = torch.zeros(1, 3, 256, 256)
     mock_preprocess.return_value = dummy_tensor[0]
     mock_encoder.encode_image.return_value = torch.ones(1, 512)
@@ -170,6 +170,7 @@ def test_score_screenshot_mocked_model_inference(tmp_path):
 
 
 def test_score_screenshot_inference_exception_graceful_fallback(tmp_path):
+    torch = pytest.importorskip("torch")
     _reset_mobileclip_cache()
     img_path = tmp_path / "sample.png"
     _create_sample_image(img_path)
@@ -179,7 +180,6 @@ def test_score_screenshot_inference_exception_graceful_fallback(tmp_path):
 
     mock_encoder = MagicMock()
     mock_preprocess = MagicMock()
-    import torch
     mock_preprocess.return_value = torch.zeros(3, 256, 256)
     mock_encoder.encode_image.return_value = torch.ones(1, 512)
 
