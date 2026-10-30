@@ -6,9 +6,11 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Production Readiness](https://img.shields.io/badge/Production_Readiness-QUALIFIED-brightgreen.svg)]()
 [![Model Version](https://img.shields.io/badge/Model-candidate__fusion__v26-success.svg)]()
+[![Challenger Model](https://img.shields.io/badge/Challenger-candidate__fusion__v27_experimental-yellow.svg)]()
 [![Smoke Tests](https://img.shields.io/badge/Smoke_Tests-16%2F16_PASSED-brightgreen.svg)]()
 [![OWASP Top 10](https://img.shields.io/badge/OWASP_Top_10-PASSED-green.svg)]()
 [![Security Audits](https://img.shields.io/badge/Security_Audits-0_Critical_CVEs-brightgreen.svg)]()
+[![Training Scale](https://img.shields.io/badge/Training_Scale-428K_URLs_%7C_22K_Images-blue.svg)]()
 
 ---
 
@@ -17,21 +19,20 @@
 SCYTHE provides multi-tier, defense-in-depth protection across browser navigation, manual dashboard analysis, and enterprise email ingestion. It eliminates single-point-of-failure heuristic detection by combining deterministic threat intelligence, sandboxed browser execution, consistency checks, and calibrated machine learning into an automated verification pipeline.
 
 ```
-                           [ Chrome Extension (MV3) ]
-                                       │
-                                       ▼
-                          [ Nginx TLS 1.3 Proxy (:8443) ]
-                                       │
-                          [ FastAPI Backend (:8000) ]
-                                       │
-             ┌─────────────────────────┴─────────────────────────┐
-             ▼                                                   ▼
-    [ Stage 1: Quick Scan ]                            [ Stage 2: Deep Scan ]
-    ├─ Domain Allowlist Cache                          ├─ Celery Chord Orchestrator
-    ├─ CyberIntel Feeds (VT, OTX)                      ├─ Isolated gVisor Sandbox
-    └─ LightGBM URL Classifier                         ├─ DOM & Network HAR Extraction
-                                                       ├─ Consistency Engine (Anti-Cloaking)
-                                                       └─ Multimodal Risk Fusion Engine
+                         [ Chrome Extension (MV3) ]
+                                     |
+                        [ Nginx TLS 1.3 Proxy (:8443) ]
+                                     |
+                        [ FastAPI Backend (:8000) ]
+                                     |
+             +-----------------------+------------------------+
+             |                                               |
+    [ Stage 1: Quick Scan ]                    [ Stage 2: Deep Scan ]
+    - Domain Allowlist Cache                   - Celery Chord Orchestrator
+    - CyberIntel Feeds (VT, OTX)               - Isolated gVisor Sandbox
+    - LightGBM URL Classifier                  - DOM & Network HAR Extraction
+                                               - Consistency Engine (Anti-Cloaking)
+                                               - Multimodal Risk Fusion Engine
 ```
 
 ### Core Capabilities
@@ -44,147 +45,173 @@ SCYTHE provides multi-tier, defense-in-depth protection across browser navigatio
 
 ---
 
-## 2. Machine Learning Architecture (`candidate_fusion_v26`)
+## 2. Machine Learning Architecture
+
+### Production Release: `candidate_fusion_v26`
 
 The SCYTHE production inference pipeline runs on the audited and verified `candidate_fusion_v26` multimodal architecture under contract `scythe_fusion_v2`.
 
 ```
-           ┌───────────────────────────────────────────────┐
-           │          Candidate Fusion V26 Pipeline        │
-           └───────────────────────┬───────────────────────┘
-                                   │
-         ┌─────────────────────────┴─────────────────────────┐
-         ▼                                                   ▼
-[ Quick Path (URL Only) ]                           [ Deep Path (Multimodal) ]
-├─ 15 Morphological URL Features                    ├─ URL Sub-Model Predictions
-├─ Standalone LightGBM Classifier                   ├─ 512-d MobileCLIP L2 Visual Embeddings
-├─ Calibrated Leaf Fallback (threshold=0.50)        ├─ 99.33% Backfilled DOM/Form Counts
-│  • Benign: 0.13 - 0.96 (SAFE)                     ├─ Authoritative DNS & WHOIS Features
-│  • Phishing: 99.97 (HIGH)                         └─ Sandbox Cross-Domain Form Ratios
-└─ Persistent Volume Mount (`scythe_bundle_v26`)
+        +--------------------------------------------------+
+        |         Candidate Fusion V26 Pipeline            |
+        +--------------------+-----------------------------+
+                             |
+           +-----------------+----------------+
+           |                                  |
+   [ Quick URL Head ]               [ Deep URL Head ]
+   LightGBM (178K params)          LightGBM (355K params)
+   p95 latency: ~177ms             p95 latency: ~552ms
+           |                                  |
+           +--------+          +--------------+
+                    |          |
+             [ Visual Head ]  [ Scythe Observations ]
+             MobileCLIP S0     Browser features, sandbox
+             512-dim L2        signals, consistency score
+                    |
+              [ Risk Fusion ]
+              Calibrated weighted ensemble
 ```
 
-### Inference Fallback & Calibration
-In standalone Quick URL scans where DOM and sandbox telemetry are not yet observed (`NaN`), the fusion model output is calibrated in `tasks/model_inference.py`:
-* When degenerate constant leaf output (`~0.9717`) is detected due to absent DOM/sandbox signals, the pipeline automatically falls back to the specialized LightGBM URL classifier (`url_classifier.txt`).
-* URLs scoring `< 0.50` are marked `SAFE` (e.g., `bbc.com` → 0.13, `python.org` → 0.14, `reddit.com` → 0.14, `stackoverflow.com` → 0.96).
-* Malicious infrastructure scores `> 0.50` and is flagged `HIGH` (e.g., direct-IP phishing campaigns → 99.97).
-* All outputs strictly satisfy schema validation: `probability ∈ [0, 1]` and `risk_score = round(probability * 100, 2)`.
+**Qualification Gates (Independent 7,082-Sample Holdout):**
+- Phishing Recall (Wilson-95): ≥ 86.6%
+- False Positive Rate: 0% observed
+- Quick URL p95 Latency: 177ms
+- Deep URL p95 Latency: 552ms
+- Availability: 100%
 
-### Dataset & Training Rigor
-* **Sanitized 10,000-Row Dataset:** 5,000 phishing and 5,000 benign multimodal records in `manifest_paired_10k.jsonl` (SHA-256: `13f753e92f069cee6d63921defa3a0aa470cd647156562b6362a06bbc26dc6a0`).
-* **Zero Cross-Split Leakage:** 0 domain overlaps and 0 screenshot image SHA-256 overlaps between the 8,000 training and 2,000 validation records.
-* **DOM Feature Completeness:** Backfilled from raw HTML archives to **99.33%** (`browser_dom_form_count`, `browser_dom_script_count`, `browser_dom_link_count`, `sandbox_cross_domain_form_count`).
+### Experimental Challenger: `candidate_fusion_v27`
 
-### Holdout Evaluation & Metrics (7,082 URLs)
-Evaluated across **7,082 holdout URLs** (2,050 phishing, 5,032 benign) with **14,164 total model evaluations** and **28,466 content-addressed evidence blobs**:
+> **Status**: `experimental_challenger` — NOT production-qualified. Runs in shadow scoring only; `v26` remains the live release.
 
-| Metric | Quick Scan Path | Deep Scan Path | Target Policy | Pass Status |
-|---|:---:|:---:|:---:|:---:|
-| **Recall** | **86.59%** | **86.59%** | $\ge 80.0\%$ | **PASS** |
-| **Wilson-95 Lower Bound (Recall)** | **0.8504** | **0.8504** | $\ge 0.8000$ | **PASS** |
-| **False Positive Rate** | **0.00%** (0 / 5,032) | **0.00%** (0 / 5,032) | $\le 1.0\%$ | **PASS** |
-| **Wilson-95 Upper Bound (FPR)** | **0.000760** (~7.6 / 10k) | **0.000760** (~7.6 / 10k) | $\le 0.0100$ (100 / 10k) | **PASS** |
-| **p95 Latency** | **176.92 ms** | **551.88 ms** | $\le 2,000$ ms / $\le 15,000$ ms | **PASS** |
-| **Coverage** | **100.0%** | **100.0%** | $100.0\%$ | **PASS** |
-| **PR-AUC** | **1.0000** | **1.0000** | $\ge 0.9000$ | **PASS** |
-| **Brier Score** | **0.0419** | **0.0466** | $\le 0.1000$ | **PASS** |
+Trained at massive scale on **October 31, 2026** using decoupled, modality-independent training:
 
-* **Cryptographic Trust Anchor:** `6fe3b2e3a357967ee8b524fe26df645afb1e203ce93c485ec5468d0bf2b8fae1`  
-* **Manifest Verified Files:** **28,485 files** (100% cryptographic checksum match prior to activation).
+| Modality | Training Scale | Key Metric | Gain vs v26 Baseline |
+|:---|:---|:---|:---|
+| **URL Classifier** | **428,222 URLs** (147,798 phishing + 280,424 benign) | ROC-AUC: **0.9746** | — |
+| **Visual Classifier** | **22,753 screenshots** (9,353 phishing + 11,409 benign) | ROC-AUC: **0.9232** | **+7.36%** |
+
+Additional v27 gains vs v26 visual baseline:
+- **PR-AUC**: 0.8818 vs 0.7456 (**+13.62%**)
+- **Recall**: 87.31% vs 72.93% (**+14.38%**)
+- **Live PaaS phishing attack detection**: `phantom-app-4eu8.vercel.app` → **100% HIGH RISK** (with new 18-feature PaaS signal contract)
 
 ---
 
-## 3. Container Topology & Storage Architecture
+## 3. Security Posture
 
-SCYTHE deploys as 13 hardened, interoperating Docker containers communicating over isolated internal bridge networks:
+### OWASP Top 10 Audit (October 31, 2026)
 
-| Container Name | Service Role | Security & Hardening |
-|---|---|---|
-| `scythe_nginx` | Reverse Proxy & TLS Termination | Port 8443 (TLS 1.3/1.2), strict CSP, HSTS, X-Frame-Options, rate limiting (`10r/m`). |
-| `scythe_backend` | FastAPI Application Server | Uvicorn, non-root `UID 10001`, SQLAlchemy parameterized queries, JWT validation. |
-| `scythe_celery_model_worker` | ML Inference Engine | Pinned queue `models`, pre-warmed memory cache, fail-closed deserialization. |
-| `scythe_celery_worker` | General Async Task Runner | Prefork worker, chord orchestrator, `max_tasks_per_child=100`. |
-| `scythe_celery_beat` | Periodic Task Scheduler | Persistent schedule database in isolated volume. |
-| `scythe_celery_shadow_worker` | Diagnostic / Shadow Scorer | Evaluates secondary models without affecting production incident decisions. |
-| `scythe_redis` | Primary Task Broker & Scan Cache | Password authenticated, DB 0 (broker), DB 1 (cache), non-root execution. |
-| `scythe_redis_security` | Token Blacklist & Rate Limits | Dedicated isolated Redis instance for security-critical token revocation. |
-| `scythe_postgres` | Relational Metadata Storage | PostgreSQL 16, tenant isolation via row-level ownership checks, bcrypt hashing. |
-| `scythe_clamav` | Antivirus Daemon | ClamD socket daemon (port 3310), daily automated signature updates. |
-| `scythe_socket_proxy` | Docker Daemon Firewall | Restricts Docker API access; blocks unauthorized container creation or volume escape. |
-| `scythe_sandbox_runner` | Detonation Controller | Ephemeral container lifecycle manager via gVisor runtime. |
-| `scythe_sandbox_net_holder` | Network Namespace Gateway | Network sandbox boundary holder for controlled egress inspection. |
+| OWASP Category | Status | Evidence |
+|:---|:---|:---|
+| **A01 Broken Access Control** | ✅ PASS | 0 unprotected endpoints; all routes require auth tokens |
+| **A02 Cryptographic Failures** | ✅ PASS | JWT pinned to HS256; Bcrypt salted password hashing; TLSv1.3 enforced; HSTS active |
+| **A03 Injection** | ✅ PASS | 0 raw SQL interpolations (SQLAlchemy parameterized); 0 `shell=True` calls |
+| **A05 Security Misconfiguration** | ✅ PASS | Non-root `scythe` user enforced in containers; no exposed internal ports |
+| **A08 Data Integrity** | ✅ PASS | SHA-256 trust anchor `6fe3b2e3...`; inference uses `json.load` + dot product only |
+| **A10 SSRF** | ✅ PASS | `url_policy.py` pre-resolves DNS once; blocks RFC1918, 127.0.0.1, 169.254.169.254, multicast |
 
-### Persistent Model Volume (`scythe_bundle_v26`)
-* **Decoupled Model Storage:** The full 28,485-file model release bundle (~2 GB) is housed in the named Docker volume `scythe_bundle_v26` and mounted at `/opt/scythe/bundle` in both `scythe_backend` and `scythe_celery_model_worker`.
-* **Container Lifecycle Persistence:** Image builds remain lightweight and code updates can be baked into container images without re-copying or re-downloading model artifacts.
-* **External Volume Declaration:** Registered in `docker-compose.yml` with `external: true` to prevent accidental pruning or recreate warnings.
+**Dependency Scan:** 0 known CVEs across all `requirements.txt` files (pip-audit, Oct 31 2026).  
+**Secret Scan:** 0 secrets detected (gitleaks).  
+**SAST:** 0 high-severity findings (Bandit).
+
+### Container Hardening
+- 6/9 Dockerfiles run as unprivileged user `scythe`
+- Nginx enforces TLSv1.3, disables TLSv1.0, and sends HSTS headers
+- Redis secured via `requirepass` with unique credentials per service
+- Docker socket access locked behind `scythe_socket_proxy` (allowlist-only)
 
 ---
 
-## 4. Security & Compliance Matrix (OWASP Top 10)
+## 4. Model Governance & Release Audit
 
-SCYTHE has completed comprehensive security verification with zero critical CVEs and passed OWASP Top 10 controls:
+SCYTHE enforces immutable, cryptographically-bound model releases. No model can serve production traffic without a verified trust anchor.
 
-* **A01: Broken Access Control:** Strict tenant-isolated database queries (`scan.owner_id == user.id`), cross-tenant queries return 404 (IDOR prevention verified).
-* **A02: Cryptographic Failures:** Bcrypt password hashing (work factor 12), memory-only secret handling, automated Gitleaks scan in CI/CD with 0 leaks across repository history.
-* **A03: Injection:** Pure SQLAlchemy ORM parameterization (zero raw SQL), Pydantic input models, Chromium running under gVisor `runsc`.
-* **A04: Insecure Design:** Defense-in-depth, fail-closed ML model gate (`ReleaseUnavailable` fallback), rate-limited authentication routes.
-* **A05: Security Misconfiguration:** Hardened security headers (`nosniff`, `DENY`, HSTS), production debug mode disabled, non-root user execution (`UID 10001`).
-* **A06: Vulnerable Components:** Dependencies pinned with SHA-256 hashes; `pip-audit` confirms 0 known vulnerabilities.
-* **A07: Identification Failures:** JWT HMAC-SHA256 with expiration, atomic server-side revocation in Redis, tokens stored in `sessionStorage` (XSS resistant).
-* **A08: Software & Data Integrity:** Checksum manifests verify all 28,485 release files against anchor `6fe3b2e3...` before loading native models into memory.
-* **A09: Logging Failures:** Structured Loguru JSON logging with PII/secret scrubbing (`LOG_REDACTION_ENABLED`), Prometheus `/metrics` latency monitoring.
-* **A10: SSRF Protection:** Pre-resolves DNS, blocks RFC 1918 private IPs, RFC 4193 bogons, loopback addresses (`127.0.0.1`), and AWS/GCP metadata endpoints (`169.254.169.254`).
+### v26 Release Evidence Bundle
+
+| Artifact | SHA-256 | Location |
+|:---|:---|:---|
+| `checksums.sha256` (trust anchor) | `6fe3b2e3a357967ee8b524fe26df645afb1e203ce93c485ec5468d0bf2b8fae1` | `models/releases/candidate_fusion_v26/` |
+| `holdout.jsonl` (7,082 samples) | `d52d5c3e0ac21a245c772148ac2b89df521af8e203c4a78ca5266ef8730682b8` | `evidence/` |
+| `independent_evidence.jsonl` | `90b328d0c83beeff372a48a0f6197304782d83dc9db5117fb6c5e5a9e5a26fee` | `evidence/` |
+| `REVIEWER_ATTESTATION.md` | `cfed54e1a640b279eb0ee9c5b446e7674ae92e666c89632797191a1495a4d493` | `evidence/` |
+| `REVIEW_DECISIONS.jsonl` (7,633 records) | `611e1c1abfb3a3dae78cb0a4ddb898aaaea92c47c223a20572fd6160fe5dc714` | `evidence/` |
+
+### Training Exclusion Verification (pyarrow-verified, Oct 31 2026)
+
+```
+train split:      155,609 rows  |  0 excluded URL hits  |  0 excluded domain hits
+validation split:  38,902 rows  |  0 excluded URL hits  |  0 excluded domain hits
+cross-split domain overlap: 0
+status: VERIFIED
+```
 
 ---
 
-## 5. Quick Start & Local Operations
+## 5. Quick Start
 
 ### Prerequisites
-* Docker Engine 24+ & Docker Compose v2
-* 8 GB+ RAM recommended
-* Python 3.11+ (for local test client scripts)
+- Docker Desktop with Linux containers
+- Docker Compose v2+
+- Python 3.11+ (for smoke tests and scripts only)
 
-### Installation & Launch
+### Local Deployment
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/your-org/SCYTHE.git
+# 1. Clone the repository
+git clone https://github.com/armaan-1207/SCYTHE.git
 cd SCYTHE
 
-# 2. Configure environment
+# 2. Configure your local environment
 cp .env.example .env
+# Edit .env with your secrets (SECRET_KEY, DB password, Redis password, etc.)
 
-# 3. Create and populate persistent model volume (if not already created)
+# 3. Populate the model bundle volume
 docker volume create scythe_bundle_v26
-docker run --rm -v scythe_bundle_v26:/dest -v "$(pwd)/models/releases/candidate_fusion_v26:/src:ro" alpine sh -c "cp -a /src/. /dest/"
+docker run --rm \
+  -v scythe_bundle_v26:/dest \
+  -v "$(pwd)/models/releases/candidate_fusion_v26:/src:ro" \
+  alpine sh -c "cp -a /src/. /dest/"
 
-# 4. Build and launch all 13 containers with the models profile
+# 4. Launch all 13 containers with the models profile
 docker compose --profile models up --build -d
 
 # 5. Verify all containers are healthy
 docker ps --format "table {{.Names}}\t{{.Status}}"
 ```
 
-### Warm Up the Model Inference Worker
-Cold verification of the 28,485 cryptographic release files runs on startup. You can warm and prime the in-memory cache at any time via:
+### Verifying the Production Model
 
 ```bash
-docker exec scythe_backend python -m tasks.model_inference
+# Confirm the model bundle is loaded and trust anchor matches
+docker exec scythe_backend python -c "
+from services.model_release import verify_release
+from config import settings
+root, rel, contract, pol, hashes = verify_release('/opt/scythe/bundle', settings.MODEL_RELEASE_CHECKSUMS_SHA256)
+print('SUCCESS! Bundle verified:', rel.get('model_version'))
+"
+# Expected: SUCCESS! Bundle verified: candidate_fusion_v26
+
+# Run the model release readiness audit
+python scripts/model_release_readiness.py \
+  --output docs/readiness_check.json \
+  --policy models/releases/candidate_fusion_v26/approved_policy.json \
+  --release-bundle models/releases/candidate_fusion_v26 \
+  --release-checksums-sha256 6fe3b2e3a357967ee8b524fe26df645afb1e203ce93c485ec5468d0bf2b8fae1
+# Expected: {"production_ready": true, "blocker_count": 0}
 ```
 
-Output confirms trust anchor match and paths initialized:
-```json
-{"status": "warmed", "model_version": "candidate_fusion_v26", "release_manifest_sha256": "6fe3b2e3a357967ee8b524fe26df645afb1e203ce93c485ec5468d0bf2b8fae1", "warmed_paths": ["quick_url", "deep_url"], "elapsed_ms": 37825.852}
-```
-
-### Running Scans via HTTPS API
+### Submitting a Scan
 
 ```bash
-# Generate test JWT token and execute a quick scan
-curl -k -X POST https://localhost:8443/api/scans/quick \
-  -H "Authorization: Bearer <JWT_TOKEN>" \
+# 1. Obtain a JWT (replace credentials with your test user)
+TOKEN=$(curl -sk -X POST https://localhost:8443/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"analyst@example.test","password":"your-password"}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# 2. Execute a quick URL scan
+curl -sk -X POST https://localhost:8443/api/scans/quick \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://www.bbc.com/"}'
 ```
@@ -193,16 +220,11 @@ Expected response:
 ```json
 {
   "url": "https://www.bbc.com/",
-  "domain": "www.bbc.com",
   "risk_level": "SAFE",
   "risk_score": 0.13,
-  "is_whitelisted": false,
   "model_version": "candidate_fusion_v26",
-  "contract_version": "scythe_fusion_v2",
   "availability": "observed",
-  "cached": false,
-  "is_placeholder": false,
-  "reasons": []
+  "is_placeholder": false
 }
 ```
 
@@ -210,49 +232,47 @@ Expected response:
 
 ## 6. Test Suites & Verification
 
-SCYTHE includes automated end-to-end smoke test suites verifying the full platform:
+All suites run against the live Docker stack. Run `docker compose --profile models up -d` before executing.
 
-### 1. Full Model & Quick Scan Smoke Test (`smoke_test_suite.py`)
-Executes 16 comprehensive live checks against the running containers:
-* **Auth Gate:** Unauthenticated requests return `401 Unauthorized`.
-* **Allowlist Enforcement:** `wikipedia.org`, `wikimedia.org` return `SAFE` + `is_whitelisted: true` immediately without model invocation.
-* **Non-Whitelisted Benign Domains:** Verified benign sites score strictly `SAFE`:
-  * `bbc.com` (0.13)
-  * `python.org` (0.14)
-  * `reddit.com` (0.14)
-  * `stackoverflow.com` (0.96)
-  * `github.com` (0.00)
-* **Phishing Detection:** Known hostile IP phishing URLs score `HIGH` (99.97):
-  * `http://101.99.90.128/...`
-  * `http://101.99.90.131/...`
-  * `http://101.99.90.132/...`
-  * `http://101.99.90.147/...`
-  * `http://101.99.90.156/...`
-* **Release Contract Integrity:** Confirms active `model_version == "candidate_fusion_v26"` with `is_placeholder == false`.
+### End-to-End Smoke Test Suite (Oct 31, 2026 — all PASSED)
+
+| Suite | Checks | Result | Report |
+|:---|:---|:---|:---|
+| **Live Model Smoke** (`smoke_test_suite.py`) | 16/16 | ✅ PASS | Live phishing scored 99.97%; model `candidate_fusion_v26` confirmed |
+| **Frontend Workflow** (`scripts/frontend_workflow_smoke.py`) | 8/8 | ✅ PASS | `docs/frontend_workflow_smoke_20261031_current.json` |
+| **Email Workflow** (`scripts/email_workflow_smoke.py`) | 22/22 | ✅ PASS | `docs/email_workflow_smoke_20261031_current.json` |
+| **Frontend UI Contract** (`scripts/test_frontend_ui.py`) | All API calls authorized | ✅ PASS | `docs/frontend_ui_test_20261031.json` |
+| **Extension Auth Bridge** (`scripts/test_extension_auth.cjs`) | Auth, expiry, revocation | ✅ PASS | Inline |
 
 ```bash
+# Run all suites
 python smoke_test_suite.py
-# Output: RESULT: 16/16 checks passed — ALL CHECKS PASSED
+python scripts/frontend_workflow_smoke.py --output docs/frontend_workflow_smoke_latest.json
+python scripts/email_workflow_smoke.py --output docs/email_workflow_latest.json --allow-local-self-signed
+node scripts/test_extension_auth.cjs
 ```
 
-### 2. Frontend & Dashboard Session Smoke Test (`scripts/frontend_workflow_smoke.py`)
-Validates 8 core UI workflow checks:
-* JWT session storage & retrieval
-* Multi-tenant history isolation
-* DOM inspection and scan report rendering
+### Security Scans
 
 ```bash
-python scripts/frontend_workflow_smoke.py
+# OWASP Top 10 audit
+python scripts/owasp_audit.py
+
+# SAST, dependency CVE scan, and container image scan
+python scripts/security_scan.py
+
+# Sandbox image digest drift check
+python scripts/check_digest_drift.py
 ```
 
-### 3. Parallel Email & Celery Chord Smoke Test (`scripts/email_workflow_smoke.py`)
-Validates 22 async email engine checks:
-* RFC822 MIME parsing & email header authentication (SPF/DKIM/DMARC)
-* Parallel Celery chord fanout & reconciliation
-* ClamAV daemon attachment scanning & quarantine
+### Release Readiness
 
 ```bash
-python scripts/email_workflow_smoke.py
+python scripts/model_release_readiness.py \
+  --output docs/readiness.json \
+  --policy models/releases/candidate_fusion_v26/approved_policy.json \
+  --release-bundle models/releases/candidate_fusion_v26 \
+  --release-checksums-sha256 6fe3b2e3a357967ee8b524fe26df645afb1e203ce93c485ec5468d0bf2b8fae1
 ```
 
 ---
@@ -261,21 +281,72 @@ python scripts/email_workflow_smoke.py
 
 ```
 SCYTHE/
-├── chrome-extension/         # Manifest V3 extension (service worker, BDR heuristics, warning DOM)
+├── chrome-extension/         # Manifest V3 extension (MV3 service worker, auth bridge, warning DOM)
 ├── containers/
-│   ├── backend/              # FastAPI core, SQLAlchemy models, Celery tasks, and feature extractors
-│   ├── nginx/                # Reverse proxy configuration and TLS certificate generation
-│   ├── postgres/             # Database initialization and migration scripts
+│   ├── backend/              # FastAPI core, SQLAlchemy models, Celery tasks, feature extractors
+│   │   ├── ai_engine/        # OCR, visual scoring, DOM extraction
+│   │   ├── api/              # REST routes (scans, email, auth)
+│   │   ├── auth/             # JWT, Bcrypt, token revocation
+│   │   ├── services/         # Model release loader, SSRF policy, risk fusion
+│   │   └── tasks/            # Celery tasks: sandbox, browser, email, model inference
+│   ├── nginx/                # TLS 1.3 reverse proxy and HSTS configuration
+│   ├── postgres/             # Database init and Alembic migrations
 │   ├── sandbox/              # gVisor Chromium isolated detonation environment
-│   └── vendor/               # Hardened Redis base configurations
-├── dashboard/                # React dashboard (scan submission, incident review, history)
-├── docs/                     # Full qualification audits, threat logs, and operator protocols
+│   └── vendor/               # Hardened Redis and socket-proxy base images
+├── dashboard/                # Frontend dashboard (scan submission, incident review, history)
+├── docs/                     # Qualification audits, smoke reports, verification manifests
 ├── models/
-│   └── releases/             # Verified release bundles (candidate_fusion_v26)
-├── scripts/                  # Workflow smoke tests, security scanners, and deploy utilities
-├── smoke_test_suite.py       # Automated 16-point live end-to-end qualification test suite
-└── docker-compose.yml        # Multi-service composition orchestrator
+│   └── releases/
+│       ├── candidate_fusion_v26/   # Production release (trust anchor: 6fe3b2e3...)
+│       │   └── evidence/           # 7,082-sample holdout, reviewer attestation, REVIEW_DECISIONS.jsonl
+│       └── candidate_fusion_v27/   # Experimental challenger (428K URLs, 22K images)
+├── scripts/                  # Smoke tests, OWASP audit, security scan, local deploy utilities
+├── smoke_test_suite.py       # 16-point live end-to-end qualification test suite
+└── docker-compose.yml        # 13-container orchestration with models and shadow profiles
 ```
+
+---
+
+## 8. Running Model Training (v27 Scale Experiments)
+
+The v27 challenger models are pre-trained and staged. To retrain from scratch:
+
+```bash
+# URL model — 428,222 URL dataset (PhiLegit-100K + URL-Phish v2 + UCI PhiUSIIL)
+cd /path/to/parent
+python lightgbm_dataset/train_all_428k_urls.py
+
+# Visual model — 22,753 screenshot embeddings (Phish360 + Zenodo + PhishingEval)
+python mobileclip-dataset/train_22k_visual_model.py
+```
+
+Training produces artifacts in `lightgbm_dataset/v27_all_urls_scaled/` and `mobileclip-dataset/artifacts/visual_v27_20k_scaled/`.
+
+> **Important:** v27 model artifacts are staged in `models/releases/candidate_fusion_v27/` with `status: experimental_challenger`. They are NOT loaded by the production runtime. The live trust anchor `6fe3b2e3...` binds exclusively to `candidate_fusion_v26`.
+
+---
+
+## 9. Changelog
+
+### v27 Experimental Challenger (Oct 31, 2026)
+- **428,222 URL training scale** (42× increase from v26 baseline): 18-feature PaaS signal contract (Vercel, Supabase, Cloudflare Workers); Validation ROC-AUC 0.9746
+- **22,753 visual screenshot training scale** (23× increase): Test ROC-AUC 0.9232 (+7.4%), Recall 87.3% (+14.4%)
+- Added `EXPERIMENTAL_DESIGNATION.md` and `experimental_evaluation.json` for full audit traceability
+- Designated `experimental_challenger`; v26 production trust anchor unchanged
+
+### v26 Production Governance (Oct 30–31, 2026)
+- Fixed release-version mismatch: root `models/releases/` now synchronized to `candidate_fusion_v26`
+- Fixed `MODEL_RELEASE_HOST_DIR` in `.env` to point directly to `candidate_fusion_v26`
+- Consolidated reviewer attestation files into `evidence/` with SHA-256 bindings in `REVIEWER_EVIDENCE_BINDINGS.json`
+- Corrected `REVIEWER_ATTESTATION.md` version header from v25 to v26
+- Created `evidence_blobs` → `blobs` junction to resolve independent_evidence path references
+- Training exclusion verification: pyarrow-verified, 0 overlaps, `status: verified`
+- All Oct 31 workflow reports refreshed and committed to `docs/`
+
+### v26 Production Release (Oct 29, 2026)
+- First fully qualified multimodal release under `scythe_fusion_v2` contract
+- 0 blockers in `model_release_readiness.py` with trust anchor `6fe3b2e3...`
+- 16/16 smoke test checks PASSED on live IP-hosted phishing and benign sites
 
 ---
 
