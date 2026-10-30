@@ -11,6 +11,9 @@ import tempfile
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
+_tools_dir = str(ROOT / "tools")
+if Path(_tools_dir).is_dir() and _tools_dir not in os.environ.get("PATH", "").split(os.pathsep):
+    os.environ["PATH"] = _tools_dir + os.pathsep + os.environ.get("PATH", "")
 REQUIREMENTS = ("containers/backend/requirements.txt", "containers/backend/requirements.runner.txt",
                 "containers/backend/requirements.shadow.txt", "containers/sandbox/docker/requirements.txt")
 
@@ -54,7 +57,7 @@ def main(argv=None):
         print(f"{name}: {'PASS' if code == 0 else 'FAIL'}", flush=True)
 
     if "secrets" in args.checks:
-        executable = os.getenv("GITLEAKS_BIN") or shutil.which("gitleaks") or (str(ROOT / "tools/gitleaks.exe") if (ROOT / "tools/gitleaks.exe").is_file() else None)
+        executable = os.getenv("GITLEAKS_BIN") or shutil.which("gitleaks")
         if not executable or not (ROOT / ".gitleaks.toml").is_file():
             record("secrets", error="gitleaks or repository configuration missing")
         else:

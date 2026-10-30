@@ -47,7 +47,7 @@ def complete_synthetic_evidence(evaluation, candidate=None):
         for row in rows:
             row.update(canonical_url="https://" + row["registrable_domain"] + "/", captured_at_utc="2026-10-01T00:00:00Z")
         holdout_file.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
-        blob = b"synthetic reviewer evidence fixture"
+        blob = json.dumps({"synthetic_fixture": True}).encode("utf-8")
         blob_hash = hashlib.sha256(blob).hexdigest()
         (ev_dir / "blobs").mkdir(exist_ok=True)
         (ev_dir / "blobs" / blob_hash).write_bytes(blob)
@@ -80,8 +80,11 @@ def complete_synthetic_evidence(evaluation, candidate=None):
         metrics["counts"] = {"tp": 1800, "fn": 200, "fp": 0, "tn": 5000, "unavailable": 0}
         metrics["latency_sample_count"] = 7000
         for success, total, key in ((1800, 2000, "recall_wilson95"), (0, 5000, "false_positive_rate_wilson95")):
-            z = NormalDist().inv_cdf(.975); p = success / total; d = 1 + z * z / total
-            c = (p + z * z / (2 * total)) / d; h = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total)) / d
+            z = NormalDist().inv_cdf(.975)
+            p = success / total
+            d = 1 + z * z / total
+            c = (p + z * z / (2 * total)) / d
+            h = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total)) / d
             metrics[key] = [max(0, c - h), min(1, c + h)]
 
 

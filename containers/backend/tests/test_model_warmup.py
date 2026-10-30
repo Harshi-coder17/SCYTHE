@@ -62,7 +62,7 @@ def test_admin_command_waits_for_actual_models_child(configured, monkeypatch, ca
     monkeypatch.setattr(task.warm_model_release_task, "apply_async", dispatch)
     assert task.warm_admin_command() == 0
     dispatch.assert_called_once_with(queue="models")
-    dispatched.get.assert_called_once_with(timeout=610)
+    dispatched.get.assert_called_once_with(timeout=1820)
     assert '"worker_child_pid": 123' in capsys.readouterr().out
 
 
@@ -90,8 +90,8 @@ def test_warmup_uses_neutral_local_fixture_and_same_child_caches(configured, mon
     assert not ({"probability", "risk_score", "risk_level", "scan_id"} & result.keys())
     assert configured.call_count == 2 and loader.call_count == model.predict.call_count == 2
     assert all(not path.exists() for path in seen_images)
-    assert task.warm_model_release_task.soft_time_limit == 540
-    assert task.warm_model_release_task.time_limit == 600
+    assert task.warm_model_release_task.soft_time_limit == 1800
+    assert task.warm_model_release_task.time_limit == 1860
     assert task.warm_model_release_task.reject_on_worker_lost is False
     assert task.model_inference_task.soft_time_limit == 55
     assert task.model_inference_task.time_limit == 60
