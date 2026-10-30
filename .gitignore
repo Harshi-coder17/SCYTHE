@@ -91,3 +91,6 @@ audit-output/
 models/
 docs/candidate_fusion_v25_final_evaluation/
 research/
+
+tools/
+gitleaks.exe

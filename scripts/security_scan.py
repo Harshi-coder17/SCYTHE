@@ -54,7 +54,7 @@ def main(argv=None):
         print(f"{name}: {'PASS' if code == 0 else 'FAIL'}", flush=True)
 
     if "secrets" in args.checks:
-        executable = os.getenv("GITLEAKS_BIN") or shutil.which("gitleaks")
+        executable = os.getenv("GITLEAKS_BIN") or shutil.which("gitleaks") or (str(ROOT / "tools/gitleaks.exe") if (ROOT / "tools/gitleaks.exe").is_file() else None)
         if not executable or not (ROOT / ".gitleaks.toml").is_file():
             record("secrets", error="gitleaks or repository configuration missing")
         else:
