@@ -1,0 +1,47 @@
+{
+  "run_id": "e111673c6999",
+  "accounts_to_disable_after_test": [
+    "scythe-ui-e111673c6999-1@example.test",
+    "scythe-ui-e111673c6999-2@example.test"
+  ],
+  "scans": [
+    {
+      "scan_id": "bea2b6ba-c9da-4db4-bf3a-57d9e32cab4a",
+      "statuses": [
+        "sandbox_analysis_running",
+        "browser_features_done",
+        "consistency_done",
+        "risk_fusion_done"
+      ],
+      "final_status": "risk_fusion_done",
+      "is_placeholder": true
+    },
+    {
+      "scan_id": "6756e79f-2dff-4b5b-b0df-08d58d7dba57",
+      "statuses": [
+        "file_scan_done"
+      ],
+      "final_status": "file_scan_done",
+      "is_placeholder": true
+    }
+  ],
+  "checks": {
+    "ui_login_session_storage": true,
+    "url_scan_progress_unknown_and_evidence": true,
+    "file_async_report": true,
+    "session_history": true,
+    "fresh_session_cross_session_history": true,
+    "cross_user_isolation": true,
+    "back_navigation_after_logout": true,
+    "logout_revocation": true
+  },
+  "passed": true,
+  "step": "complete",
+  "browser_errors": [],
+  "external_notifications_sent": false,
+  "cleanup": {
+    "accounts_found": 2,
+    "accounts_disabled": 2,
+    "fixture_incidents": 0
+  }
+}

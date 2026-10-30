@@ -17,6 +17,7 @@ import logging
 import os
 
 from celery_worker import celery
+from tasks.email_failure import EmailAnalysisTask
 from config import settings
 
 from services.email.detectors.url_detector import URLDetector
@@ -32,6 +33,7 @@ def _email_dir(email_id: str) -> str:
 
 
 @celery.task(
+    base=EmailAnalysisTask,
     bind=True,
     name="tasks.email_url_analysis.email_url_analysis_task",
     queue="default",
@@ -55,6 +57,17 @@ def email_url_analysis_task(self, email_id: str):
     with open(parsed_path, "r", encoding="utf-8") as f:
         email_json = json.load(f)
 
+    from services.email.url_features import build_email_url_evidence
+    manifest_path = os.path.join(email_dir, "url_list.json")
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as stream:
+            manifest = json.load(stream)
+    except (OSError, ValueError):
+        manifest = {}
+    evidence = build_email_url_evidence(email_json, manifest)
+    email_json["urls"] = evidence["urls"]
+    email_json["routing"] = evidence["routing"]
+
     # ── Run detectors ──────────────────────────────────────────────────────
     url_result = URLDetector().detect(email_json)
     infra_result = InfrastructureDetector().detect(email_json)
@@ -63,6 +76,7 @@ def email_url_analysis_task(self, email_id: str):
     url_score = min(url_result["score"] + infra_result["score"], 100)
     url_features = {
         "email_id": email_id,
+        "url_evidence": evidence,
         "url_score": url_score,
         "severity": url_result["severity"] if url_result["score"] >= infra_result["score"] else infra_result["severity"],
         "urls": url_result,

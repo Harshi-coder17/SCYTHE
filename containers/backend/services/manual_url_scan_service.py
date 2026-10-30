@@ -30,7 +30,6 @@ from urllib.parse import urlparse
 
 from fastapi import HTTPException, status
 
-from config import settings
 from schemas.quick_scan import QuickScanRequest, QuickScanResponse
 from schemas.stage2 import Stage2Request, Stage2Response
 from services.quickscan import run_quickscan
@@ -72,10 +71,17 @@ def _validate_url(url: str) -> str:
         parsed = urlparse(url)
         if not parsed.netloc:
             raise ValueError("No host")
+        from services.url_policy import validate_fetch_url, UnsafeURL
+        validate_fetch_url(url)
+    except UnsafeURL as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"URL is unsafe or points to a restricted address: {e}",
+        )
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid URL: {url!r}. Must be a valid http(s) URL.",
+            detail=f"Invalid URL: {url!r}. Must be a valid public http(s) URL.",
         )
     return url
 

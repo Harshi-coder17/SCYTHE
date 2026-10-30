@@ -72,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Read from config.js (injected via <script> in warning.html)
         const url = (typeof SCYTHE_CONFIG !== "undefined")
             ? SCYTHE_CONFIG.DASHBOARD_URL
-            : "http://localhost:8000/dashboard";
+            : "https://localhost:8443/dashboard/components/dashboard.html";
         window.open(url, "_blank");
     };
 

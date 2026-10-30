@@ -22,6 +22,7 @@ import hmac
 import logging
 import os
 import re
+from typing import Literal
 from fastapi import FastAPI, Header, HTTPException, status
 from pydantic import BaseModel, HttpUrl
 
@@ -40,13 +41,18 @@ _UUID_RE = re.compile(
 
 SANDBOX_IMAGE = os.environ.get(
     "SANDBOX_IMAGE",
-    "scythe-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767",
+    "scythe-sandbox@sha256:c10140e89411622b4c6331e440690d186f5b7c9f279cf1d88c589379763ac54c",
 )
 SANDBOX_NETWORK = os.environ.get("SANDBOX_NETWORK", "scythe_sandbox_net")
 SHARED_VOLUME_NAME = os.environ.get("SHARED_SCANS_VOLUME", "scythe_shared_scans")
+# Keep the sandbox writer aligned with the API/worker UID/GID. Per-scan
+# directories are mode 0770, so this avoids world-writable shared storage.
+SANDBOX_USER = "10001:10001"
+SANDBOX_USER_ARGS = ("--user", SANDBOX_USER)
 SANDBOX_RUNNER_SECRET = os.environ.get("SANDBOX_RUNNER_SECRET", "")
 _MAX_CONCURRENT_DETONATIONS = int(os.environ.get("MAX_CONCURRENT_DETONATIONS", "10"))
 _detonate_sem = None
+_active_scan_ids: set[str] = set()
 
 
 def _get_semaphore() -> asyncio.Semaphore:
@@ -60,6 +66,7 @@ class DetonateRequest(BaseModel):
     scan_id: str
     target_url: HttpUrl
     timeout_sec: int = 120
+    mode: Literal["detonate", "capture"] = "detonate"
 
 
 class DetonateResponse(BaseModel):
@@ -82,7 +89,7 @@ async def verify_host_firewall_and_image():
             "Run 'make pin-sandbox' or 'python scripts/pin_sandbox.py' before starting."
         )
 
-    # Verify Docker Engine version supports volume-subpath (Docker Engine 24.0.0+)
+    # volume-subpath requires Docker Engine 26+.
     try:
         ver_proc = await asyncio.create_subprocess_exec(
             "docker", "version", "--format", "{{.Server.Version}}",
@@ -95,10 +102,10 @@ async def verify_host_firewall_and_image():
             # Parse major version (e.g. "24.0.5" -> 24)
             parts = re.split(r"[^0-9]", server_version)
             major = int(parts[0]) if parts and parts[0].isdigit() else 0
-            if major > 0 and major < 24:
+            if major > 0 and major < 26:
                 msg = (
-                    f"CRITICAL: Host Docker Engine version is {server_version} (< 24.0.0). "
-                    "SCYTHE Stage 2 sandbox detonation requires volume-subpath mounts supported in Docker Engine 24.0+. "
+                    f"CRITICAL: Host Docker Engine version is {server_version} (< 26.0.0). "
+                    "SCYTHE Stage 2 sandbox detonation requires volume-subpath mounts supported in Docker Engine 26+. "
                     "Please upgrade the host Docker Engine."
                 )
                 logger.error(msg)
@@ -222,6 +229,7 @@ async def detonate(request: DetonateRequest, x_runner_auth: str = Header(None)):
             detail="Sandbox runner at maximum concurrency limit",
         )
 
+    claimed = False
     try:
         scan_id = request.scan_id.strip()
         if not _UUID_RE.match(scan_id):
@@ -230,6 +238,11 @@ async def detonate(request: DetonateRequest, x_runner_auth: str = Header(None)):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="scan_id must be a canonical UUIDv4",
             )
+
+        if scan_id in _active_scan_ids:
+            raise HTTPException(status_code=409, detail="This scan already has an active sandbox")
+        _active_scan_ids.add(scan_id)
+        claimed = True
 
         target_url = str(request.target_url).strip()
         if not target_url.startswith(("http://", "https://")):
@@ -240,9 +253,13 @@ async def detonate(request: DetonateRequest, x_runner_auth: str = Header(None)):
 
         timeout_sec = min(max(request.timeout_sec, 10), 300)
 
-        # Hardcoded immutable container shape
+        # Hardcoded immutable container shape. A deterministic name lets the
+        # finally block remove a container if the Docker client is killed.
+        container_name = f"scythe-sandbox-{scan_id}"
         cmd = [
             "docker", "run", "--rm",
+            "--name", container_name,
+            *SANDBOX_USER_ARGS,
             "--network", SANDBOX_NETWORK,
             "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges:true",
@@ -261,6 +278,9 @@ async def detonate(request: DetonateRequest, x_runner_auth: str = Header(None)):
             "--output-dir", "/app/output",
             "--request-id", scan_id,
         ]
+
+        if request.mode == "capture":
+            cmd.append("--capture-only")
 
         logger.info("[%s] Admission control executing exact sandbox shape: %s", scan_id, " ".join(cmd))
 
@@ -289,7 +309,7 @@ async def detonate(request: DetonateRequest, x_runner_auth: str = Header(None)):
             logger.error("[%s] Sandbox container exited %d: %s", scan_id, proc.returncode, err_msg)
             if "volume-subpath" in err_msg or "invalid mount option" in err_msg.lower() or "unknown flag: --mount" in err_msg.lower():
                 detail_msg = (
-                    f"Host Docker Engine does not support 'volume-subpath' mount option (requires Docker Engine >= 24.0.0). "
+                    f"Host Docker Engine does not support 'volume-subpath' mount option (requires Docker Engine >= 26.0.0). "
                     f"Error: {err_msg}"
                 )
             elif proc.returncode == 125 or "No such image" in err_msg or "not found" in err_msg.lower():
@@ -312,7 +332,20 @@ async def detonate(request: DetonateRequest, x_runner_auth: str = Header(None)):
             output_snippet=out_msg,
         )
     finally:
+        # A rejected duplicate must never remove the active request's container.
+        if claimed:
+            try:
+                cleanup = await asyncio.create_subprocess_exec(
+                    "docker", "rm", "-f", f"scythe-sandbox-{scan_id}",
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                )
+                await asyncio.wait_for(cleanup.communicate(), timeout=10)
+            except Exception as exc:
+                logger.debug("[%s] orphan cleanup did not run: %s", scan_id, exc)
+            finally:
+                _active_scan_ids.discard(scan_id)
         sem.release()
+
 
 
 if __name__ == "__main__":

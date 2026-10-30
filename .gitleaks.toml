@@ -16,6 +16,7 @@ paths = [
   # Templates by design: every value in these is a placeholder the user
   # must replace before deploying, never a real credential.
   '''\.env\.example$''',
+  '''\.env\.production\.example$''',
   '''backend/\.env\.example$''',
 
   # Perceptual-hash reference set for brand-impersonation matching —

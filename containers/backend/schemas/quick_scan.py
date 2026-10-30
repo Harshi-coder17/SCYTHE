@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, HttpUrl, Field
 
 
 class RiskLevel(str, Enum):
+    UNKNOWN = "UNKNOWN"
     SAFE = "SAFE"
     LOW = "LOW"
     MEDIUM = "MEDIUM"
@@ -50,19 +51,22 @@ class QuickScanResponse(BaseModel):
     url: str
     domain: str
     risk_level: RiskLevel
-    risk_score: float = Field(..., ge=0.0, le=100.0, description="0-100 risk score from LightGBM")
+    risk_score: Optional[float] = Field(None, ge=0.0, le=100.0, description="0-100 risk score from LightGBM, or null when unavailable")
     is_whitelisted: bool = False
+    model_version: Optional[str] = None
+    contract_version: Optional[str] = None
+    availability: Optional[str] = None
     cached: bool = Field(default=False, description="True if this result came from Redis cache")
 
     # ── Security Hardening ──────────────────────────────────────────
     # Clients (browser extension) MUST check this flag before rendering a
     # definitive risk badge. When True the ML model is not yet wired in and
-    # the score is a random placeholder — render "Scanning / Processing"
+    # the score is unavailable — render "Scanning / Processing"
     # rather than SAFE / LOW / MEDIUM / HIGH / CRITICAL.
     is_placeholder: bool = Field(
         default=False,
         description=(
-            "True when the risk_score was produced by a placeholder model "
+            "True when the risk_score is unavailable because the model is a placeholder "
             "(LightGBM not yet wired in). Clients must NOT display this as "
             "a definitive verdict — render a neutral 'Processing' state instead."
         ),

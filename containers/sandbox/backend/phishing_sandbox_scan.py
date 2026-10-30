@@ -246,9 +246,9 @@ DOWNLOAD_QUARANTINE_DIR = os.path.join(tempfile.gettempdir(), "sandbox_downloads
 # ---------------------------------------------------------------------------
 
 try:
-    from backend.ssrf_guard import is_target_allowed, resolve_validated_ip
+    from backend.ssrf_guard import is_target_allowed
 except ImportError:
-    from ssrf_guard import is_target_allowed, resolve_validated_ip
+    from ssrf_guard import is_target_allowed
 
 try:
     from backend.egress_proxy import start_egress_proxy
@@ -929,7 +929,11 @@ async def scan_url(url, timeout_ms=45000, viewport=(1366, 768), request_id=None,
 
                 context.on("page", on_new_page)
 
+                from har_capture import HarRecorder
+                har_recorder = HarRecorder()
+
                 def on_request(req):
+                    har_recorder.request(req)
                     network_events.append({"type": "request", "url": req.url,
                                             "resource_type": req.resource_type, "method": req.method})
 
@@ -938,6 +942,7 @@ async def scan_url(url, timeout_ms=45000, viewport=(1366, 768), request_id=None,
                         headers = await resp.all_headers()
                     except Exception:
                         headers = {}
+                    har_recorder.response(resp, headers)
                     network_events.append({
                         "type": "response", "url": resp.url, "status": resp.status,
                         "headers": headers,
@@ -991,6 +996,7 @@ async def scan_url(url, timeout_ms=45000, viewport=(1366, 768), request_id=None,
                 final_url = None
                 chain = []
                 dom = {}
+                dom_html = ""
                 counters = {}
                 inline_script_text = ""
                 has_meta_refresh = False
@@ -1039,6 +1045,13 @@ async def scan_url(url, timeout_ms=45000, viewport=(1366, 768), request_id=None,
                         has_meta_refresh = dom.pop("has_meta_refresh", False)
                         dom.pop("script_count", None)  # denominator only, not stored
                         mark("DOM snapshot captured")
+                        try:
+                            # Keep the actual serialized DOM separate from the
+                            # numeric dom_content telemetry object. Consumers
+                            # use this for browser-vs-sandbox comparison.
+                            dom_html = await page.content()
+                        except Exception as e:
+                            logger.debug("page.content unavailable: %s", e)
                         if main_response is None:
                             mark("DOM snapshot captured from a PARTIAL/failed navigation "
                                  "-- treat with extra caution, page never reached networkidle")
@@ -1338,6 +1351,8 @@ async def scan_url(url, timeout_ms=45000, viewport=(1366, 768), request_id=None,
             "page_load_time_ms": dom.get("page_load_time_ms"),
             "dom_element_count": dom.get("dom_element_count"),
         },
+        "network_har": har_recorder.rows if "har_recorder" in locals() else [],
+        "network_har_total": har_recorder.total if "har_recorder" in locals() else 0,
         "screenshots": {
             "screenshot_id": str(uuid.uuid4()),
             "scan_id": scan_id,
@@ -1408,6 +1423,10 @@ async def scan_url(url, timeout_ms=45000, viewport=(1366, 768), request_id=None,
             "external_script_count": dom.get("external_script_count"),
             "hidden_iframe_count": dom.get("hidden_iframe_count"),
             "iframe_count": dom.get("iframe_count"),
+        },
+        "dom": {
+            "page_source": dom_html if isinstance(dom_html, str) else "",
+            "available": bool(dom_html),
         },
         "phishing_signals": {
             "phish_id": str(uuid.uuid4()),
@@ -1681,7 +1700,14 @@ def main():
     parser.add_argument("--allow-private-targets", action="store_true",
                          help="Bypass the SSRF guard. Local testing only — never use "
                               "this against untrusted input in production.")
+    parser.add_argument("--capture-only", action="store_true", help="Passive isolated screenshot/DOM only")
     args = parser.parse_args()
+    if args.capture_only:
+        if not args.output_dir or args.allow_private_targets or args.proxy:
+            parser.error("capture-only requires output-dir and the protected egress proxy")
+        from passive_capture import capture_page
+        asyncio.run(capture_page(args.url, args.output_dir, args.request_id))
+        return
 
     result = asyncio.run(_run_cli_scan(args))
 
@@ -1718,6 +1744,12 @@ def main():
                 except OSError:
                     pass
                 drow["quarantined_path"] = dst
+
+        from har_capture import HarRecorder
+        recorder = HarRecorder()
+        recorder.rows = result.pop("network_har", [])
+        recorder.total = result.pop("network_har_total", 0)
+        recorder.write(os.path.join(args.output_dir, "network.har"))
 
         json_path = os.path.join(args.output_dir, f"scan_{scan_id}.json")
         _atomic_write_json(json_path, result)

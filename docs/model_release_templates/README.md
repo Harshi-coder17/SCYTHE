@@ -1,0 +1,11 @@
+# Model release registration templates
+
+These are blank templates, not evidence of approval or a holdout. They intentionally contain empty fields and null metrics. Do not populate thresholds by copying model-validation results: the operating limits must come from the system owner and deployment requirements.
+
+1. Copy `operational_policy.template.json`, agree on the target population, false-positive budget, recall floor, request p95 budget, unavailable-input behavior, and permitted operational actions. Record the approver and UTC approval time, then set `status` to `approved`. Hash the approved file before evaluation.
+2. Acquire a new holdout whose historical labels are independently supported, retain capture times and licensing records, and exclude all training, validation, test, and already inspected development URL/domain/image groups.
+3. Copy `independent_label_evidence.template.csv` and provide one evidence row per holdout record. The evidence must support the label at the relevant historical capture time; a current live page or feed membership alone is insufficient.
+4. Before scoring, finalize and hash the canonical manifest, evidence file, exclusion registry, approved policy, candidate model/encoder/feature contract/threshold, and `model_release_evaluation_protocol_v1.json`. Record hashes and checks in `holdout_registration.template.json`; have the operator attest that candidate metrics have not been inspected.
+5. Mark a registration as `untouched_external_holdout` only after independent evidence coverage is complete, evidence labels match, domain overlap is zero, checksums verify, and scoring has not occurred. After the one-time evaluation, retain the full results and reclassify the data as a development benchmark for subsequent model decisions.
+
+The readiness script currently checks `approved_by`, `approved_at_utc`, `intended_population`, `failure_behavior`, and numeric fields `maximum_false_positives_per_10000_benign`, `minimum_recall`, and `maximum_p95_latency_ms`. The holdout registry additionally requires a checksum-verified `registration.json`, evidence checksum, complete evidence coverage, an explicit noninspection attestation, matching labels, and zero existing-domain overlap. Templates never satisfy these checks while blank.

@@ -17,6 +17,7 @@ Security hardening:
 """
 
 import json
+import hashlib
 import logging
 from urllib.parse import urlparse
 
@@ -26,6 +27,7 @@ from config import settings
 from database.models import Scan
 from risk_fusion import run_risk_fusion
 from schemas.quick_scan import QuickScanRequest, QuickScanResponse, RiskLevel
+from services.model_features.url_features import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -50,27 +52,28 @@ def _domain_from_url(url: str) -> str:
 
 
 def _normalize_url_for_cache(url: str) -> str:
-    parsed = urlparse(url)
-    if not parsed.netloc and not parsed.scheme:
-        parsed = urlparse("http://" + url)
-    scheme = (parsed.scheme or "http").lower()
-    netloc = (parsed.netloc or "").lower()
-    if "@" in netloc:
-        netloc = netloc.split("@")[-1]
-    path = parsed.path or "/"
-    if path != "/" and path.endswith("/"):
-        path = path.rstrip("/")
-    query = f"?{parsed.query}" if parsed.query else ""
-    return f"{scheme}://{netloc}{path}{query}"
+    return normalize_url(url) or url
 
 
 def _cache_key(url: str) -> str:
-    return f"quickscan:url:{_normalize_url_for_cache(url)}"
+    policy = {"allowlist": settings.TRUSTED_ALLOWLIST_DOMAINS,
+              "release": settings.MODEL_RELEASE_CHECKSUMS_SHA256 if settings.MODEL_RELEASE_ENABLED else "disabled",
+              "cache_contract": 2}
+    digest = hashlib.sha256(json.dumps(policy, sort_keys=True).encode()).hexdigest()
+    return f"quickscan:url:{digest}:{_normalize_url_for_cache(url)}"
 
 
 def run_quickscan(payload: QuickScanRequest, user, db) -> QuickScanResponse:
     url = str(payload.url)
+    from services.url_policy import validate_fetch_url, UnsafeURL
+    try:
+        validate_fetch_url(url)
+    except UnsafeURL as e:
+        raise ValueError(f"URL is unsafe or points to a non-public address: {e}")
+
     domain = _domain_from_url(url)
+    result = {}
+    cyberintel_result = {}
 
     # ── Redis cache check ──────────────────────────────────────────────────
     # Only real verdicts are stored here (see caching logic below), so a
@@ -188,6 +191,9 @@ def run_quickscan(payload: QuickScanRequest, user, db) -> QuickScanResponse:
         is_whitelisted=is_whitelisted,
         cached=False,
         is_placeholder=is_placeholder,
+        model_version=result.get("model_version"),
+        contract_version=result.get("contract_version"),
+        availability=result.get("availability"),
         reasons=reasons,
     )
 

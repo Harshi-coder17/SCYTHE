@@ -1,0 +1,42 @@
+{
+  "schema_version": "scythe_host_verification_v2",
+  "local_date": "2026-10-20",
+  "application_suites": {
+    "command": "python -m pytest SCYTHE/containers/backend/tests SCYTHE/scripts/tests SCYTHE/containers/sandbox/tests -q --tb=short",
+    "passed": 425,
+    "skipped": 1,
+    "failed": 0,
+    "duration_seconds": 295.80,
+    "skip_reason": "Opt-in real MobileCLIP inference is disabled by default; this is not a GPU requirement"
+  },
+  "dataset_suite": {
+    "environment": "mobileclip-dataset/.venv, existing lightgbm_dataset/_deps",
+    "command": "python -m pytest lightgbm_dataset/tests -q --tb=short",
+    "passed": 84,
+    "skipped": 2,
+    "failed": 0,
+    "duration_seconds": 22.76,
+    "skip_reason": "The research virtual environment lacks Playwright; browser tests were separately executed in the host environment"
+  },
+  "offline_review_browser_suite": {
+    "environment": "Host Python with Playwright Chromium",
+    "command": "python -m pytest lightgbm_dataset/tests/test_offline_review_ui.py -q --tb=short",
+    "passed": 3,
+    "skipped": 0,
+    "failed": 0,
+    "duration_seconds": 11.78,
+    "note": "Includes an overlapping non-browser test; do not sum suite totals as unique tests"
+  },
+  "security_gate_followup": {
+    "command": "python -m pytest SCYTHE/scripts/tests/test_deployment_and_security_checks.py -q --tb=short",
+    "passed": 32,
+    "failed": 0,
+    "note": "Rechecked after adding explicit OSV service selection for exact CPU wheel versions; overlaps application tests"
+  },
+  "limitations": [
+    "These are software verification results, not independent model qualification",
+    "The shared working tree changed during parallel work; this is not a frozen release attestation",
+    "Research dependencies and controlled fixtures differ from a production release environment",
+    "Security vulnerability findings remain open and are documented separately"
+  ]
+}

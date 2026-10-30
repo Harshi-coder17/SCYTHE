@@ -15,16 +15,16 @@ from urllib.parse import urlsplit, urlunsplit
 import tldextract
 
 FEATURE_VERSION = "scythe-url-features-v1"
-FEATURE_NAMES_V1 = (
+FEATURE_NAMES = (
     "url_length", "host_length", "is_https", "is_ip_host", "subdomain_count",
     "hyphen_count", "digit_count", "special_count", "at_symbol",
     "question_mark_count", "path_length", "query_length", "has_punycode",
     "url_shortener_used", "is_bogon_space",
 )
+FEATURE_NAMES_V1 = FEATURE_NAMES
 FEATURE_NAMES_V2 = FEATURE_NAMES_V1 + (
     "is_paas_subdomain", "subdomain_entropy", "brand_in_subdomain_mismatch",
 )
-FEATURE_NAMES = FEATURE_NAMES_V1
 
 SHORTENERS = frozenset({
     "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd",

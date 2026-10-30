@@ -30,7 +30,7 @@ import logging
 import os
 from typing import Optional
 
-from config import settings
+from email_engine.settings import settings
 from services.email.email_collector import parse_raw_email  # reuses the 6-parser pipeline
 
 logger = logging.getLogger(__name__)
@@ -63,21 +63,16 @@ def parse_raw_bytes(raw_bytes: bytes) -> dict:
     try:
         return parse_raw_email(raw_bytes)
     except Exception:
-        logger.exception("[parser] parse_raw_email() failed — returning empty structure")
-        return {
-            "metadata":       {},
-            "authentication": {},
-            "received_chain": {},
-            "domain":         {},
-            "attachments":    {},
-            "content":        {},
-        }
+        logger.exception("[parser] parse_raw_email() failed")
+        raise ValueError("Email parsing failed; no clean result is available")
 
 
 def parse_and_save(
     email_id: str,
     raw_bytes: bytes,
     shared_dir: Optional[str] = None,
+    owner_email: Optional[str] = None,
+    owner_user_id: Optional[str] = None,
 ) -> str:
     """
     Parse raw RFC822 email bytes and persist the structured JSON to disk.
@@ -104,6 +99,13 @@ def parse_and_save(
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(parsed, f, indent=2, ensure_ascii=False)
     os.replace(tmp_path, output_path)  # atomic write
+
+    if owner_user_id:
+        owner_path = os.path.join(email_dir, "owner.json")
+        owner_tmp = owner_path + ".tmp"
+        with open(owner_tmp, "w", encoding="utf-8") as f:
+            json.dump({"owner_user_id": owner_user_id, "owner_email": (owner_email or "").lower().strip()}, f)
+        os.replace(owner_tmp, owner_path)
 
     logger.info(
         "[parser] parsed.json saved email_id=%s path=%s",

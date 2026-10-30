@@ -6,15 +6,15 @@
 # per job, or `docker exec` against a running instance — see
 # ../DOCKER_ARCHITECTURE_IDEATION.md for the two options) and reads the
 # output back off a shared Docker volume.
-FROM python:3.11-slim@sha256:db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627accd3d51053a93
+FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377
 
 # System deps: only what headless Chromium itself needs to run, plus
 # libzbar0 for QR detection (pyzbar). No Xvfb, no x11vnc, no supervisor
 # — there's no display to render to and nothing to supervise; this
 # container runs one process (the CLI script) and exits.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libzbar0 \
-    wget gnupg ca-certificates \
+    ca-certificates \
     fonts-liberation libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 \
     libasound2 libxss1 libxshmfence1 libx11-xcb1 \
     && rm -rf /var/lib/apt/lists/*
@@ -30,7 +30,6 @@ COPY sandbox/docker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 # Note: testing/ and batch evaluation harnesses are deliberately excluded
 # from this image so only the single-scan production engine is shipped.
-COPY sandbox/backend/ ./sandbox/backend/
 
 # Non-root, capability-dropped at the docker-compose/run level (see
 # docker-compose.yml: cap_drop: ALL). Chromium runs with --no-sandbox to
@@ -38,8 +37,8 @@ COPY sandbox/backend/ ./sandbox/backend/
 # capabilities this container deliberately doesn't have; the
 # container/non-root-user boundary is the real isolation layer here,
 # same tradeoff Playwright's own official Docker images make.
-RUN groupadd --gid 1001 sandbox \
-    && useradd --uid 1001 --gid sandbox --create-home --shell /bin/bash sandbox \
+RUN groupadd --gid 10001 sandbox \
+    && useradd --uid 10001 --gid sandbox --create-home --shell /bin/bash sandbox \
     && mkdir -p /app/output \
     && chown -R sandbox:sandbox /app
 
@@ -51,6 +50,24 @@ USER sandbox
 # actual runtime user, surfacing as a confusing "Executable doesn't
 # exist" error at run time rather than at build time.
 RUN playwright install chromium
+
+USER root
+RUN python -m pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0 wheel==0.48.0 \
+    && python -m pip uninstall -y pip
+
+# Preserve multilingual page content in model screenshots. Liberation alone
+# lacks Asian and other scripts and renders pages as missing-glyph boxes.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+    fontconfig fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji \
+    && fc-cache -f \
+    && python -c "import subprocess; family=subprocess.check_output(['fc-match','-f','%{family}',':lang=zh-cn'],text=True); assert 'Noto Sans CJK' in family, family" \
+    && rm -rf /var/lib/apt/lists/*
+ENV XDG_CACHE_HOME=/tmp/.cache \
+    PLAYWRIGHT_BROWSERS_PATH=/home/sandbox/.cache/ms-playwright
+USER sandbox
+
+# Source changes do not invalidate the browser download layer.
+COPY --chown=sandbox:sandbox sandbox/backend/ ./sandbox/backend/
 
 # /app/output is the shared-Docker-volume mount point for the
 # multi-container pattern — mount your shared volume here, and pass

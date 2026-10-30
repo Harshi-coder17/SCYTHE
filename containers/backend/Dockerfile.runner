@@ -10,12 +10,11 @@
 # DOCKER_HOST=tcp://docker_socket_proxy:2375, so it never needs
 # containerd, runc, dockerd, or iptables, all of which docker.io drags
 # in as dependencies for a local daemon this container will never run.
-FROM docker:26-cli AS dockercli
+FROM docker:cli@sha256:1a4c7cb63513f349bdad01fcc6e0f3f2f67d37b9da86f14dc0d4a0942eecda00 AS dockercli
 
-FROM python:3.11-slim@sha256:db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627accd3d51053a93
+FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy just the docker CLI binary from the official image above.
@@ -24,15 +23,27 @@ COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 COPY requirements.runner.txt /tmp/requirements.runner.txt
 RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.runner.txt && rm /tmp/requirements.runner.txt
 
-RUN groupadd --gid 1002 runner \
-    && useradd --uid 1002 --gid runner --shell /bin/bash --create-home runner
+RUN python -m pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0 wheel==0.48.0 \
+    && python -m pip uninstall -y pip
+
+RUN groupadd --gid 10001 scythe \
+    && useradd --uid 10001 --gid scythe --shell /bin/bash --create-home scythe \
+    && mkdir -p /home/runner/.docker /home/scythe/.docker \
+    && chown -R scythe:scythe /home/runner /home/scythe
 
 WORKDIR /app
-COPY --chown=runner:runner services/sandbox_runner_svc.py /app/sandbox_runner_svc.py
-COPY --chown=runner:runner runner_entrypoint.sh /app/entrypoint.sh
+RUN mkdir -p /app /shared/scans /backups /app/models \
+    && chown -R scythe:scythe /app /shared /backups \
+    && chmod -R 0775 /app /shared /backups
+
+COPY --chown=scythe:scythe services/sandbox_runner_svc.py /app/sandbox_runner_svc.py
+COPY --chown=scythe:scythe runner_entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-USER runner
+USER scythe
 EXPOSE 8002
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=5 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=5)"]
 
 ENTRYPOINT ["/app/entrypoint.sh"]

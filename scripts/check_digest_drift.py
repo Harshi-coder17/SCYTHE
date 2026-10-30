@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CI check to verify zero drift across SANDBOX_IMAGE definitions.
-Ensures backend/.env.example, docker-compose.yml, backend/config.py, and backend/services/sandbox_runner_svc.py
+Ensures containers/backend/.env.example, docker-compose.yml, containers/backend/config.py, and containers/backend/services/sandbox_runner_svc.py
 all reference the exact same pinned SANDBOX_IMAGE sha256 digest.
 """
 
@@ -22,20 +22,20 @@ def main():
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     files_to_check = {
-        "backend/.env.example": (
-            os.path.join(root_dir, "backend", ".env.example"),
+        "containers/backend/.env.example": (
+            os.path.join(root_dir, "containers", "backend", ".env.example"),
             rf'SANDBOX_IMAGE=({_SANDBOX_IMAGE_PATTERN})'
         ),
         "docker-compose.yml (runner)": (
             os.path.join(root_dir, "docker-compose.yml"),
             rf'SANDBOX_IMAGE:\s*\$\{{SANDBOX_IMAGE:-({_SANDBOX_IMAGE_PATTERN})\}}'
         ),
-        "backend/config.py": (
-            os.path.join(root_dir, "backend", "config.py"),
+        "containers/backend/config.py": (
+            os.path.join(root_dir, "containers", "backend", "config.py"),
             rf'SANDBOX_IMAGE:\s*str\s*=\s*"({_SANDBOX_IMAGE_PATTERN})"'
         ),
-        "backend/services/sandbox_runner_svc.py": (
-            os.path.join(root_dir, "backend", "services", "sandbox_runner_svc.py"),
+        "containers/backend/services/sandbox_runner_svc.py": (
+            os.path.join(root_dir, "containers", "backend", "services", "sandbox_runner_svc.py"),
             rf'SANDBOX_IMAGE\s*=\s*os\.environ\.get\(\s*"SANDBOX_IMAGE",\s*"({_SANDBOX_IMAGE_PATTERN})"'
         )
     }

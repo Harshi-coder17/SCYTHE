@@ -11,7 +11,7 @@
 // importScripts is the MV3-compatible way to load shared scripts in a SW.
 try { importScripts("config.js"); } catch(e) { /* already loaded or unavailable */ }
 
-const _API_BASE   = (typeof SCYTHE_CONFIG !== "undefined" ? SCYTHE_CONFIG.API_BASE_URL  : "http://localhost:8000");
+const _API_BASE   = (typeof SCYTHE_CONFIG !== "undefined" ? SCYTHE_CONFIG.API_BASE_URL  : "https://localhost:8443");
 const SCAN_ENDPOINT   = `${_API_BASE}/api/scans/quick`;
 const STAGE2_ENDPOINT = `${_API_BASE}/api/scans/stage2`;
 
@@ -29,6 +29,15 @@ async function getAuthToken() {
     });
   });
 }
+
+async function protectionEnabled() {
+  if (typeof chrome === "undefined" || !chrome.storage || !chrome.storage.sync) return true;
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(["protectionDisabled"], (result) => {
+      resolve(result?.protectionDisabled !== true);
+    });
+  });
+}
 const RISK_BLOCK_THRESHOLD = 70;
 // Stage 2 (deep scan) is triggered when Quick Scan score >= this threshold.
 // Keeps Stage 2 payload confined to genuinely suspicious pages.
@@ -39,6 +48,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 // Tracks Stage 2 jobs in-flight: tabId -> { jobId, url, startedAt }
 const stage2Jobs = new Map();
+const stage2Pending = new Map();
 
 // tabId -> { score, indicators: [event_type,...], reasons }
 // Populated live from content.js / bdr.js as they detect things.
@@ -49,6 +59,17 @@ const bypassedTabs = new Map(); // tabId -> url the user chose to proceed to any
 /* ---------- Message listener (popup.js / content.js / bdr.js / warning.js) ---------- */
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "BDR_EVENTS" || message?.type === "BDR_CRITICAL") {
+    protectionEnabled().then(enabled => {
+      if (enabled) handleRuntimeMessage(message, sender, sendResponse);
+      sendResponse({ ok: enabled, disabled: !enabled });
+    }).catch(() => sendResponse({ ok: false, unavailable: true }));
+    return true;
+  }
+  return handleRuntimeMessage(message, sender, sendResponse);
+});
+
+function handleRuntimeMessage(message, sender, sendResponse) {
   switch (message?.type) {
     case "GET_SCAN_RESULT":
       handleGetScanResult(message, sender).then(sendResponse);
@@ -140,13 +161,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     default:
       return false;
   }
-});
+}
 
 async function handleGetScanResult(message, sender) {
   const { tabId, url } = message;
 
   if (!url) {
-    return { riskScore: 0, status: "Unknown", reasons: "No URL provided.", indicators: [] };
+    return { riskScore: null, isPlaceholder: true, status: "Unknown", reasons: "No URL provided.", indicators: [] };
   }
 
   const cached = scanCache.get(tabId);
@@ -161,11 +182,12 @@ async function handleGetScanResult(message, sender) {
   let finalResult = { ...baseResult };
 
   if (runtime) {
-    finalResult.riskScore = Math.min(100, baseResult.riskScore + runtime.score);
+    finalResult.riskScore = baseResult.isPlaceholder || baseResult.riskScore == null
+      ? null : Math.min(100, baseResult.riskScore + runtime.score);
     finalResult.indicators = [...(baseResult.indicators || []), ...(runtime.indicators || [])];
     finalResult.reasons = `${baseResult.reasons} ${runtime.reasons}`.trim();
     finalResult.status =
-      finalResult.riskScore >= RISK_BLOCK_THRESHOLD
+      finalResult.riskScore == null ? "Unknown" : finalResult.riskScore >= RISK_BLOCK_THRESHOLD
         ? "Blocked"
         : finalResult.riskScore >= 30
         ? "Caution"
@@ -201,8 +223,18 @@ async function scanUrl(url) {
  * manually via the TRIGGER_STAGE2 message from popup.js.
  */
 async function triggerStage2(tabId, url) {
+  const key = `${tabId}:${url}`;
+  if (stage2Pending.has(key)) return stage2Pending.get(key);
+  const pending = captureStage2(tabId, url);
+  stage2Pending.set(key, pending);
+  try { return await pending; }
+  finally { if (stage2Pending.get(key) === pending) stage2Pending.delete(key); }
+}
+
+async function captureStage2(tabId, url) {
   // Guard: only one Stage 2 job per tab at a time
-  if (stage2Jobs.has(tabId)) {
+  const existing = stage2Jobs.get(tabId);
+  if (existing && existing.url === url && Date.now() - existing.startedAt < 10 * 60 * 1000) {
     console.debug("[SCYTHE] Stage 2 already running for tab", tabId);
     return stage2Jobs.get(tabId);
   }
@@ -213,6 +245,11 @@ async function triggerStage2(tabId, url) {
   let screenshotBase64 = "";
   try {
     const tab = await chrome.tabs.get(tabId);
+    const activeTabs = await chrome.tabs.query({ active: true, windowId: tab.windowId });
+    if (!activeTabs[0] || activeTabs[0].id !== tabId || tab.url !== url) {
+      console.warn("[SCYTHE] Refusing screenshot for inactive or stale tab", tabId);
+      return submitStage2Payload(tabId, url, "", "");
+    }
     const windowId = tab.windowId;
     const dataUrl  = await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
     // Strip data URI header  ("data:image/png;base64,")
@@ -225,13 +262,20 @@ async function triggerStage2(tabId, url) {
   // 2. Inject content script to capture the live DOM snapshot
   let html = "";
   try {
-    const [{ result: domHtml } = {}] = await chrome.scripting.executeScript({
+    const [{ result: snapshot } = {}] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => document.documentElement.outerHTML,
+      func: () => ({ html: document.documentElement.outerHTML, url: location.href }),
     });
-    html = domHtml ?? "";
+    const currentTab = await chrome.tabs.get(tabId);
+    if (snapshot?.url !== url || currentTab.url !== url) {
+      console.warn("[SCYTHE] Discarding capture after tab navigation", tabId);
+      return submitStage2Payload(tabId, url, "", "");
+    }
+    html = snapshot.html ?? "";
   } catch (err) {
     console.warn("[SCYTHE] DOM capture failed:", err);
+    screenshotBase64 = "";
+    html = "";
   }
 
   return submitStage2Payload(tabId, url, screenshotBase64, html);
@@ -243,6 +287,7 @@ async function submitStage2Payload(tabId, url, screenshotBase64, html) {
   const timeout = setTimeout(() => controller.abort(), 15_000); // 15 s
 
   const token = await getAuthToken();
+  if (!token) { clearTimeout(timeout); throw new Error("Sign in and connect the extension before submitting a deep scan."); }
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -272,7 +317,12 @@ async function submitStage2Payload(tabId, url, screenshotBase64, html) {
       startedAt: Date.now(),
     };
 
-    stage2Jobs.set(tabId, jobRecord);
+    // A completed request for a previous document must not replace the new
+    // document's job tracking. The returned report remains independently owned.
+    try {
+      const currentTab = await chrome.tabs.get(tabId);
+      if (currentTab.url === url) stage2Jobs.set(tabId, jobRecord);
+    } catch { /* tab closed while the request was pending */ }
     console.info("[SCYTHE] Stage 2 queued job_id=", data.job_id, "scan_id=", data.scan_id);
     return jobRecord;
 
@@ -302,13 +352,20 @@ async function callBackendApi(url) {
       signal: controller.signal,
     });
 
-    if (!response.ok) throw new Error(`API responded with ${response.status}`);
+    if (!response.ok) {
+      if (response.status === 401 && chrome.storage?.local?.remove) chrome.storage.local.remove(["scythe_token", "scythe_email"]);
+      throw new Error(`API responded with ${response.status}`);
+    }
 
     const data = await response.json();
 
+    const rawScore = data.risk_score ?? data.riskScore;
+    const numericScore = typeof rawScore === "number" && Number.isFinite(rawScore) && rawScore >= 0 && rawScore <= 100 ? rawScore : null;
+    const isPlaceholder = data.is_placeholder === true || numericScore === null;
     return {
-      riskScore: data.risk_score ?? data.riskScore ?? 0,
-      status: data.status ?? (data.risk_score >= RISK_BLOCK_THRESHOLD ? "Blocked" : "Allowed"),
+      riskScore: isPlaceholder ? null : numericScore,
+      status: isPlaceholder ? "Unknown" : (data.status ?? (numericScore >= RISK_BLOCK_THRESHOLD ? "Blocked" : "Allowed")),
+      isPlaceholder,
       reasons: data.reason ?? data.reasons ?? "",
       indicators: data.indicators ?? [],
       scannedAt: Date.now(),
@@ -332,7 +389,8 @@ function localHeuristicScan(url) {
     pathname = parsed.pathname;
   } catch {
     return {
-      riskScore: 0,
+      riskScore: null,
+      isPlaceholder: true,
       status: "Unknown",
       reasons: "Could not parse URL.",
       indicators: [],
@@ -392,7 +450,8 @@ function localHeuristicScan(url) {
       ? "Local heuristic scan found characteristics associated with risky or deceptive sites."
       : "No suspicious characteristics found by local heuristic scan.";
 
-  return { riskScore: score, status, reasons, indicators, scannedAt: Date.now() };
+  // Heuristics are observations, not a substitute for an unavailable model.
+  return { riskScore: null, heuristicScore: score, isPlaceholder: true, status: "Unknown", reasons, indicators, scannedAt: Date.now() };
 }
 
 /* ---------- Dynamic Icon + Pulsating Alert System ---------- */
@@ -565,7 +624,8 @@ async function blockTabWithWarning(tabId, url, result) {
   // The tab may have closed or navigated elsewhere by the time an async
   // scan finishes — verify it still exists before touching it.
   try {
-    await chrome.tabs.get(tabId);
+    const currentTab = await chrome.tabs.get(tabId);
+    if (currentTab.url !== url) return;
   } catch {
     return; // tab is gone, nothing to block
   }
@@ -594,6 +654,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
   const { tabId, url } = details;
 
   if (!/^https?:\/\//.test(url)) return;
+  if (!(await protectionEnabled())) return;
   if (bypassedTabs.get(tabId) === url) return;
 
   // Fresh navigation — clear any stale runtime detections and Stage 2 jobs
@@ -623,17 +684,19 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url && /^https?:\/\//.test(tab.url)) {
-    const cached = scanCache.get(tabId);
-    const alreadyScanned = cached && cached.url === tab.url && Date.now() - cached.timestamp < CACHE_TTL_MS;
-
-    if (!alreadyScanned) {
-      scanUrl(tab.url).then((result) => {
-        scanCache.set(tabId, { url: tab.url, result, timestamp: Date.now() });
-        updateBadge(tabId, result.riskScore);
-      });
-    } else {
-      updateBadge(tabId, cached.result.riskScore);
-    }
+    protectionEnabled().then((enabled) => {
+      if (!enabled) return;
+      const cached = scanCache.get(tabId);
+      const alreadyScanned = cached && cached.url === tab.url && Date.now() - cached.timestamp < CACHE_TTL_MS;
+      if (!alreadyScanned) {
+        scanUrl(tab.url).then((result) => {
+          scanCache.set(tabId, { url: tab.url, result, timestamp: Date.now() });
+          updateBadge(tabId, result.riskScore);
+        });
+      } else {
+        updateBadge(tabId, cached.result.riskScore);
+      }
+    });
 
     detectAndSyncTheme(tabId);
   } else if (changeInfo.status === "complete" && tab.url && !/^https?:\/\//.test(tab.url)) {

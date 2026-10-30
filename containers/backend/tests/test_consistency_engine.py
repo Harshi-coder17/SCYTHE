@@ -4,8 +4,43 @@ logo analysis, and dynamic weight renormalization when categories are indetermin
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+import json
+import numpy as np
+from PIL import Image
+from unittest.mock import patch
 from consistency_engine.consistency_engine import ConsistencyEngine, MISMATCH_THRESHOLD
+
+
+@pytest.mark.parametrize("pixel_fallback", [False, True])
+def test_mismatched_screenshots_produce_json_native_scores_and_booleans(tmp_path, pixel_fallback, monkeypatch):
+    import consistency_engine.consistency_engine as module
+    if pixel_fallback:
+        monkeypatch.setattr(module, "_HAS_IMAGEHASH", False)
+    image_a, image_b = tmp_path / "a.png", tmp_path / "b.png"
+    # Checkerboard versus its inverse exercises the perceptual-hash path;
+    # the pixel-difference fallback also computes through NumPy scalars.
+    pixels = (np.indices((64, 64)).sum(axis=0) % 2 * 255).astype(np.uint8)
+    Image.fromarray(pixels).save(image_a)
+    Image.fromarray(255 - pixels).save(image_b)
+    engine = ConsistencyEngine()
+    screenshot = engine.compare_screenshots(str(image_a), str(image_b))
+    comparisons = {"screenshot": screenshot, **{name: {"similarity": 0.0, "indeterminate": True}
+                                               for name in ("ocr", "dom", "metadata", "logo")}}
+    report = engine.generate_consistency_report(comparisons)
+    assert type(screenshot["similarity"]) is float
+    assert type(report["consistency_score"]) is float
+    assert type(report["cloaking_suspected"]) is bool
+    assert report["cloaking_suspected"] is (screenshot["similarity"] < MISMATCH_THRESHOLD)
+    assert json.loads(json.dumps(report, allow_nan=False)) == report
+
+
+def test_numpy_score_at_cloaking_threshold_serializes_without_changing_decision():
+    engine = ConsistencyEngine()
+    comparisons = {name: {"similarity": np.float64(MISMATCH_THRESHOLD), "indeterminate": name != "screenshot"}
+                   for name in ("screenshot", "ocr", "dom", "metadata", "logo")}
+    report = engine.generate_consistency_report(comparisons)
+    assert type(report["cloaking_suspected"]) is bool and report["cloaking_suspected"] is False
+    assert json.loads(json.dumps(report, allow_nan=False))["consistency_score"] == MISMATCH_THRESHOLD
 
 
 def test_compare_dom_when_sandbox_html_not_available():

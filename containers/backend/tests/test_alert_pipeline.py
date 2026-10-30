@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch, MagicMock
 
 import tasks.alert_pipeline as alert_pipeline_module
@@ -58,6 +57,7 @@ def test_alert_pipeline_proceeds_if_real_model(
     
     # Setup mock DB session context manager
     mock_session_instance = MagicMock()
+    mock_session_instance.query.return_value.filter.return_value.first.return_value = None
     mock_db_session.return_value.__enter__.return_value = mock_session_instance
     
     result = alert_pipeline_module.alert_pipeline_task(scan_id, risk_report)
@@ -68,3 +68,34 @@ def test_alert_pipeline_proceeds_if_real_model(
     # Assert that DB and Slack were engaged
     mock_create.assert_called_once()
     mock_slack.assert_called_once()
+
+
+@patch("tasks.alert_pipeline._mark_status")
+@patch("tasks.alert_pipeline._send_slack_notification")
+@patch("tasks.alert_pipeline._create_incident")
+@patch("tasks.alert_pipeline.get_db_session")
+def test_alert_redelivery_does_not_duplicate_incidents_or_notifications(mock_db, create, slack, status):
+    db = mock_db.return_value.__enter__.return_value
+    db.query.return_value.filter.return_value.first.return_value = MagicMock()
+    result = alert_pipeline_module.alert_pipeline_task("87654321-4321-4321-9210-210987654321",
+            {"severity": "HIGH", "risk_score": 90, "is_placeholder": False})
+    assert result["duplicate"] is True
+    db.query.return_value.filter.return_value.with_for_update.assert_called_once()
+    create.assert_not_called()
+    slack.assert_not_called()
+
+
+@patch("tasks.alert_pipeline._send_slack_notification")
+@patch("tasks.alert_pipeline._create_incident")
+@patch("tasks.alert_pipeline.get_db_session")
+def test_cancelled_scan_does_not_create_late_incident(mock_db, create, slack):
+    db = mock_db.return_value.__enter__.return_value
+    scan = MagicMock(status="cancelled")
+    db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = scan
+    result = alert_pipeline_module.alert_pipeline_task("87654321-4321-4321-9210-210987654321",
+            {"severity": "HIGH", "risk_score": 90, "is_placeholder": False})
+    assert result["reason"] == "terminal_scan"
+    assert scan.status == "cancelled"
+    db.commit.assert_not_called()
+    create.assert_not_called()
+    slack.assert_not_called()

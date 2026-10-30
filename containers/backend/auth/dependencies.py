@@ -1,4 +1,5 @@
-from fastapi import Depends, HTTPException, status
+from typing import Optional
+from fastapi import Depends, HTTPException, status, Form
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -7,6 +8,29 @@ from database.models import User
 from auth.jwt import JWTError, decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+
+class OAuth2PasswordRequestForm:
+    """
+    Dependency class to collect username and password as form data for OAuth2 password flow.
+    Pydantic 2.x compatible definition avoiding FieldInfo metadata incompatibilities.
+    """
+    def __init__(
+        self,
+        grant_type: Optional[str] = Form(default=None),
+        username: str = Form(),
+        password: str = Form(),
+        scope: str = Form(default=""),
+        client_id: Optional[str] = Form(default=None),
+        client_secret: Optional[str] = Form(default=None),
+    ):
+        self.grant_type = grant_type
+        self.username = username
+        self.password = password
+        self.scopes = scope.split()
+        self.client_id = client_id
+        self.client_secret = client_secret
+
 
 credentials_exception = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -21,7 +45,7 @@ def get_current_user(
 ) -> User:
 
     try:
-        payload = decode_access_token(token)
+        payload = decode_access_token(token, db=db)
     except JWTError:
         raise credentials_exception
 
@@ -34,7 +58,7 @@ def get_current_user(
         raise credentials_exception
 
     if hasattr(user, "is_active") and not user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account deactivated")
 
     return user
 
@@ -43,5 +67,5 @@ def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
     if hasattr(current_user, "is_active") and not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account deactivated")
     return current_user

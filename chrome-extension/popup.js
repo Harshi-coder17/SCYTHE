@@ -5,7 +5,7 @@
 // Read dashboard URL from config.js (loaded as a <script> tag in popup.html)
 const DASHBOARD_URL = (typeof SCYTHE_CONFIG !== "undefined")
   ? SCYTHE_CONFIG.DASHBOARD_URL
-  : "http://localhost:8000/dashboard";
+  : "https://localhost:8443/dashboard/components/dashboard.html";
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -200,6 +200,17 @@ function renderResult(data, hostname) {
     return;
   }
 
+  if (data.isPlaceholder || typeof data.riskScore !== "number" || !Number.isFinite(data.riskScore)) {
+    renderError("Model verdict unavailable. Sign in through Dashboard and connect the extension in Settings.", hostname);
+    const title = document.getElementById("heroStatusTitle");
+    const badge = document.getElementById("heroStatusBadge");
+    const rating = document.getElementById("securityScoreRating");
+    if (title) title.textContent = "VERDICT UNAVAILABLE";
+    if (badge) badge.textContent = "UNKNOWN";
+    if (rating) rating.textContent = "—";
+    return;
+  }
+
   const { riskScore = 0, status = "Unknown", reasons, indicators = [] } = data;
   const securityScore = Math.max(0, 100 - riskScore);
 
@@ -352,6 +363,18 @@ function renderError(message, hostname) {
 function wireButtons(tab) {
   const backBtn = document.getElementById("backBtn");
   const dashboardBtn = document.getElementById("dashboardBtn");
+  const deepScanBtn = document.getElementById("deepScanBtn");
+  if (deepScanBtn) deepScanBtn.addEventListener("click", async () => {
+    deepScanBtn.disabled = true;
+    try {
+      const result = await sendMessage({ type: "TRIGGER_STAGE2", tabId: tab?.id, url: tab?.url });
+      if (!result?.ok || !result.scanId) throw new Error(result?.error || "Deep scan unavailable.");
+      const report = new URL("report.html", DASHBOARD_URL);
+      report.searchParams.set("scan_id", result.scanId);
+      chrome.tabs.create({ url: report.href });
+    } catch (error) { renderError(error.message, safeHostname(tab?.url || "")); }
+    finally { deepScanBtn.disabled = false; }
+  });
 
   if (backBtn) {
     backBtn.onclick = () => {
@@ -385,8 +408,7 @@ function wireButtons(tab) {
 function getActiveTab() {
   return new Promise((resolve) => {
     if (typeof chrome === "undefined" || !chrome.tabs) {
-      // Default mock url for browser testing
-      resolve({ id: 1, url: "https://secure-login-warning-caution.phishing.com/login" });
+      resolve(null);
       return;
     }
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -398,32 +420,7 @@ function getActiveTab() {
 function sendMessage(payload) {
   return new Promise((resolve, reject) => {
     if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
-      const url = payload.url || "";
-      if (url.includes("phishing") || url.includes("blocked")) {
-        resolve({
-          riskScore: 82,
-          status: "Blocked",
-          reasons: "SCYTHE detected known deceptive credential forms and spoofed brand imagery on this page.",
-          indicators: ["Deceptive login form detected", "Domain matches phishing blocklist", "Connection uses HTTP"],
-          scannedAt: Date.now()
-        });
-      } else if (url.includes("caution") || url.includes("warning")) {
-        resolve({
-          riskScore: 45,
-          status: "Caution",
-          reasons: "Local heuristics flagged suspicious spelling matching high-profile domains.",
-          indicators: ["Suspicious domain keyword spoofing", "Multiple hyphens in URL"],
-          scannedAt: Date.now()
-        });
-      } else {
-        resolve({
-          riskScore: 8,
-          status: "Allowed",
-          reasons: "No threat indicators detected. The domain signature is clean and verified.",
-          indicators: [],
-          scannedAt: Date.now()
-        });
-      }
+      reject(new Error("Browser extension messaging is unavailable."));
       return;
     }
     chrome.runtime.sendMessage(payload, (response) => {

@@ -1,9 +1,11 @@
 #!/bin/bash
 # =======================================================
 # SCYTHE Celery — Entrypoint (Worker + Beat)
-# 1. Wait for Redis (broker) to be ready
-# 2. Wait for Postgres (models need DB)
-# 3. exec the celery command passed as CMD
+# 1. Ensure execution as scythe (drop privileges if root)
+# 2. Wait for Redis (broker) to be ready
+# 3. Wait for Postgres (models need DB)
+# 4. Wait for ClamAV daemon
+# 5. exec the celery command passed as CMD
 #
 # Bug fix: the original Redis probe used the raw REDIS_URL
 # (e.g. redis://redis:6379/0) without injecting REDIS_PASSWORD,
@@ -14,6 +16,21 @@
 # REDIS_PASSWORD and injecting the credential if absent.
 # =======================================================
 set -e
+
+# Privilege drop / non-root enforcement:
+# Ensure we do not execute as root. If running as root, drop privileges to scythe.
+if [ "$(id -u)" = "0" ]; then
+    echo "[celery-entrypoint] Running as root; dropping privileges to scythe..."
+    if command -v gosu >/dev/null 2>&1; then
+        exec gosu scythe "$0" "$@"
+    elif command -v su-exec >/dev/null 2>&1; then
+        exec su-exec scythe "$0" "$@"
+    elif command -v runuser >/dev/null 2>&1; then
+        exec runuser -u scythe -- "$0" "$@"
+    else
+        exec su -s /bin/bash scythe -c "\"$0\" \"\$@\"" -- "$@"
+    fi
+fi
 
 echo "[celery-entrypoint] Waiting for Redis..."
 until python -c "

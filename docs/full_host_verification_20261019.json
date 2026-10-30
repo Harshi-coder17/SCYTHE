@@ -1,0 +1,62 @@
+{
+  "report_version": "scythe_full_host_verification_v1",
+  "local_date": "2026-10-19",
+  "scope": "Latest working-tree host unit and release tests; not a rebuilt-container workflow verification",
+  "environment": {
+    "python": "3.11.9",
+    "pytest": "8.3.3",
+    "numpy": "1.24.4",
+    "lightgbm": "4.6.0",
+    "scikit_learn": "1.5.1",
+    "pythonpath_entries": ["SCYTHE", "SCYTHE/containers/backend", "lightgbm_dataset/_deps"],
+    "dependency_changes": false
+  },
+  "suites": [
+    {
+      "name": "backend",
+      "command": "python -m pytest SCYTHE/containers/backend/tests -q --tb=short",
+      "working_directory": "workspace root",
+      "passed": 277,
+      "skipped": 1,
+      "failed": 0,
+      "errors": 0,
+      "warnings": 44,
+      "duration_seconds": 65.86,
+      "skip_reason": "Experimental MobileCLIP scoring disabled by default; real model inference test checks MOBILECLIP_ENABLED before artifact resolution"
+    },
+    {
+      "name": "scripts_and_release",
+      "command": "python -m pytest scripts/tests -q --tb=short",
+      "working_directory": "SCYTHE",
+      "passed": 117,
+      "skipped": 0,
+      "failed": 0,
+      "errors": 0,
+      "duration_seconds": 140.37
+    },
+    {
+      "name": "sandbox",
+      "command": "python -m pytest SCYTHE/containers/sandbox/tests -q --tb=short",
+      "working_directory": "workspace root",
+      "passed": 13,
+      "skipped": 0,
+      "failed": 0,
+      "errors": 0,
+      "duration_seconds": 0.18
+    }
+  ],
+  "totals": {"passed": 407, "skipped": 1, "failed": 0, "errors": 0, "collected": 408},
+  "initial_environment_issue": "An initial scripts collection from workspace root lacked the SCYTHE repository root on PYTHONPATH and could not import scripts.migrate_shared_scans_ownership. Adding the repository root and rerunning the complete suite resolved it without product edits.",
+  "warning_categories": [
+    "pytest-asyncio fixture-loop scope default deprecation",
+    "FastAPI startup on_event deprecation",
+    "JWT 25-byte HMAC test-fixture key warning; not evidence about deployed secret values",
+    "joblib Windows physical-core detection fallback"
+  ],
+  "limitations": [
+    "This verifies host tests, not latest-source Docker integration.",
+    "No Docker services were restarted and no deployment or production database migration was performed.",
+    "No model candidate was promoted or operational policy relaxed.",
+    "The working tree was shared with parallel agents; this report is not a frozen release attestation."
+  ]
+}

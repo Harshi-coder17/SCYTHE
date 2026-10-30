@@ -1,0 +1,37 @@
+{
+  "schema_version": "scythe_operational_model_policy_v1",
+  "status": "approved",
+  "approved_by": "project owner via current Codex conversation",
+  "approved_at_utc": "2026-10-16T10:22:20.537229+00:00",
+  "approval_timestamp_semantics": "Acceptance recorded at implementation time; conversation did not supply an exact approval timestamp.",
+  "approval_evidence": {
+    "accepted_plan": "SCYTHE: fully local deployment with validated models",
+    "owner_message": "implemennt and dont stop until done",
+    "scope": "Owner accepted the preceding plan, including quality targets and local v10 actions. No further permission gate is required for implementing this plan."
+  },
+  "intended_population": "Locally hosted SCYTHE analyzing HTTP(S) URLs and captured webpages with Internet access; local CPU. Arbitrary-file malware classification is outside these phishing models.",
+  "maximum_false_positives_per_10000_benign": 100,
+  "minimum_recall": 0.8,
+  "require_wilson95_bounds": true,
+  "minimum_benign_records": 5000,
+  "minimum_phishing_records": 2000,
+  "minimum_coverage": 1,
+  "maximum_p95_latency_ms": 15000,
+  "latency_limits_ms": {
+    "quick_url": 2000,
+    "deep_url": 15000
+  },
+  "maximum_task_latency_ms": 60000,
+  "failure_behavior": "UNKNOWN/unavailable; no model-triggered blocking or incident",
+  "allowed_actions": [
+    "v10 severity-based extension badges",
+    "v10 validated warnings and interstitials",
+    "v10 deduplicated local incidents"
+  ],
+  "activation_requirement": "Only checksum-bound release paths with a passing independent release evaluation may trigger model actions. Accepted implementation authorization is sufficient; no separate repeated permission request.",
+  "limitations": [
+    "Quality targets are acceptance criteria, not achieved metrics.",
+    "Previously inspected Phish360/PhishVN/external screenshot cohorts remain development evidence.",
+    "Wilson intervals assume independent observations; report domain/campaign dependence and unknown provenance."
+  ]
+}

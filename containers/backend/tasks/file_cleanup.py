@@ -1,216 +1,164 @@
-"""
-tasks/file_cleanup.py
-======================
-Periodic retention and cleanup task (security finding #8 fix).
-
-Responsibility:
-  Prevent disk exhaustion on the shared_scans volume, which would corrupt
-  databases and cause a platform-wide outage. This task is scheduled hourly
-  by celery_beat.py. Also enforces dual-tier database retention so high-value
-  incident history is preserved long-term while scratch records and files are pruned.
-
-What it cleans:
-  1. Per-scan subdirectories under SHARED_DIR/<scan_id>/ that are older
-     than `retention_days` days (default 14). Each subdirectory contains
-     browser.png, browser.html, sandbox.png, sandbox_fullpage.png,
-     browser_features.json, sandbox_metadata.json, consistency_report.json,
-     risk_report.json, cyberintel.json — safe to purge after scan pipeline completion.
-
-  2. Orphan files at the SHARED_DIR root that match scan_*.json or
-     scan_*.png — left behind by the sandbox container on crashed /
-     incomplete scan jobs.
-
-  3. Quarantined samples inside SHARED_DIR/quarantine older than `retention_days`.
-
-  4. Database Purge (Dual-Tier Retention):
-     - Scans without any associated security Incidents (`~Scan.incidents.any()`)
-       are pruned after `retention_days` (default 14 days).
-     - Scans associated with actual security Incidents (and their child Incident/IOC
-       records) are kept much longer, determined by `incident_retention_days`
-       (default 365 days, or configured via settings.INCIDENT_RETENTION_DAYS).
-     - Whenever rows are purged, `Statistics` counters (total_incidents, critical_count,
-       high_count) are re-synchronized via COUNT() queries to prevent drift.
-
-Failure modes:
-  - Individual file/directory removal errors are logged as warnings and skipped.
-  - The task itself is safe to run multiple times concurrently (idempotent).
-"""
-
-import glob
+"""Incident-aware retention: an unavailable database never authorizes deletion."""
+import json
 import logging
 import os
+from pathlib import Path
 import shutil
+import stat
 import time
+from datetime import datetime, timezone
 
+from sqlalchemy import func
 from celery_worker import celery
 from config import settings
-from tasks import _UUID_RE
 from database.database import SessionLocal
-from database.models import Scan, Incident, Statistics
-from datetime import datetime, timedelta, timezone
-from sqlalchemy import func
+from database.models import Incident, Scan, Statistics
+from tasks import _UUID_RE
 
 logger = logging.getLogger(__name__)
+_TERMINAL = {"completed", "complete", "failed", "error", "cancelled", "expired",
+             "risk_fusion_done", "file_scan_done", "file_scan_failed", "file_scan_unavailable",
+             "file_dispatch_failed", "email_scan_done", "email_dispatch_failed",
+             "email_risk_fusion_done", "email_investigation_done", "email_investigation_failed",
+             "email_scan_unavailable", "blocked_by_cyberintel", "failed_timeout"}
 
-_SECONDS_PER_DAY = 86_400
+
+def _timestamp(value):
+    if value is None:
+        return 0.0
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.timestamp()
 
 
-@celery.task(
-    bind=True,
-    name="tasks.file_cleanup",
-    queue="default",
-    max_retries=1,
-    acks_late=True,
-)
-def file_cleanup_task(self, retention_days: int = 14, incident_retention_days: int = None) -> dict:
-    """
-    Purge scan artifacts older than `retention_days` days from the shared
-    scans volume. Also purges old database Scan/Incident records according to
-    dual-tier retention and re-synchronizes Statistics counters.
-    """
-    if incident_retention_days is None:
-        incident_retention_days = getattr(settings, "INCIDENT_RETENTION_DAYS", 365)
-
-    shared_dir = settings.SHARED_DIR
-    cutoff_seconds = retention_days * _SECONDS_PER_DAY
-    now = time.time()
-    cutoff_ts = now - cutoff_seconds
-
-    logger.info(
-        "[file_cleanup] Starting sweep of %s — retention=%d days, incident_retention=%d days, cutoff=%s",
-        shared_dir,
-        retention_days,
-        incident_retention_days,
-        time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(cutoff_ts)),
-    )
-
-    dirs_removed = 0
-    dirs_skipped = 0
-    orphans_removed = 0
-    errors = 0
-
-    # ── 1. Per-scan subdirectories ─────────────────────────────────────────
-    try:
-        entries = os.scandir(shared_dir)
-    except OSError:
-        logger.exception("[file_cleanup] Cannot scan %s — volume not mounted?", shared_dir)
-        return {"status": "error", "detail": "Cannot scan shared_dir"}
-    with entries:
-        for entry in entries:
-            if not entry.is_dir(follow_symlinks=False):
-                continue  # orphan files handled below
-
-            if not _UUID_RE.match(entry.name):
-                logger.debug("[file_cleanup] Skipping non-UUID directory: %s", entry.name)
-                continue
-
-            try:
-                mtime = entry.stat(follow_symlinks=False).st_mtime
-            except OSError:
-                logger.warning("[file_cleanup] Cannot stat %s — skipping", entry.path)
-                errors += 1
-                continue
-
-            if mtime > cutoff_ts:
-                dirs_skipped += 1
-                continue
-
-            # Directory is older than retention threshold — remove it
-            try:
-                shutil.rmtree(entry.path, ignore_errors=False)
-                logger.info("[file_cleanup] Removed scan dir: %s (age=%dh)",
-                            entry.path, int((now - mtime) / 3600))
-                dirs_removed += 1
-            except OSError:
-                logger.warning("[file_cleanup] Failed to remove %s", entry.path, exc_info=True)
-                errors += 1
-
-    # ── 2. Orphan files at the volume root ────────────────────────────────
-    for pattern in ("scan_*.json", "scan_*.png"):
-        for path in glob.glob(os.path.join(shared_dir, pattern)):
-            try:
-                mtime = os.path.getmtime(path)
-            except OSError:
-                continue
-
-            if mtime > cutoff_ts:
-                continue  # within retention window
-
-            try:
-                os.remove(path)
-                logger.info("[file_cleanup] Removed orphan file: %s", path)
-                orphans_removed += 1
-            except OSError:
-                logger.warning("[file_cleanup] Failed to remove orphan %s", path, exc_info=True)
-                errors += 1
-
-    # ── 3. Quarantined download samples inside shared_dir/quarantine ──────
-    quarantine_dir = os.path.join(shared_dir, "quarantine")
-    if os.path.exists(quarantine_dir):
+def _association(directory):
+    ids = set()
+    for name in ("owner.json", "metadata.json", "risk_report.json", "email_report.json"):
+        path = directory / name
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+            continue
         try:
-            with os.scandir(quarantine_dir) as qentries:
-                for qentry in qentries:
-                    if qentry.is_file(follow_symlinks=False):
-                        try:
-                            if qentry.stat(follow_symlinks=False).st_mtime <= cutoff_ts:
-                                os.remove(qentry.path)
-                                orphans_removed += 1
-                        except OSError:
-                            errors += 1
-        except OSError:
-            pass
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                continue
+            values = [data.get("scan_id"), *(data.get("scan_ids") or [])]
+            ids.update(value for value in values if isinstance(value, str) and _UUID_RE.fullmatch(value))
+        except (OSError, ValueError, TypeError):
+            continue
+    return ids
 
-    # ── 4. Database Purge (Dual-Tier Retention) ──────
-    db_records_removed = 0
-    cutoff_datetime_artifacts = datetime.now(timezone.utc) - timedelta(days=retention_days)
-    cutoff_datetime_incidents = datetime.now(timezone.utc) - timedelta(days=incident_retention_days)
+
+def _remove(directory, root):
+    info = directory.lstat()
+    if directory.is_symlink() or getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 1024):
+        raise OSError("Refusing to remove a link or reparse point")
+    resolved = directory.resolve(strict=True)
+    if resolved == root or root not in resolved.parents:
+        raise OSError("Artifact path is outside the shared directory")
+    shutil.rmtree(resolved)
+
+
+@celery.task(bind=True, name="tasks.file_cleanup", queue="default", max_retries=1, acks_late=True)
+def file_cleanup_task(self, retention_days=14, incident_retention_days=None):
+    incident_retention_days = incident_retention_days or settings.INCIDENT_RETENTION_DAYS
+    if retention_days < 1 or incident_retention_days < retention_days:
+        raise ValueError("Retention periods must be positive; incident retention cannot be shorter")
+    root = Path(settings.SHARED_DIR).resolve()
+    now = time.time()
+    cutoff = now - retention_days * 86400
+    incident_cutoff = now - incident_retention_days * 86400
+    result = dict(status="ok", shared_dir=str(root), retention_days=retention_days,
+                  incident_retention_days=incident_retention_days, dirs_removed=0,
+                  dirs_skipped=0, orphans_removed=0, db_records_removed=0, errors=0,
+                  unknown_associations_retained=0)
+    try:
+        with os.scandir(root) as entries:
+            children = list(entries)
+    except OSError:
+        return {**result, "status": "error", "detail": "Cannot scan shared_dir", "errors": 1}
     try:
         with SessionLocal() as db:
-            # 1. Purge scans WITHOUT incidents older than ARTIFACT_RETENTION_DAYS
-            del_scans = db.query(Scan).filter(
-                Scan.created_at <= cutoff_datetime_artifacts,
-                ~Scan.incidents.any()
-            ).delete(synchronize_session=False)
+            rows = {row.id: row for row in db.query(Scan).all()}
+            old = db.query(Scan).filter(Scan.created_at <= datetime.fromtimestamp(cutoff, timezone.utc))
+            locked = {row.id for row in old.populate_existing().with_for_update(skip_locked=True).all()}
+            latest_incident = dict(db.query(Incident.scan_id, func.max(Incident.created_at)).group_by(Incident.scan_id).all())
+            eligible = set()
+            for scan_id, row in rows.items():
+                observed = max(_timestamp(row.created_at), _timestamp(row.updated_at),
+                               _timestamp(latest_incident.get(scan_id)))
+                limit = incident_cutoff if scan_id in latest_incident else cutoff
+                if scan_id in locked and row.status in _TERMINAL and observed <= limit:
+                    eligible.add(scan_id)
+            protected = set(rows) - eligible
+            recent_artifacts = set()
 
-            # 2. Purge old scans/incidents older than INCIDENT_RETENTION_DAYS
-            del_incidents_scans = db.query(Scan).filter(
-                Scan.created_at <= cutoff_datetime_incidents
-            ).delete(synchronize_session=False)
+            def sweep(directory, associations, *, uncertain=False):
+                try:
+                    if directory.is_symlink() or not directory.is_dir():
+                        return
+                    stamp = directory.stat().st_mtime
+                    if associations & protected:
+                        result["dirs_skipped"] += 1
+                        return
+                    if stamp > (incident_cutoff if uncertain else cutoff):
+                        result["dirs_skipped"] += 1
+                        recent_artifacts.update(associations)
+                        if uncertain:
+                            result["unknown_associations_retained"] += 1
+                        return
+                    _remove(directory, root)
+                    result["dirs_removed"] += 1
+                except OSError:
+                    result["errors"] += 1
+                    recent_artifacts.update(associations)
+                    logger.warning("Artifact removal failed for %s", directory, exc_info=True)
 
-            db_records_removed = del_scans + del_incidents_scans
-
-            # 3. Re-synchronize Statistics table via accurate COUNT() queries to prevent drift
-            total_inc = db.query(func.count(Incident.id)).scalar() or 0
-            crit_inc = db.query(func.count(Incident.id)).filter(Incident.severity == "CRITICAL").scalar() or 0
-            high_inc = db.query(func.count(Incident.id)).filter(Incident.severity == "HIGH").scalar() or 0
-
-            stats = db.query(Statistics).filter(Statistics.id == 1).first()
-            if not stats:
-                stats = Statistics(id=1, total_incidents=total_inc, critical_count=crit_inc, high_count=high_inc)
-                db.add(stats)
-            else:
-                stats.total_incidents = total_inc
-                stats.critical_count = crit_inc
-                stats.high_count = high_inc
+            for child in children:
+                directory = Path(child.path)
+                if child.is_dir(follow_symlinks=False) and _UUID_RE.fullmatch(child.name):
+                    sweep(directory, {child.name})
+                elif child.is_dir(follow_symlinks=False) and child.name in {"files", "emails"}:
+                    for nested in directory.iterdir():
+                        if nested.is_symlink() or not nested.is_dir():
+                            continue
+                        if not nested.name or len(nested.name) > 128 or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for c in nested.name):
+                            continue
+                        ids = _association(nested)
+                        if nested.name in rows:
+                            ids.add(nested.name)
+                        sweep(nested, ids, uncertain=not ids or bool(ids - set(rows)))
+                elif child.is_file(follow_symlinks=False) and child.name.startswith("scan_") and child.name.endswith((".json", ".png")):
+                    candidate = child.name[5:41]
+                    if candidate in protected or child.stat().st_mtime > cutoff:
+                        continue
+                    directory.unlink()
+                    result["orphans_removed"] += 1
+            quarantine = root / "quarantine"
+            if quarantine.is_dir() and not quarantine.is_symlink():
+                for sample in quarantine.iterdir():
+                    if sample.is_file() and not sample.is_symlink() and sample.stat().st_mtime <= incident_cutoff:
+                        sample.unlink()
+                        result["orphans_removed"] += 1
+            if not result["errors"]:
+                purge = eligible - recent_artifacts
+                for scan_id in purge:
+                    db.delete(rows[scan_id])
+                db.flush()
+                result["db_records_removed"] = len(purge)
+                stats = db.query(Statistics).filter(Statistics.id == 1).first()
+                if stats is None:
+                    stats = Statistics(id=1)
+                    db.add(stats)
+                stats.total_incidents = db.query(func.count(Incident.id)).scalar() or 0
+                stats.critical_count = db.query(func.count(Incident.id)).filter(Incident.severity == "CRITICAL").scalar() or 0
+                stats.high_count = db.query(func.count(Incident.id)).filter(Incident.severity == "HIGH").scalar() or 0
                 stats.updated_at = func.now()
-
-            db.commit()
-            logger.info("[file_cleanup] Purged %d old scans (non-inc=%d, old-inc=%d). Statistics synced: total=%d, crit=%d, high=%d.",
-                        db_records_removed, del_scans, del_incidents_scans, total_inc, crit_inc, high_inc)
-    except Exception as e:
-        logger.error("[file_cleanup] Failed to purge old scans or sync statistics from database: %s", e)
-        errors += 1
-
-    summary = {
-        "status": "ok",
-        "shared_dir": shared_dir,
-        "retention_days": retention_days,
-        "incident_retention_days": incident_retention_days,
-        "dirs_removed": dirs_removed,
-        "dirs_skipped": dirs_skipped,
-        "orphans_removed": orphans_removed,
-        "db_records_removed": db_records_removed,
-        "errors": errors,
-    }
-    logger.info("[file_cleanup] Sweep complete: %s", summary)
-    return summary
+                db.commit()
+            else:
+                db.rollback()
+                result["status"] = "partial"
+    except Exception:
+        logger.exception("Retention stopped; database/evidence ownership could not be verified")
+        result.update(status="error", errors=result["errors"] + 1,
+                      detail="Retention requires verified database ownership and incident state")
+    return result

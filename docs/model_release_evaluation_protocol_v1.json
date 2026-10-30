@@ -1,0 +1,43 @@
+{
+  "version": "future_model_release_evaluation_protocol_v1",
+  "registered_at_utc": "2026-10-15T14:27:31.111022+00:00",
+  "status": "protocol_registered_no_holdout_acquired_no_model_selection",
+  "candidate_freeze": [
+    "Record immutable model, encoder, feature/preprocessing contract, threshold and source-code SHA256 before any release scoring",
+    "Choose candidates and thresholds on training/development validation only"
+  ],
+  "operational_policy": {
+    "status": "requires_explicit_owner_decisions",
+    "required": [
+      "intended_population",
+      "maximum_false_positives_per_10000_benign",
+      "minimum_recall",
+      "maximum_p95_latency_ms",
+      "unavailable_input_behavior",
+      "allowed_actions"
+    ]
+  },
+  "holdout_requirements": [
+    "Document historical source/capture timestamps per record; processing dates are not capture dates",
+    "Attach independent historical label evidence tied to every URL/capture and checksum-address the evidence manifest",
+    "Exclude all known training, validation, test and examined development URL/domain groups before scoring",
+    "Document unknown domains, unverified cross-domain campaigns, near-duplicate screenshots and acquisition exclusions",
+    "Retain source licenses/attribution; unresolved licenses prevent redistribution",
+    "Include both classes and source strata; describe deployment-prevalence limitations"
+  ],
+  "registration": [
+    "Freeze canonical manifest, image checksums if applicable, labels, domain/campaign grouping and evidence checksum before scoring",
+    "Register independent_evidence_sha256 and operator noninspection attestation with the existing holdout registry",
+    "Freeze approved policy SHA256, candidate hashes and protocol SHA256 before scoring"
+  ],
+  "evaluation": [
+    "Score once, retain negative and positive findings",
+    "Report PR-AUC, ROC-AUC, precision, recall, F1, confusion counts, false positives per10000 benign, Brier and ECE10",
+    "Report source/class/domain strata and95% domain-cluster bootstrap intervals with unknown campaign limitations",
+    "Measure warm/cold end-to-end latency on target worker hardware including validation, preprocessing and inference; extraction throughput is not request p95",
+    "Bind model, data, evidence, policy and contract hashes into an immutable release evaluation"
+  ],
+  "enrichment": "Collect prospectively with timestamped requests and cache freshness; preserve null/unavailable and forbid label-feed membership predictors. Existing1000-domain retrospective observations stay diagnostic. No arbitrary24-hour wait is needed to prepare or register this protocol.",
+  "after_evaluation": "Examined data becomes a declared development benchmark for later model decisions; obtain another untouched holdout for later release claims",
+  "activation": "Separate explicit authorization after independently verified quality and operational policy. This protocol does not enable fusion or automatic incidents."
+}

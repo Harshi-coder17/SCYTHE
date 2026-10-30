@@ -130,9 +130,12 @@ app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=_allowed_hosts,
 )
+_raw_proxies = getattr(settings, "TRUSTED_PROXIES", "127.0.0.1,nginx,localhost") or "127.0.0.1,nginx,localhost"
+_trusted_proxies = [p.strip() for p in _raw_proxies.split(",") if p.strip()] or ["127.0.0.1", "nginx", "localhost"]
+
 app.add_middleware(
     ProxyHeadersMiddleware,
-    trusted_hosts="*",
+    trusted_hosts=_trusted_proxies,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -141,6 +144,45 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+MAX_BODY_SIZE = 50 * 1024 * 1024  # 50MB max body size (M15)
+
+@app.middleware("http")
+async def limit_request_body_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_BODY_SIZE:
+                return JSONResponse(
+                    status_code=413,
+                    content={"error": True, "status_code": 413, "detail": "Request body exceeds 50MB limit", "path": request.url.path},
+                )
+        except ValueError:
+            pass
+    return await call_next(request)
+
+@app.middleware("http")
+async def audit_logging_middleware(request: Request, call_next):
+    import time
+    start_time = time.time()
+    response = await call_next(request)
+    duration_ms = round((time.time() - start_time) * 1000, 2)
+    path = request.url.path
+    if path.startswith("/api/auth") or request.method in {"POST", "PUT", "DELETE", "PATCH"}:
+        client_ip = request.client.host if request.client else "unknown"
+        logger.info(
+            "AUDIT_LOG: method=%s path=%s ip=%s status=%d duration_ms=%.2f",
+            request.method, path, client_ip, response.status_code, duration_ms
+        )
+    return response
 
 app.include_router(auth_router)
 app.include_router(router)
@@ -198,6 +240,10 @@ def root() -> HealthCheckResponse:
     return HealthCheckResponse(service=settings.APP_NAME)
 
 
+_WS_AUTH_TIMEOUT_SECONDS = 10.0
+_WS_MAX_AUTH_FRAME_BYTES = 16384
+
+
 async def _ws_frame_auth(websocket: WebSocket) -> Optional[str]:
     try:
         raw = await asyncio.wait_for(
@@ -213,38 +259,40 @@ async def _ws_frame_auth(websocket: WebSocket) -> Optional[str]:
         logger.warning("WebSocket auth frame read failed (%s) — closing", type(exc).__name__)
         return None
 
+    if len(raw.encode("utf-8")) > _WS_MAX_AUTH_FRAME_BYTES:
+        return None
     try:
         frame = json.loads(raw)
     except (json.JSONDecodeError, ValueError):
         logger.warning("WebSocket auth frame is not valid JSON — closing")
         return None
 
+    if not isinstance(frame, dict):
+        return None
     if frame.get("type") != "auth":
         logger.warning("WebSocket first frame type=%r, expected 'auth' — closing", frame.get("type"))
         return None
 
     token = frame.get("token")
-    if not token:
+    if not isinstance(token, str) or not token:
         logger.warning("WebSocket auth frame missing 'token' field — closing")
         return None
 
     try:
-        payload = decode_access_token(token)
-    except JWTError:
-        logger.warning("WebSocket auth frame contains invalid JWT — closing")
-        return None
-
-    user_id = payload.get("sub")
-    if not user_id:
-        logger.warning("WebSocket JWT has no 'sub' claim — closing")
-        return None
-
-    try:
         with get_db_session() as db:
+            # Consult durable RevokedToken storage as well as the Redis cache.
+            payload = decode_access_token(token, db=db)
+            user_id = payload.get("sub")
+            if not user_id:
+                logger.warning("WebSocket JWT has no 'sub' claim — closing")
+                return None
             user = db.query(User).filter(User.id == user_id).first()
             if not user or (hasattr(user, "is_active") and not user.is_active):
                 logger.warning("WebSocket auth failed: user %s not found or inactive", user_id)
                 return None
+    except JWTError:
+        logger.warning("WebSocket auth frame contains invalid or revoked JWT — closing")
+        return None
     except Exception:
         logger.exception("WebSocket auth DB lookup error")
         return None

@@ -1,0 +1,35 @@
+{
+  "schema_version": "scythe_release_registration_v2",
+  "status": "draft_not_scored",
+  "registered_at_utc": "",
+  "operator": "",
+  "independent_evidence_reviewed_by": "",
+  "operator_attested_model_metrics_uninspected": false,
+  "labels_independently_supported": false,
+  "all_existing_and_examined_groups_in_exclusions": false,
+  "model_version": "",
+  "feature_contract_version": "scythe_fusion_v1",
+  "supported_paths": ["quick_url", "deep_url"],
+  "runtime_source_sha256": {
+    "services/model_release.py": "",
+    "services/release_components.py": "",
+    "services/model_features/url_features.py": "",
+    "services/model_features/fusion_signals.py": "",
+    "services/model_features/scythe_observations.py": ""
+  },
+  "bindings": {
+    "model": {"path": "classifier.txt", "sha256": ""},
+    "feature_contract": {"path": "feature_contract.json", "sha256": ""},
+    "policy": {"path": "approved_policy.json", "sha256": ""},
+    "thresholds": {"path": "thresholds.json", "sha256": ""},
+    "source_code": {"path": "frozen_scorer.py", "sha256": ""},
+    "protocol": {"path": "evaluation_protocol.json", "sha256": ""},
+    "cohort": {"path": "cohort.jsonl", "sha256": ""},
+    "independent_evidence": {"path": "independent_evidence.jsonl", "sha256": ""},
+    "excluded_groups": {"path": "excluded_groups.json", "sha256": ""}
+  },
+  "limitations": [
+    "Document unverified campaigns and any unresolved provenance. Unknown domains are ineligible for this domain-disjoint release cohort.",
+    "This draft is not an untouched-holdout attestation. Set status and attestations only after independent verification before scoring."
+  ]
+}

@@ -40,6 +40,16 @@ from database.models import Scan, NetworkActivity, TLSConnection, FormMetrics, D
 from tasks import validate_scan_id
 
 logger = logging.getLogger(__name__)
+_FINAL_STATUSES = {"risk_fusion_done", "completed", "complete", "cancelled", "expired", "blocked_by_cyberintel"}
+
+
+def _extract_sandbox_html(sandbox_result: dict) -> str:
+    """Return serialized DOM only; telemetry dictionaries are not HTML."""
+    dom = sandbox_result.get("dom") or {}
+    if isinstance(dom, dict) and isinstance(dom.get("page_source"), str):
+        return dom["page_source"]
+    legacy = sandbox_result.get("dom_content")
+    return legacy if isinstance(legacy, str) else ""
 
 SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", settings.SANDBOX_IMAGE)
 SHARED_VOLUME_NAME = os.environ.get("SHARED_SCANS_VOLUME", settings.SHARED_SCANS_VOLUME)
@@ -55,12 +65,20 @@ def _scan_dir(scan_id: str) -> str:
 def _mark_status(scan_id: str, status: str) -> None:
     try:
         with get_db_session() as db:
-            scan = db.query(Scan).filter(Scan.id == scan_id).first()
-            if scan:
-                scan.status = status
-                db.commit()
+            db.query(Scan).filter(Scan.id == scan_id, Scan.status.notin_(_FINAL_STATUSES)).update(
+                {Scan.status: status}, synchronize_session=False,
+            )
+            db.commit()
     except Exception:
         logger.exception("Failed to update scan status to %s for %s", status, scan_id)
+
+
+def _already_finalized(scan_id: str) -> bool:
+    if os.path.isfile(os.path.join(_scan_dir(scan_id), "risk_report.json")):
+        return True
+    with get_db_session() as db:
+        row = db.query(Scan.status).filter(Scan.id == scan_id).first()
+        return bool(row and row[0] in _FINAL_STATUSES)
 
 
 def _get_scan_url(scan_id: str) -> str:
@@ -255,8 +273,10 @@ def _call_sandbox(scan_id: str) -> dict:
     default_retry_delay=15,
     acks_late=True,
 )
-def sandbox_analysis_task(self, scan_id: str):
+def sandbox_analysis_task(self, scan_id: str, dispatch_next: bool = True):
     validate_scan_id(scan_id)
+    if _already_finalized(scan_id):
+        return {"scan_id": scan_id, "status": "already_finalized"}
     logger.info("[%s] Stage 2 (sandbox_analysis) started", scan_id)
     _mark_status(scan_id, "sandbox_analysis_running")
 
@@ -274,6 +294,8 @@ def sandbox_analysis_task(self, scan_id: str):
             raise ValueError(f"Sandbox returned an error: {sandbox_result['error']}")
     except Exception as exc:
         logger.exception("[%s] Sandbox call failed", scan_id)
+        if _already_finalized(scan_id):
+            return {"scan_id": scan_id, "status": "already_finalized"}
         is_timeout = "504" in str(exc) or "timeout" in str(exc).lower()
         if not is_timeout and self.request.retries < self.max_retries:
             _mark_status(scan_id, "sandbox_analysis_retrying")
@@ -282,7 +304,7 @@ def sandbox_analysis_task(self, scan_id: str):
         # (consistency + risk_fusion) can still run with reduced confidence
         # rather than dead-ending with no verdict at all.
         logger.warning(
-            "[%s] Sandbox timeout or retries exhausted, writing fallback sandbox_metadata.json "
+            "[%s] Sandbox timeout or retries exhausted (max retries=%s), writing fallback sandbox_metadata.json "
             "and continuing pipeline with reduced confidence.",
             scan_id, self.max_retries,
         )
@@ -294,18 +316,22 @@ def sandbox_analysis_task(self, scan_id: str):
             "dom": {},
         }
         fallback_path = os.path.join(scan_dir, "sandbox_metadata.json")
-        with open(fallback_path, "w") as _f:
+        with open(fallback_path + ".tmp", "w") as _f:
             json.dump(sandbox_result, _f, indent=2, default=str)
+        os.replace(fallback_path + ".tmp", fallback_path)
         _mark_status(scan_id, "sandbox_analysis_failed")
         # Continue the pipeline with reduced confidence — consistency and
         # risk_fusion still run, they handle sandbox_available=False gracefully.
         from tasks.consistency import consistency_task
         try:
-            consistency_task.delay(scan_id)
+            if dispatch_next:
+                consistency_task.delay(scan_id)
         except Exception:
             logger.exception("[%s] Failed to dispatch consistency_task after sandbox fallback", scan_id)
         return {"scan_id": scan_id, "status": "sandbox_analysis_failed_gracefully"}
 
+    if _already_finalized(scan_id):
+        return {"scan_id": scan_id, "status": "already_finalized"}
     source_json_path = sandbox_result.pop("_source_json_path", None)
 
     metadata_path = os.path.join(scan_dir, "sandbox_metadata.json")
@@ -324,11 +350,7 @@ def sandbox_analysis_task(self, scan_id: str):
     # If neither key is present the sandbox didn't capture a DOM (e.g. it
     # crashed or timed out) — we skip silently and consistency.py degrades
     # gracefully as before.
-    _sandbox_html = (
-        (sandbox_result.get("dom") or {}).get("page_source")
-        or sandbox_result.get("dom_content")
-        or ""
-    )
+    _sandbox_html = _extract_sandbox_html(sandbox_result)
     if _sandbox_html:
         _sandbox_html_path = os.path.join(scan_dir, "sandbox.html")
         _sandbox_html_tmp = _sandbox_html_path + ".tmp"
@@ -381,7 +403,8 @@ def sandbox_analysis_task(self, scan_id: str):
 
     from tasks.consistency import consistency_task
     try:
-        consistency_task.delay(scan_id)
+        if dispatch_next:
+            consistency_task.delay(scan_id)
     except Exception:
         logger.exception("[%s] Failed to dispatch consistency_task", scan_id)
         _mark_status(scan_id, "consistency_dispatch_failed")

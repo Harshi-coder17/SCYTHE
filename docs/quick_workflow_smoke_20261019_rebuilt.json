@@ -1,0 +1,13 @@
+{
+  "started_at": "2026-10-18T21:44:02.915693+00:00",
+  "passed": false,
+  "account_to_disable": "scythe-quick-smoke-bb9b13cbcb696464@example.test",
+  "checks": {},
+  "fixture": "https://example.org/",
+  "error_type": "AssertionError",
+  "cleanup": {
+    "accounts_disabled": 0,
+    "fixture_scan_count": 0,
+    "incident_count": 0
+  }
+}

@@ -29,11 +29,11 @@ import json
 import logging
 import os
 import re
-from urllib.parse import unquote, urlparse, urlunparse, parse_qs, urlencode
+from urllib.parse import unquote, urlparse, urlunparse
 from typing import Optional
 import email as email_lib
 
-from config import settings
+from email_engine.settings import settings
 
 logger = logging.getLogger(__name__)
 

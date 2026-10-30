@@ -51,11 +51,13 @@ def main():
     # Update .env files across the project
     target_files = [
         os.path.join(root_dir, ".env"),
-        os.path.join(root_dir, "backend", ".env"),
-        os.path.join(root_dir, "backend", ".env.example"),
+        os.path.join(root_dir, "containers", "backend", ".env"),
+        os.path.join(root_dir, "containers", "backend", ".env.example"),
     ]
 
     for target_path in target_files:
+        if not os.path.exists(target_path) and target_path != ENV_PATH:
+            continue
         env_lines = []
         if os.path.exists(target_path):
             with open(target_path, "r", encoding="utf-8") as f:

@@ -33,9 +33,7 @@ import email as email_lib
 from email.message import Message
 from typing import Optional
 
-from config import settings
-
-from email_engine import collector, parser, url_extraction, attachment_handler
+from email_engine.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +55,7 @@ _BACKEND_URL:    str = os.getenv("BACKEND_INGEST_URL", "")  # e.g. http://backen
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_email_id(msg: Message) -> str:
+def _make_email_id(msg: Message, raw_bytes: bytes = b"") -> str:
     """
     Derive a stable, filesystem-safe email_id from the Message-ID header.
     Falls back to a hash of To + Date if Message-ID is absent.
@@ -68,29 +66,40 @@ def _make_email_id(msg: Message) -> str:
         raw = f"{msg.get('To','')}-{msg.get('Date','')}-{msg.get('Subject','')}"
         msg_id = raw
     # SHA-256 hex, truncated to 32 chars to keep paths short
-    return hashlib.sha256(msg_id.encode("utf-8", errors="replace")).hexdigest()[:32]
+    scoped_id = f"{settings.EMAIL_OWNER_USER_ID}:{_EMAIL_ADDRESS.lower()}:{msg_id}:{hashlib.sha256(raw_bytes).hexdigest()}"
+    return hashlib.sha256(scoped_id.encode("utf-8", errors="replace")).hexdigest()[:32]
 
 
 def _trigger_backend(email_id: str) -> None:
     """
-    Fire POST /api/email/investigate to start the Celery chord.
-    Fails silently so the poller never crashes on network issues.
+    Fire authenticated POST /api/email/ingest to start the Celery chord.
+    Failed deliveries stay pending for the next poll.
     """
     if not _BACKEND_URL:
         logger.debug("[poller] BACKEND_INGEST_URL not set — skipping auto-ingest for %s", email_id)
-        return
+        raise RuntimeError("BACKEND_INGEST_URL is required for mailbox ingestion")
+    if not settings.EMAIL_POLLER_TOKEN or not settings.EMAIL_OWNER_USER_ID or not _EMAIL_ADDRESS:
+        raise RuntimeError("Explicit mailbox owner and scoped ingestion token are required")
     try:
         import urllib.request
+        from urllib.parse import urlsplit
         import json
-        url = f"{_BACKEND_URL.rstrip('/')}/api/email/investigate"
+        target = urlsplit(_BACKEND_URL)
+        if target.scheme != "https" and not (target.scheme == "http" and target.hostname in {"backend", "localhost", "127.0.0.1"}):
+            raise RuntimeError("Mailbox ingestion requires HTTPS or the local backend service")
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        url = f"{_BACKEND_URL.rstrip('/')}/api/email/ingest"
         data = json.dumps({"email_id": email_id}).encode("utf-8")
         req = urllib.request.Request(
             url,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.EMAIL_POLLER_TOKEN}"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with opener.open(req, timeout=10) as resp:
             logger.info(
                 "[poller] Backend ingestion triggered email_id=%s status=%d",
                 email_id, resp.status,
@@ -98,8 +107,9 @@ def _trigger_backend(email_id: str) -> None:
     except Exception as exc:
         logger.warning(
             "[poller] Backend ingest call failed for email_id=%s: %s",
-            email_id, exc,
+            email_id, type(exc).__name__,
         )
+        raise RuntimeError("Mailbox ingestion failed; message remains pending") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -154,23 +164,26 @@ class EmailPoller:
     # ── Fetch new messages ─────────────────────────────────────────────────
 
     def _fetch_unseen_uids(self) -> list[bytes]:
-        status, data = self._imap.search(None, "UNSEEN")
+        status, data = self._imap.uid("search", None, "UNSEEN")
         if status != "OK" or not data or not data[0]:
             return []
         uid_list = [uid for uid in data[0].split() if uid not in self._processed]
         return uid_list
 
     def _fetch_raw(self, uid: bytes) -> Optional[bytes]:
-        status, msg_data = self._imap.fetch(uid, "(RFC822)")
+        status, msg_data = self._imap.uid("fetch", uid, "(BODY.PEEK[]<0.52428801>)")
         if status != "OK" or not msg_data or msg_data[0] is None:
             return None
-        return msg_data[0][1]
+        raw = msg_data[0][1]
+        if not isinstance(raw, bytes) or len(raw) > 50 * 1024 * 1024:
+            raise ValueError("Email exceeds the 50 MB collection limit")
+        return raw
 
     # ── Per-email pipeline ─────────────────────────────────────────────────
 
     def _process_email(self, uid: bytes, raw_bytes: bytes) -> None:
         msg = email_lib.message_from_bytes(raw_bytes)
-        email_id = _make_email_id(msg)
+        email_id = _make_email_id(msg, raw_bytes)
 
         logger.info(
             "[poller] Processing uid=%s email_id=%s subject=%r",
@@ -178,8 +191,16 @@ class EmailPoller:
         )
 
         try:
+            from email_engine import parser, url_extraction, attachment_handler
+
             # Step 1: Parse raw email → parsed.json
-            parser.parse_and_save(email_id=email_id, raw_bytes=raw_bytes, shared_dir=_SHARED_DIR)
+            parser.parse_and_save(
+                email_id=email_id,
+                raw_bytes=raw_bytes,
+                shared_dir=_SHARED_DIR,
+                owner_email=_EMAIL_ADDRESS,
+                owner_user_id=settings.EMAIL_OWNER_USER_ID,
+            )
 
             # Step 2: Extract & normalise URLs → url_list.json
             url_extraction.extract_and_save(email_id=email_id, raw_bytes=raw_bytes, shared_dir=_SHARED_DIR)
@@ -202,6 +223,8 @@ class EmailPoller:
         """
         Blocking main loop.  Reconnects automatically on IMAP errors.
         """
+        if not settings.EMAIL_OWNER_USER_ID or not settings.EMAIL_POLLER_TOKEN or not _EMAIL_ADDRESS:
+            raise RuntimeError("Poller disabled until explicit mailbox owner, address, and ingestion token are configured")
         logger.info(
             "[poller] Starting — address=%s host=%s interval=%ds",
             _EMAIL_ADDRESS, _IMAP_HOST, _POLL_INTERVAL,

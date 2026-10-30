@@ -16,6 +16,7 @@ Security hardening:
 import json
 import logging
 import os
+import uuid
 
 import redis
 
@@ -27,6 +28,7 @@ from database.models import Scan
 from risk_fusion import RiskFusionEngine  # root-level ML engine, NOT this file
 from cyberintel.runner import run_cyberintel
 from websocket.websocket_manager import websocket_manager
+from tasks import validate_scan_id
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,9 @@ _redis_client = redis.from_url(settings.REDIS_URL)
 _RISK_CACHE_TTL_SECONDS = 3600
 
 ALERT_SEVERITIES = {"HIGH", "CRITICAL"}
-
-
-from tasks import validate_scan_id
+_PROTECTED_STATUSES = {"cancelled", "expired", "failed_timeout", "blocked_by_cyberintel", "risk_fusion_failed"}
+_FINAL_STATUSES = {"risk_fusion_done", "alert_pipeline_running", "alert_pipeline_retrying",
+                   "alert_pipeline_done", "alert_pipeline_failed", "alert_pipeline_dispatch_failed"}
 
 
 def _scan_dir(scan_id: str) -> str:
@@ -48,19 +50,36 @@ def _scan_dir(scan_id: str) -> str:
     return os.path.join(settings.SHARED_DIR, scan_id)
 
 
-def _mark_status(scan_id: str, status: str, risk_score: float = None, severity: str = None) -> None:
+def _mark_status(scan_id: str, status: str, risk_score: float = None, severity: str = None) -> bool:
     try:
         with get_db_session() as db:
-            scan = db.query(Scan).filter(Scan.id == scan_id).first()
+            scan = db.query(Scan).filter(Scan.id == scan_id).with_for_update().first()
             if scan:
+                if scan.status in _PROTECTED_STATUSES:
+                    return False
                 scan.status = status
-                if risk_score is not None:
+                if risk_score is not None or status == "risk_fusion_done":
                     scan.risk_score = risk_score
                 if severity is not None:
                     scan.severity = severity
                 db.commit()
+                return True
+            return False
     except Exception:
         logger.exception("Failed to update scan status to %s for %s", status, scan_id)
+        return False
+
+
+def _claim_scan(scan_id: str) -> bool:
+    with get_db_session() as db:
+        scan = db.query(Scan).filter(Scan.id == scan_id).with_for_update().first()
+        if scan is None:
+            raise ValueError("Owned scan is missing")
+        if scan.status in _PROTECTED_STATUSES or scan.status in _FINAL_STATUSES:
+            return False
+        scan.status = "risk_fusion_running"
+        db.commit()
+        return True
 
 
 def _load_json(path: str) -> dict:
@@ -116,15 +135,40 @@ def _push_websocket_update(scan_id: str, payload: dict) -> None:
 @celery.task(
     bind=True,
     name="tasks.risk_fusion",
-    queue="default",
     max_retries=2,
     default_retry_delay=10,
     acks_late=True,
+    soft_time_limit=55,
+    time_limit=60,
 )
 def risk_fusion_task(self, scan_id: str):
     validate_scan_id(scan_id)
+    lock_key = f"scythe:risk-fusion-lock:{scan_id}"
+    lock_token = str(uuid.uuid4())
+    try:
+        acquired = _redis_client.set(lock_key, lock_token, nx=True, ex=90)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+    if not acquired:
+        # A redelivery after worker death must outlive the abandoned lease;
+        # acknowledging it immediately would strand the scan until reconciliation.
+        raise self.retry(exc=RuntimeError("Inference already processing"), countdown=45)
+    try:
+        if not _claim_scan(scan_id):
+            return {"scan_id": scan_id, "status": "already_terminal"}
+        return _execute_risk_fusion(self, scan_id)
+    finally:
+        try:
+            # Do not delete another delivery's lease if this one expired.
+            _redis_client.eval("if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
+                               1, lock_key, lock_token)
+        except Exception:
+            logger.exception("[%s] Could not release inference lease; it will expire", scan_id)
+
+
+def _execute_risk_fusion(self, scan_id: str):
+    validate_scan_id(scan_id)
     logger.info("[%s] Stage 4 (risk_fusion) started", scan_id)
-    _mark_status(scan_id, "risk_fusion_running")
 
     scan_dir = _scan_dir(scan_id)
 
@@ -143,11 +187,21 @@ def risk_fusion_task(self, scan_id: str):
 
     try:
         engine = RiskFusionEngine()
+        if settings.MODEL_RELEASE_ENABLED:
+            from tasks.model_inference import infer
+            release_result = infer({"cyberintel": cyberintel, "capture_id": scan_id,
+                                    "browser_features": browser_features, "sandbox_features": sandbox_features,
+                                    "consistency_report": consistency_report,
+                                    "scythe_observations": cyberintel.get("scythe_observations", {})},
+                                   image_path=os.path.join(scan_dir, "browser.png"), path="deep_url")
+        else:
+            release_result = None
         risk_report = engine.compute(
             cyberintel=cyberintel,
             browser_features=browser_features,
             sandbox_features=sandbox_features,
             consistency_report=consistency_report,
+            **({"release_result": release_result} if release_result is not None else {}),
         )
     except Exception as exc:
         logger.exception("[%s] RiskFusionEngine.compute() failed", scan_id)
@@ -165,18 +219,20 @@ def risk_fusion_task(self, scan_id: str):
         json.dump(risk_report, f, indent=2, default=str)
     os.replace(tmp_path, report_path)  # atomic on Linux — prevents partial-read by late-joining WebSocket clients
 
+    # Experimental scores are strictly diagnostic. Dispatch only after the
+    # authoritative report exists, and isolate enqueue failures so they can
+    # never affect risk, status, websocket, or alert handling below.
+    if settings.SHADOW_SCORING_ENABLED:
+        try:
+            from tasks.shadow_model_scoring import shadow_model_scoring_task
+            shadow_model_scoring_task.apply_async(args=[scan_id], queue="shadow")
+        except Exception:
+            logger.exception("[%s] Could not dispatch optional shadow scoring task", scan_id)
+
     # Security finding #13 fix: was set() with no TTL (infinite persistence).
     # Use setex(3600) so Redis automatically evicts the entry after 1 hour.
     # Cache all completed verdicts keyed by unique scan_id so late-joining WebSocket clients
     # can fetch the completed result instantly without waiting on pubsub (finding #5 fix).
-    _redis_client.setex(
-        f"risk:{scan_id}",
-        _RISK_CACHE_TTL_SECONDS,
-        json.dumps(risk_report, default=str),
-    )
-
-    _push_websocket_update(scan_id, risk_report)
-
     logger.info(
         "[%s] risk_fusion complete - score=%s severity=%s%s",
         scan_id,
@@ -184,12 +240,20 @@ def risk_fusion_task(self, scan_id: str):
         risk_report.get("severity"),
         " (PLACEHOLDER MODEL)" if risk_report.get("is_placeholder") else "",
     )
-    _mark_status(
+    persisted = _mark_status(
         scan_id,
         "risk_fusion_done",
         risk_score=risk_report.get("risk_score"),
         severity=risk_report.get("severity"),
     )
+    if persisted is False:
+        raise self.retry(exc=RuntimeError("Final scan state could not be persisted"))
+    try:
+        _redis_client.setex(f"risk:{scan_id}", _RISK_CACHE_TTL_SECONDS, json.dumps(risk_report, default=str))
+    except Exception:
+        logger.exception("[%s] Final report persisted; Redis cache unavailable", scan_id)
+    # The client must never observe a terminal event before database persistence.
+    _push_websocket_update(scan_id, risk_report)
 
     is_placeholder = risk_report.get("is_placeholder", True)  # fail closed: unknown -> treat as placeholder
     if risk_report.get("severity") in ALERT_SEVERITIES and not is_placeholder:

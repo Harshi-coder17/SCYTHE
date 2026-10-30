@@ -1,0 +1,381 @@
+{
+  "version": "training_url_feature_golden_v1",
+  "source": "lightgbm_dataset/build_dataset.py",
+  "source_sha256": "241ac44b97a26435fccfe429acd485a68c89a1e5e11df9f34ca1ce03484c8115",
+  "feature_names": [
+    "url_length",
+    "host_length",
+    "is_https",
+    "is_ip_host",
+    "subdomain_count",
+    "hyphen_count",
+    "digit_count",
+    "special_count",
+    "at_symbol",
+    "question_mark_count",
+    "path_length",
+    "query_length",
+    "has_punycode",
+    "url_shortener_used",
+    "is_bogon_space"
+  ],
+  "cases": [
+    {
+      "raw": "https://www.example.com/login?next=%2Faccount",
+      "canonical_url": "https://www.example.com/login?next=%2Faccount",
+      "values": [
+        45,
+        15,
+        1,
+        0,
+        0,
+        0,
+        1,
+        9,
+        0,
+        1,
+        6,
+        15,
+        0,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "www.bit.ly/abc-12?x=1",
+      "canonical_url": "http://www.bit.ly/abc-12?x=1",
+      "values": [
+        28,
+        10,
+        0,
+        0,
+        0,
+        1,
+        3,
+        9,
+        0,
+        1,
+        7,
+        3,
+        0,
+        1,
+        null
+      ]
+    },
+    {
+      "raw": "http://192.0.2.1/a@b",
+      "canonical_url": "http://192.0.2.1/a@b",
+      "values": [
+        20,
+        9,
+        0,
+        1,
+        0,
+        0,
+        6,
+        8,
+        1,
+        0,
+        4,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "raw": "https://xn--bcher-kva.example/a-b",
+      "canonical_url": "https://xn--bcher-kva.example/a-b",
+      "values": [
+        33,
+        21,
+        1,
+        0,
+        1,
+        4,
+        0,
+        9,
+        0,
+        0,
+        4,
+        0,
+        1,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "https://example.com:8443/path#fragment",
+      "canonical_url": "https://example.com:8443/path",
+      "values": [
+        29,
+        11,
+        1,
+        0,
+        0,
+        0,
+        4,
+        6,
+        0,
+        0,
+        5,
+        0,
+        0,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "EXAMPLE.COM",
+      "canonical_url": "http://example.com/",
+      "values": [
+        19,
+        11,
+        0,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "https://example.com:443/a",
+      "canonical_url": "https://example.com/a",
+      "values": [
+        21,
+        11,
+        1,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "http://example.com:80/a",
+      "canonical_url": "http://example.com/a",
+      "values": [
+        20,
+        11,
+        0,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "http://example.com:443/a",
+      "canonical_url": "http://example.com:443/a",
+      "values": [
+        24,
+        11,
+        0,
+        0,
+        0,
+        0,
+        3,
+        6,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "https://example.com:80/a",
+      "canonical_url": "https://example.com:80/a",
+      "values": [
+        24,
+        11,
+        1,
+        0,
+        0,
+        0,
+        2,
+        6,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "https://\u4f8b\u3048.\u30c6\u30b9\u30c8/\u30d1\u30b9",
+      "canonical_url": "https://xn--r8jz45g.xn--zckzah/\u30d1\u30b9",
+      "values": [
+        33,
+        22,
+        1,
+        0,
+        1,
+        4,
+        3,
+        9,
+        0,
+        0,
+        3,
+        0,
+        1,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "https://example.com./",
+      "canonical_url": "https://example.com/",
+      "values": [
+        20,
+        11,
+        1,
+        0,
+        0,
+        0,
+        0,
+        5,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "https://a.b.co.uk/x",
+      "canonical_url": "https://a.b.co.uk/x",
+      "values": [
+        19,
+        9,
+        1,
+        0,
+        1,
+        0,
+        0,
+        7,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        null
+      ]
+    },
+    {
+      "raw": "https://www.bit.ly/x",
+      "canonical_url": "https://www.bit.ly/x",
+      "values": [
+        20,
+        10,
+        1,
+        0,
+        0,
+        0,
+        0,
+        6,
+        0,
+        0,
+        2,
+        0,
+        0,
+        1,
+        null
+      ]
+    },
+    {
+      "raw": "https://[2001:db8::1]/x",
+      "canonical_url": "https://[2001:db8::1]/x",
+      "values": [
+        23,
+        11,
+        1,
+        1,
+        0,
+        0,
+        6,
+        9,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "raw": "https://[2606:4700:4700::1111]/x",
+      "canonical_url": "https://[2606:4700:4700::1111]/x",
+      "values": [
+        32,
+        20,
+        1,
+        1,
+        0,
+        0,
+        16,
+        10,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "raw": "https://example.com/a?b=2#fragment",
+      "canonical_url": "https://example.com/a?b=2",
+      "values": [
+        25,
+        11,
+        1,
+        0,
+        0,
+        0,
+        1,
+        7,
+        0,
+        1,
+        2,
+        3,
+        0,
+        0,
+        null
+      ]
+    }
+  ]
+}

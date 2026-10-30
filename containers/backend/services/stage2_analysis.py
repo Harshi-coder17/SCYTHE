@@ -26,16 +26,16 @@ import os
 import re
 
 from fastapi import HTTPException, status
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 from cyberintel.runner import run_cyberintel
-
-# High #4 fix: Cap total image pixels to prevent decompression bombs across Pillow decodes
-Image.MAX_IMAGE_PIXELS = 25_000_000  # 5,000 x 5,000 px limit (~100MB max RGBA memory)
 
 from database.models import Scan
 from config import settings
 from schemas.stage2 import Stage2Request, Stage2Response, JobStatus
 from services.malware_scanner import scan_file_clamav
+
+# Cap image pixels before decoding any input.
+Image.MAX_IMAGE_PIXELS = 25_000_000
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,9 @@ def _validate_scan_id(scan_id: str) -> None:
 def _decode_and_validate_image(b64_string: str) -> bytes:
     """
     Validates base64 string, checks byte size, and performs Pillow structural
-    and dimensional verification. Returns raw image bytes on success.
+    and dimensional verification. Fully decodes and re-encodes screenshots as
+    a metadata-free PNG so downstream OCR/vision libraries never parse the
+    attacker-controlled original container (notably TIFF/libtiff).
     Raises ValueError with a safe message on any error.
     """
     try:
@@ -87,14 +89,27 @@ def _decode_and_validate_image(b64_string: str) -> bytes:
     # PIL structural and dimensional verification — Image.verify() raises on corrupt or
     # non-image data. Check dimensions explicitly to prevent decompression bombs.
     try:
-        img = Image.open(io.BytesIO(image_bytes))
-        width, height = img.size
-        if width * height > Image.MAX_IMAGE_PIXELS:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            width, height = img.size
+            if width * height > Image.MAX_IMAGE_PIXELS:
+                raise ValueError(
+                    f"Image dimensions ({width}x{height} = {width*height} px) exceed limit "
+                    f"of {Image.MAX_IMAGE_PIXELS} pixels (decompression bomb protection)."
+                )
+            img.verify()
+
+        # verify() invalidates the decoder; reopen, fully decode and normalize
+        # before persisting. OCR subsequently sees only this canonical PNG.
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            img.load()
+            normalized = ImageOps.exif_transpose(img).convert("RGB")
+            output = io.BytesIO()
+            normalized.save(output, format="PNG", optimize=False)
+            image_bytes = output.getvalue()
+        if len(image_bytes) > _MAX_IMAGE_BYTES:
             raise ValueError(
-                f"Image dimensions ({width}x{height} = {width*height} px) exceed limit "
-                f"of {Image.MAX_IMAGE_PIXELS} pixels (decompression bomb protection)."
+                f"Normalized screenshot exceeds maximum {_MAX_IMAGE_BYTES} bytes."
             )
-        img.verify()          # raises on corrupt / non-image data
     except (UnidentifiedImageError, Exception) as exc:
         if isinstance(exc, ValueError) and "decompression bomb" in str(exc).lower():
             raise
@@ -107,6 +122,11 @@ def _decode_and_validate_image(b64_string: str) -> bytes:
 
 def run_stage2_analysis(payload: Stage2Request, user, db) -> Stage2Response:
     url = str(payload.url)
+    from services.url_policy import validate_fetch_url, UnsafeURL
+    try:
+        validate_fetch_url(url)
+    except UnsafeURL as e:
+        raise ValueError(f"URL is unsafe or points to a non-public address: {e}")
 
     # ── Validate and decode image before touching the database ───────────
     # Fail fast on bad input so we don't create orphan DB rows.
@@ -201,7 +221,23 @@ def run_stage2_analysis(payload: Stage2Request, user, db) -> Stage2Response:
     # ── Queue Celery pipeline ─────────────────────────────────────────────
     from tasks.browser_features import browser_features_task
     try:
-        async_result = browser_features_task.delay(scan_id)
+        from services.url_policy import hostname_matches
+        from urllib.parse import urlparse
+        hostname = urlparse(url).hostname or ""
+        allowlisted = any(hostname_matches(hostname, domain) for domain in settings.TRUSTED_ALLOWLIST_DOMAINS)
+        # With the default unconditional sandbox policy, independent branches
+        # start together; the immutable callback runs once after both complete.
+        # A nonzero preliminary gate still requires browser features first.
+        if not allowlisted and settings.SANDBOX_PRELIMINARY_THRESHOLD == 0:
+            from celery import chord
+            from tasks.sandbox_analysis import sandbox_analysis_task
+            from tasks.consistency import consistency_task
+            async_result = chord([
+                browser_features_task.si(scan_id, dispatch_next=False),
+                sandbox_analysis_task.si(scan_id, dispatch_next=False),
+            ])(consistency_task.si(scan_id))
+        else:
+            async_result = browser_features_task.delay(scan_id)
         scan.status = "browser_features_running"
         db.commit()
     except Exception as exc:

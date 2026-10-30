@@ -17,13 +17,30 @@ import glob
 import logging
 import os
 import subprocess
+import tempfile
 import time
 from datetime import datetime, timezone
 
 from celery_worker import celery
 from config import settings
+from services.backup_crypto import encrypt_backup
 
 logger = logging.getLogger(__name__)
+
+
+def _secure_temp_path(directory: str, *, prefix: str, suffix: str) -> str:
+    """Create an empty owner-only file and return its path."""
+    fd, path = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=directory)
+    os.close(fd)
+    # mkstemp uses 0600 on POSIX; chmod is retained as a defense-in-depth
+    # check and permits this helper's unit tests to run on Windows as well.
+    os.chmod(path, 0o600)
+    return path
+
+
+def _encrypt_backup(dump_path: str, encryption_key: str, timeout: int = 300) -> str:
+    """Encrypt a dump without exposing its key in process arguments."""
+    return str(encrypt_backup(dump_path, encryption_key, timeout=timeout))
 
 
 @celery.task(
@@ -45,23 +62,27 @@ def db_backup_task(self, retention_days: int = 7) -> dict:
     os.makedirs(backup_dir, exist_ok=True)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    dump_filename = f"scythe_db_{timestamp}.dump"
-    dump_path = os.path.join(backup_dir, dump_filename)
-
     db_password = getattr(settings, "SCYTHE_DB_PASSWORD", "")
     if not db_password:
         logger.error("[db_backup] SCYTHE_DB_PASSWORD not set — cannot authenticate to postgres")
         raise RuntimeError("SCYTHE_DB_PASSWORD is empty")
 
+    dump_path = _secure_temp_path(
+        backup_dir,
+        prefix=f"scythe_db_{timestamp}_",
+        suffix=".dump",
+    )
+
     # Write .pgpass to /tmp (tmpfs — auto-wiped on container restart) rather than
     # the home directory. If the Celery worker receives SIGKILL mid-task, the
     # `finally` block does not execute and a .pgpass in ~ would persist across
     # restarts with the plaintext password visible on the filesystem.
-    # Using the process PID makes the path unique across concurrent task executions.
-    pgpass_path = f"/tmp/.pgpass_{os.getpid()}"  # nosec B108
+    pgpass_path = None
     try:
-        with open(pgpass_path, "w", encoding="utf-8") as f:
-            f.write(f"postgres:5432:scythe_db:scythe_user:{db_password}\n")
+        pgpass_fd, pgpass_path = tempfile.mkstemp(prefix="scythe-backup-pgpass-", suffix=".conf")
+        with os.fdopen(pgpass_fd, "w", encoding="utf-8") as f:
+            escaped = db_password.replace("\\", "\\\\").replace(":", "\\:")
+            f.write(f"postgres:5432:scythe_db:scythe_user:{escaped}\n")
         os.chmod(pgpass_path, 0o600)
     except IOError as e:
         logger.error("[db_backup] Failed to write .pgpass: %s", e)
@@ -69,7 +90,7 @@ def db_backup_task(self, retention_days: int = 7) -> dict:
 
     env = os.environ.copy()
     env["PGPASSFILE"] = pgpass_path
-    
+
     # Use pg_dump custom format (-F c) for compressed, restorable archives
     cmd = [
         "pg_dump",
@@ -84,7 +105,7 @@ def db_backup_task(self, retention_days: int = 7) -> dict:
     ]
 
     try:
-        proc = subprocess.run(
+        subprocess.run(
             cmd,
             env=env,
             stdout=subprocess.PIPE,
@@ -92,37 +113,30 @@ def db_backup_task(self, retention_days: int = 7) -> dict:
             check=True,
             timeout=300,
         )
+        # Database dumps contain sensitive records; do not leave them readable
+        # by other users of the mounted backup volume.
+        os.chmod(dump_path, 0o600)
         logger.info("[db_backup] Database backup created successfully: %s (%d bytes)", dump_path, os.path.getsize(dump_path))
 
         # Encrypt at rest (finding #4) if BACKUP_ENCRYPTION_KEY is configured
         enc_key = getattr(settings, "BACKUP_ENCRYPTION_KEY", "")
         if enc_key:
-            enc_path = f"{dump_path}.enc"
-            logger.info("[db_backup] Encrypting backup file at rest using AES-256-CBC (PBKDF2)")
-            enc_cmd = [
-                "openssl", "enc", "-aes-256-cbc", "-salt", "-pbkdf2",
-                "-in", dump_path, "-out", enc_path, "-pass", f"pass:{enc_key}"
-            ]
+            logger.info("[db_backup] Encrypting backup using authenticated AES-256-GCM format v1")
+            enc_path = None
             try:
-                subprocess.run(
-                    enc_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=True,
-                    timeout=300,
-                )
+                enc_path = _encrypt_backup(dump_path, enc_key)
                 if os.path.exists(dump_path):
                     os.remove(dump_path)
                 dump_path = enc_path
                 logger.info("[db_backup] Backup encrypted successfully: %s (%d bytes)", dump_path, os.path.getsize(dump_path))
             except Exception as enc_exc:
-                logger.error("[db_backup] Failed to encrypt backup file: %s", enc_exc)
+                logger.error("[db_backup] Failed to encrypt backup file: %s", type(enc_exc).__name__)
                 if os.path.exists(dump_path):
                     try:
                         os.remove(dump_path)
                     except OSError:
                         pass
-                if os.path.exists(enc_path):
+                if enc_path and os.path.exists(enc_path):
                     try:
                         os.remove(enc_path)
                     except OSError:
@@ -141,7 +155,7 @@ def db_backup_task(self, retention_days: int = 7) -> dict:
         logger.exception("[db_backup] Unexpected error executing pg_dump")
         raise self.retry(exc=exc)
     finally:
-        if os.path.exists(pgpass_path):
+        if pgpass_path and os.path.exists(pgpass_path):
             try:
                 os.remove(pgpass_path)
             except OSError:

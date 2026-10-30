@@ -1,7 +1,6 @@
 import os
 import json
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse, Response
@@ -19,7 +18,8 @@ from schemas.full_scan import FullScanRequest, FullScanResponse
 from services.quickscan import run_quickscan
 from services.stage2_analysis import run_stage2_analysis, _validate_scan_id, _scan_dir
 from services.manual_url_scan_service import run_manual_url_scan
-from services.manual_file_scan_service import run_manual_file_scan
+from services.manual_file_scan_service import queue_manual_file_scan
+from websocket.websocket_manager import report_is_visible
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,23 @@ def _sanitize_html_content(html: str) -> str:
     except Exception as e:
         logger.warning("HTML sanitization error: %s, returning stripped text", e)
         return html.replace("<", "&lt;").replace(">", "&gt;")
+
+
+@router.get("")
+def scan_history(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0, le=10000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Durable history is always filtered by the authenticated owner."""
+    rows = db.query(Scan).filter(Scan.user_id == current_user.id).order_by(
+        Scan.created_at.desc(), Scan.id.desc()).offset(offset).limit(limit + 1).all()
+    items = [{"scan_id": row.id, "url": row.url, "status": row.status,
+              "risk_score": row.risk_score, "severity": row.severity,
+              "created_at": row.created_at, "updated_at": row.updated_at}
+             for row in rows[:limit]]
+    return {"items": items, "next_offset": offset + limit if len(rows) > limit else None}
 
 
 @router.post("/quick", response_model=QuickScanResponse)
@@ -103,11 +120,26 @@ def full_scan(
             screenshot_saved_path=None
         )
         
-    # 2. Server-side capture
-    from services.capture import capture_url
+    # 2. Server-side capture (offloaded to thread executor to prevent worker starvation)
+    from services.capture import capture_url, CaptureUnavailable
+    from services.url_policy import UnsafeURL
     import base64
+    import concurrent.futures
     
-    png_bytes, html_content = capture_url(url_str)
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(capture_url, url_str)
+            png_bytes, html_content = future.result(timeout=90)
+    except UnsafeURL as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except CaptureUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (TimeoutError, concurrent.futures.TimeoutError) as exc:
+        logger.warning("Server capture timed out for url=%s", url_str)
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Server capture timed out. Please try again shortly.",
+        ) from exc
     b64_png = base64.b64encode(png_bytes).decode('ascii')
     
     # 3. Call stage2_analysis natively
@@ -244,10 +276,10 @@ async def manual_file_scan(
 
     Dashboard manual file scan entry point (GT Page 13).
     Performs static analysis, optional ClamAV scan, and SHA-256 hash caching.
-    Returns a synchronous full verdict.
+    Returns an owned queued scan; poll GET /api/scans/{scan_id} for the result.
     """
     MAX_UPLOAD = 50 * 1024 * 1024  # 50 MB — enforced in service too, but guard here
-    content = await file.read()
+    content = await file.read(MAX_UPLOAD + 1)
     if len(content) > MAX_UPLOAD:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -255,7 +287,7 @@ async def manual_file_scan(
         )
 
     try:
-        return run_manual_file_scan(
+        return queue_manual_file_scan(
             filename=file.filename or "uploaded_file",
             content=content,
             user=current_user,
@@ -298,6 +330,8 @@ def get_scan(
         try:
             with open(report_path, "r", encoding="utf-8") as f:
                 report = json.load(f)
+            if not report_is_visible(scan.status, report):
+                report = None
         except Exception:
             pass
 
@@ -344,7 +378,16 @@ def get_scan_artifact(
     if not os.path.exists(file_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found.")
 
-    if artifact_name == "browser.html":
+    if artifact_name == "risk_report.json":
+        try:
+            with open(file_path, encoding="utf-8") as stream:
+                visible = report_is_visible(scan.status, json.load(stream))
+        except (OSError, ValueError):
+            visible = False
+        if not visible:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Final report is not available.")
+
+    if artifact_name.endswith((".html", ".htm")):
 
         if not sanitized:
             is_su = getattr(current_user, "is_superuser", False) or (
@@ -371,11 +414,12 @@ def get_scan_artifact(
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             raw_html = f.read()
         content = _sanitize_html_content(raw_html) if sanitized else raw_html
+        safe_dl_name = ("sanitized_" + artifact_name) if sanitized else artifact_name
         headers = {
             "Content-Security-Policy": "sandbox; default-src 'none'; img-src data: blob: 'self'; style-src 'unsafe-inline' 'self';",
             "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "SAMEORIGIN",
-            "Content-Disposition": 'inline; filename="captured_phishing_page.html"',
+            "Content-Disposition": f'inline; filename="{safe_dl_name}"',
         }
         return Response(content=content, media_type="text/html", headers=headers)
 

@@ -1,0 +1,13 @@
+{
+  "schema_version": "scythe_operational_model_policy_v1",
+  "status": "draft",
+  "approved_by": "",
+  "approved_at_utc": "",
+  "intended_population": "",
+  "maximum_false_positives_per_10000_benign": null,
+  "minimum_recall": null,
+  "maximum_p95_latency_ms": null,
+  "failure_behavior": "",
+  "allowed_actions": [],
+  "notes": "Fill from an explicit owner decision. Do not use illustrative defaults. Keep status=draft until formally approved."
+}

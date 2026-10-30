@@ -21,6 +21,9 @@ if [ ! -f /etc/nginx/certs/server.key ] || [ ! -f /etc/nginx/certs/server.crt ];
     echo "[nginx-ssl-gen] No TLS cert/key found at /etc/nginx/certs/. Generating fresh self-signed RSA-4096 cert..."
     openssl req -x509 -nodes -days 365 \
         -subj "/C=US/ST=Dev/L=Dev/O=SCYTHE/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1" \
+        -addext "basicConstraints=critical,CA:FALSE" \
+        -addext "extendedKeyUsage=serverAuth" \
         -newkey rsa:4096 \
         -keyout /etc/nginx/certs/server.key \
         -out    /etc/nginx/certs/server.crt \
