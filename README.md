@@ -109,10 +109,10 @@ The SCYTHE production inference pipeline runs on the audited and verified `candi
 
 > 🌟 **Status:** `experimental_challenger` — Unified culmination of `v26`, `v27`, and `v28` directly implementing the multi-stage architecture from [`PROJECT_v10.pdf`](file:///C:/Users/armaa/Desktop/Project%20details/PROJECT_v10.pdf) (Pages 7 & 10). Runs in shadow scoring alongside `v26`.
 
-| Modality & Component | Source & Heritage | Key Metrics / Features | Anti-Leakage / Reliability |
+| Modality & Component | Source & Heritage | Key Metrics / Features | Scale & Generalization |
 |:---|:---|:---|:---|
-| **Tier 1: Fast URL Sub-Head** | v28 LightGBM + v27 PaaS Signals | ROC-AUC: **0.9972** \| Recall: **98.40%** \| <5ms latency | ✅ Registered-domain isolation |
-| **Tier 2: Deep Vision Sub-Head** | v28 MobileCLIP S0 512-dim L2 | ROC-AUC: **0.8469** \| PR-AUC: **0.6169** \| Recall: **58.58%** | ✅ Balanced weights, zero overlap |
+| **Tier 1: Fast URL Sub-Head** | v28 LightGBM + v27 PaaS Signals | ROC-AUC: **0.9972** \| Recall: **98.40%** \| <5ms latency | ✅ 100K+ URLs, zero-leakage |
+| **Tier 2: Deep Vision Sub-Head** | 22K Scaled MobileCLIP S0 (Phish360 + Zenodo + APWG) | Logistic: **0.9238** AUC, **86.5%** Recall<br>Neural MLP: **0.9600** AUC, **89.0%** Recall, **87.6%** Prec, **0.8829** F1 | ✅ 22,753 authentic screenshots |
 | **Tier 3: Celery Chord Orchestration** | `PROJECT_v10.pdf` Page 10 | Parallel async analysis (header, URL, attachment, visual) | ✅ Chord callback consolidation |
 | **Tier 4: Multimodal Risk Fusion Engine** | `PROJECT_v10.pdf` Page 7 (`risk_fusion.py`) | 32-feature calibrated booster (`scythe_fusion_v2`), p95 latency: **552ms** | ✅ Wilson 95% threshold bounds |
 
