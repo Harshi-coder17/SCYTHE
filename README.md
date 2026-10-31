@@ -112,7 +112,7 @@ The SCYTHE production inference pipeline runs on the audited and verified `candi
 | Modality & Component | Source & Heritage | Key Metrics / Features | Scale & Generalization |
 |:---|:---|:---|:---|
 | **Tier 1: Fast URL Sub-Head** | v28 LightGBM + v27 PaaS Signals | ROC-AUC: **0.9972** \| Recall: **98.40%** \| <5ms latency | ✅ 100K+ URLs, zero-leakage |
-| **Tier 2: Deep Vision Sub-Head** | 22K Scaled MobileCLIP S0 (Phish360 + Zenodo + APWG) | Logistic: **0.9238** AUC, **86.5%** Recall<br>Neural MLP: **0.9600** AUC, **89.0%** Recall, **87.6%** Prec, **0.8829** F1 | ✅ 22,753 authentic screenshots |
+| **Tier 2: Deep Vision Sub-Head** | 53K Master MobileCLIP S0 (Phish360 + Zenodo + Fleet + APWG) | Logistic: **0.9236** AUC, **89.0%** Recall<br>Neural MLP: **0.9615** AUC, **0.9456** PR-AUC, **91.4%** Prec, **0.8816** F1, **5.8% FPR** | ✅ 53,620 representations across 7 cohorts |
 | **Tier 3: Celery Chord Orchestration** | `PROJECT_v10.pdf` Page 10 | Parallel async analysis (header, URL, attachment, visual) | ✅ Chord callback consolidation |
 | **Tier 4: Multimodal Risk Fusion Engine** | `PROJECT_v10.pdf` Page 7 (`risk_fusion.py`) | 32-feature calibrated booster (`scythe_fusion_v2`), p95 latency: **552ms** | ✅ Wilson 95% threshold bounds |
 
