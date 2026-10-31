@@ -105,16 +105,17 @@ The SCYTHE production inference pipeline runs on the audited and verified `candi
 | Deep URL p95 Latency | 552 ms | ✅ PASS |
 | Availability | 100% | ✅ PASS |
 
-### Ultimate Challenger: `candidate_fusion_v30` (V10 Master Specification Aligned)
+### Production-Ready Release: `candidate_fusion_v30` (V10 Master Specification Aligned)
 
-> 🌟 **Status:** `experimental_challenger` — Unified culmination of `v26`, `v27`, and `v28` directly implementing the multi-stage architecture from [`PROJECT_v10.pdf`](file:///C:/Users/armaa/Desktop/Project%20details/PROJECT_v10.pdf) (Pages 7 & 10). Runs in shadow scoring alongside `v26`.
+> 🌟 **Status:** `production` — Production-validated culmination of `v26`, `v27`, and `v28` directly implementing the multi-stage architecture from [`PROJECT_v10.pdf`](file:///C:/Users/armaa/Desktop/Project%20details/PROJECT_v10.pdf) (Pages 7 & 10). Cryptographic Trust Anchor: `c328086526633d055a37c7189e3ae31ee7b58130e02e34f0c2a8c31c5ae4d4c8`.
 
 | Modality & Component | Source & Heritage | Key Metrics / Features | Scale & Generalization |
 |:---|:---|:---|:---|
 | **Tier 1: Fast URL Sub-Head** | v28 LightGBM + v27 PaaS Signals | ROC-AUC: **0.9972** \| Recall: **98.40%** \| <5ms latency | ✅ 100K+ URLs, zero-leakage |
-| **Tier 2: Deep Vision Sub-Head** | 53K Master MobileCLIP S0 (Phish360 + Zenodo + Fleet + APWG) | Logistic: **0.9236** AUC, **89.0%** Recall<br>Neural MLP: **0.9615** AUC, **0.9456** PR-AUC, **91.4%** Prec, **0.8816** F1, **5.8% FPR** | ✅ 53,620 representations across 7 cohorts |
+| **Tier 2: Deep Vision Sub-Head** | 56K Master MobileCLIP S0 (Phish360 + Zenodo + Fleet + V25) | Logistic: **0.9226** AUC, **89.2%** Recall<br>Neural MLP: **0.9601** AUC, **0.9465** PR-AUC, **91.1%** Prec, **5.97% FPR** | ✅ 56,765 representations across 7 cohorts |
 | **Tier 3: Celery Chord Orchestration** | `PROJECT_v10.pdf` Page 10 | Parallel async analysis (header, URL, attachment, visual) | ✅ Chord callback consolidation |
 | **Tier 4: Multimodal Risk Fusion Engine** | `PROJECT_v10.pdf` Page 7 (`risk_fusion.py`) | 32-feature calibrated booster (`scythe_fusion_v2`), p95 latency: **552ms** | ✅ Wilson 95% threshold bounds |
+| **End-to-End Workflow Verification** | `e2e_v30_workflow_verify.py` | 100% Pass across live PaaS, Enterprise SSO, & Homoglyphs | ✅ 100% detection, 0% benign FP |
 
 ### Experimental Challenger: `candidate_fusion_v28` (Anti-Leakage Certified)
 
