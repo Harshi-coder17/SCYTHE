@@ -1,8 +1,8 @@
 # SCYTHE Deployment Checklist
 
 > **Track D — End-to-End Workflow Verification**  
-> Generated: 2026-10-23 | Verified against: local dev stack (13 containers)  
-> Model: `v21_multimodal_fusion` | Feature contract: `scythe_fusion_v2`
+> Updated: 2026-10-31 | Verified against: local dev stack (13 containers)  
+> Model: `candidate_fusion_v26` | Feature contract: `scythe_fusion_v2`
 
 ---
 
@@ -54,7 +54,7 @@ Copy `.env.production.example` → `.env` (dev) or `.env.production` (prod) and 
 | Variable | Default | Notes |
 |---|---|---|
 | `SHADOW_SCORING_ENABLED` | `false` | Enables shadow worker for A/B scoring; experimental |
-| `MODEL_RELEASE_ENABLED` | `true` (dev) | Enables the v21 model bundle; see §9 for caveats |
+| `MODEL_RELEASE_ENABLED` | `true` (dev) | Enables the v26 model bundle; see §9 for caveats |
 | `MODEL_RELEASE_CHECKSUMS_SHA256` | *(set to bundle hash)* | Required for checksum-verified model loading |
 | `MODEL_RELEASE_HOST_DIR` | `./models/releases` | Host path mounted into model worker |
 | `COMPOSE_PROFILES` | `shadow,models` | Activates optional service profiles |
@@ -541,8 +541,8 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 | Limitation | Detail |
 |---|---|
 | **Placeholder fallback** | When `MODEL_RELEASE_ENABLED=true` but the model worker is unavailable or the model fails to load, the system returns `UNKNOWN`/`is_placeholder=true`. This is intentional fail-closed behavior. |
-| **MODEL_RELEASE_CHECKSUMS_SHA256 required** | If this env var is not set or does not match the release bundle, the model worker will refuse to load the v21 model and fall back to placeholder. Set it to the SHA256 content of `models/releases/checksums.sha256`. |
-| **v21 qualification status** | Model `v21_multimodal_fusion` is `status: validated` per `release.json` with `approved_policy.json` (`status: approved`). Retrained on 176,522 balanced samples across 65,382 domains with domain-disjoint split. Evaluated ROC-AUC: 0.9624, PR-AUC: 0.9451, Test FPR: 0.39%–0.67%. Verified live under trust anchor `50bf983b1b6ec7e2ac6dd56c40fe545ddfd09b606dd595711b32ce158211af87`. Passed `scripts/model_release_readiness.py` with 0 blockers (`production_ready: true`). |
+| **MODEL_RELEASE_CHECKSUMS_SHA256 required** | If this env var is not set or does not match the release bundle, the model worker will refuse to load the v26 model and fall back to placeholder. Set it to the SHA256 content of `models/releases/checksums.sha256`. |
+| **v21 qualification status** | Model `candidate_fusion_v26` is `status: validated` per `release.json` with `approved_policy.json` (`status: approved`). Retrained on 176,522 balanced samples across 65,382 domains with domain-disjoint split. Evaluated ROC-AUC: 0.9624, PR-AUC: 0.9451, Test FPR: 0.39%–0.67%. Verified live under trust anchor `6fe3b2e3a357967ee8b524fe26df645afb1e203ce93c485ec5468d0bf2b8fae1`. Passed `scripts/model_release_readiness.py` with 0 blockers (`production_ready: true`). |
 | **MobileCLIP visual model** | `MOBILECLIP_ENABLED=false` by default. Not activated until checkpoint, vendor source, classifier artifact, and CPU inference dependencies are installed and reviewed. Do not enable without completing the visual model qualification gate. |
 | **Shadow worker** | `SHADOW_SCORING_ENABLED=false` by default. Requires `COMPOSE_PROFILES=shadow` and explicit opt-in. Experimental; not production-ready. |
 
@@ -610,7 +610,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 ## Appendix C — Model Release Bundle
 
 **Location:** `models/releases/`  
-**Model version:** `v21_multimodal_fusion`  
+**Model version:** `candidate_fusion_v26`  
 **Feature contract:** `scythe_fusion_v2`  
 **Status:** `validated` / `approved`
 
