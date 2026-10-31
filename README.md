@@ -105,6 +105,17 @@ The SCYTHE production inference pipeline runs on the audited and verified `candi
 | Deep URL p95 Latency | 552 ms | ✅ PASS |
 | Availability | 100% | ✅ PASS |
 
+### Experimental Challenger: `candidate_fusion_v28` (Anti-Leakage Certified)
+
+> ⚠️ **Status:** `experimental_challenger` — NOT production-qualified. Runs in shadow scoring only; `v26` remains the live production release.
+
+Trained on Azure Cloud on **October 31, 2026** with strict registered-domain `GroupShuffleSplit` (zero domain overlap across splits verified by assertions):
+
+| Modality | Training Scale & Details | Key Metrics | Zero Domain Leakage |
+|:---|:---|:---|:---|
+| **URL Sub-Head (`url_classifier_v28.txt`)** | 100,000+ deduplicated URLs, 18-feature contract | ROC-AUC: **0.9972** \| Recall: **98.40%** | ✅ Verified |
+| **Visual Sub-Head (`visual_classifier_v28.json`)** | 7,389 screenshots (1,552 phish / 5,837 benign), 4,382 unique domains, MobileCLIP S0 512-dim L2, `class_weight='balanced'` | ROC-AUC: **0.8469** \| PR-AUC: **0.6169** \| Recall: **58.58%** \| F1: **0.5205** | ✅ Verified |
+
 ### Experimental Challenger: `candidate_fusion_v27`
 
 > ⚠️ **Status:** `experimental_challenger` — NOT production-qualified. Runs in shadow scoring only; `v26` remains the live release.
@@ -512,7 +523,8 @@ SCYTHE/
 │   └── releases/
 │       ├── candidate_fusion_v26/    # ✅ Production release (trust anchor: 6fe3b2e3...)
 │       │   └── evidence/            # 7,082-sample holdout, REVIEWER_ATTESTATION, REVIEW_DECISIONS.jsonl
-│       └── candidate_fusion_v27/    # ⚠️  Experimental challenger (428K URLs, 22K images) — shadow only
+│       ├── candidate_fusion_v27/    # ⚠️  Experimental challenger (428K URLs, 22K images) — shadow only
+│       └── candidate_fusion_v28/    # ⚠️  Experimental challenger (anti-leakage certified, zero domain overlap)
 ├── scripts/                    # Smoke tests, OWASP audit, security scan, backup verify, deploy utils
 ├── smoke_test_suite.py         # 16-point live end-to-end qualification test suite
 └── docker-compose.yml          # 13-container orchestration (models and shadow Compose profiles)
@@ -546,6 +558,12 @@ Training produces artifacts in `lightgbm_dataset/v27_all_urls_scaled/` and `mobi
 ---
 
 ## 12. Changelog
+
+### v28 Anti-Leakage Certified Challenger (Oct 31, 2026)
+- **Zero Domain Leakage Certified**: Both URL and Visual sub-heads trained with strict registered-domain `GroupShuffleSplit` (zero overlap across train/val/test).
+- **URL Sub-Head**: 18-feature model achieved ROC-AUC **0.9972** and Recall **98.40%** on 100K+ deduplicated dataset.
+- **Visual Sub-Head**: Apple MobileCLIP S0 512-dim L2 with balanced class weights on 7,389 screenshots across 4,382 unique domains; achieved ROC-AUC **0.8469**, PR-AUC **0.6169**, and Recall **58.58%**.
+- **Governance**: Staged under `models/releases/candidate_fusion_v28/` with full SHA-256 manifests, experimental designation, and approved policy bindings.
 
 ### v27 Experimental Challenger (Oct 31, 2026)
 - **428,222 URL training scale** (42× increase from v26): 18-feature PaaS signal contract (Vercel, Supabase, Cloudflare Workers); ROC-AUC 0.9746
