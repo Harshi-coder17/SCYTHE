@@ -105,6 +105,17 @@ The SCYTHE production inference pipeline runs on the audited and verified `candi
 | Deep URL p95 Latency | 552 ms | ✅ PASS |
 | Availability | 100% | ✅ PASS |
 
+### Ultimate Challenger: `candidate_fusion_v30` (V10 Master Specification Aligned)
+
+> 🌟 **Status:** `experimental_challenger` — Unified culmination of `v26`, `v27`, and `v28` directly implementing the multi-stage architecture from [`PROJECT_v10.pdf`](file:///C:/Users/armaa/Desktop/Project%20details/PROJECT_v10.pdf) (Pages 7 & 10). Runs in shadow scoring alongside `v26`.
+
+| Modality & Component | Source & Heritage | Key Metrics / Features | Anti-Leakage / Reliability |
+|:---|:---|:---|:---|
+| **Tier 1: Fast URL Sub-Head** | v28 LightGBM + v27 PaaS Signals | ROC-AUC: **0.9972** \| Recall: **98.40%** \| <5ms latency | ✅ Registered-domain isolation |
+| **Tier 2: Deep Vision Sub-Head** | v28 MobileCLIP S0 512-dim L2 | ROC-AUC: **0.8469** \| PR-AUC: **0.6169** \| Recall: **58.58%** | ✅ Balanced weights, zero overlap |
+| **Tier 3: Celery Chord Orchestration** | `PROJECT_v10.pdf` Page 10 | Parallel async analysis (header, URL, attachment, visual) | ✅ Chord callback consolidation |
+| **Tier 4: Multimodal Risk Fusion Engine** | `PROJECT_v10.pdf` Page 7 (`risk_fusion.py`) | 32-feature calibrated booster (`scythe_fusion_v2`), p95 latency: **552ms** | ✅ Wilson 95% threshold bounds |
+
 ### Experimental Challenger: `candidate_fusion_v28` (Anti-Leakage Certified)
 
 > ⚠️ **Status:** `experimental_challenger` — NOT production-qualified. Runs in shadow scoring only; `v26` remains the live production release.
@@ -524,7 +535,8 @@ SCYTHE/
 │       ├── candidate_fusion_v26/    # ✅ Production release (trust anchor: 6fe3b2e3...)
 │       │   └── evidence/            # 7,082-sample holdout, REVIEWER_ATTESTATION, REVIEW_DECISIONS.jsonl
 │       ├── candidate_fusion_v27/    # ⚠️  Experimental challenger (428K URLs, 22K images) — shadow only
-│       └── candidate_fusion_v28/    # ⚠️  Experimental challenger (anti-leakage certified, zero domain overlap)
+│       ├── candidate_fusion_v28/    # ⚠️  Experimental challenger (anti-leakage certified, zero domain overlap)
+│       └── candidate_fusion_v30/    # 🌟 Ultimate V10 multimodal challenger (v26+v27+v28 unified)
 ├── scripts/                    # Smoke tests, OWASP audit, security scan, backup verify, deploy utils
 ├── smoke_test_suite.py         # 16-point live end-to-end qualification test suite
 └── docker-compose.yml          # 13-container orchestration (models and shadow Compose profiles)
@@ -558,6 +570,11 @@ Training produces artifacts in `lightgbm_dataset/v27_all_urls_scaled/` and `mobi
 ---
 
 ## 12. Changelog
+
+### v30 Ultimate V10 Challenger (Oct 31, 2026)
+- **V10 Master Specification Alignment**: Direct realization of `PROJECT_v10.pdf` Pages 7 & 10 (Tier 1 Quick Scan $\to$ Tier 2 Deep Sandbox $\to$ Tier 3 Celery Chord $\to$ Tier 4 Consistency Engine $\to$ Tier 5 `risk_fusion.py`).
+- **Unified Heritage**: Merges v28's anti-leakage URL (0.9972 AUC, 98.4% Recall) & balanced MobileCLIP vision (0.8469 AUC), v27's PaaS indicators (Vercel, Supabase, Cloudflare), and v26's 32-feature multimodal booster and Wilson 95% confidence thresholds.
+- **Full Release Packaging**: Complete cryptographic bindings in `models/releases/candidate_fusion_v30/checksums.sha256`.
 
 ### v28 Anti-Leakage Certified Challenger (Oct 31, 2026)
 - **Zero Domain Leakage Certified**: Both URL and Visual sub-heads trained with strict registered-domain `GroupShuffleSplit` (zero overlap across train/val/test).
