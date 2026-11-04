@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -29,7 +28,7 @@ DATASET_ROOT = Path(r"C:\Users\armaa\Desktop\Project details\lightgbm_dataset")
 BACKEND = REPO / "containers" / "backend"
 sys.path.insert(0, str(BACKEND))
 
-from services.model_features.url_features import (
+from services.model_features.url_features import (  # noqa: E402
     FEATURE_NAMES_V2,
     build_url_feature_vector,
 )

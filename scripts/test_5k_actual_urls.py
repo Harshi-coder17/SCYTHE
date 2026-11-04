@@ -7,7 +7,6 @@ and computes complete metrics, latency, and sample predictions.
 """
 import sys
 import time
-import json
 import pathlib
 import numpy as np
 import pandas as pd
@@ -26,7 +25,7 @@ ROOT = pathlib.Path(r"C:\Users\armaa\Desktop\Project details\SCYTHE")
 BACKEND = ROOT / "containers" / "backend"
 sys.path.insert(0, str(BACKEND))
 
-from services.model_features.url_features import build_url_feature_vector, FEATURE_NAMES_V2
+from services.model_features.url_features import build_url_feature_vector, FEATURE_NAMES_V2  # noqa: E402
 
 DATA_PATH = pathlib.Path(
     r"C:\Users\armaa\Desktop\Project details\lightgbm_dataset\prospective_collection_v1\url_candidate_v2\validation.parquet"
@@ -63,7 +62,7 @@ def main():
     print(f"[*] Selected stratified benchmark set of {n_urls:,} actual URLs (2,500 benign, 2,500 phishing)\n")
 
     # 4. Feature Extraction & Scoring Loop
-    print(f"[*] Running production feature extraction (18 features) and model inference...")
+    print("[*] Running production feature extraction (18 features) and model inference...")
     start_time = time.perf_counter()
 
     feature_matrix = []
@@ -130,11 +129,11 @@ def main():
     print(f"False Negative Rate (FNR):   {fnr * 100:.2f}% ({fn:,} missed phishing out of {tp + fn:,})")
     print(f"Brier Score (Calibration):   {brier:.4f}")
     print("-" * 75)
-    print(f"Confusion Matrix:")
+    print("Confusion Matrix:")
     print(f"  [TN: {tn:5,d}]  [FP: {fp:5,d}]  (Actual Benign:   {tn + fp:,})")
     print(f"  [FN: {fn:5,d}]  [TP: {tp:5,d}]  (Actual Phishing: {tp + fn:,})")
     print("-" * 75)
-    print(f"Performance & Latency:")
+    print("Performance & Latency:")
     print(f"  Feature Extraction Latency: {avg_extract_us:.1f} microseconds / URL")
     print(f"  Model Inference Latency:    {avg_infer_us:.2f} microseconds / URL ({len(y_true) / infer_time:,.0f} URLs/sec)")
     print(f"  Total Pipeline Latency:     {avg_total_us:.1f} microseconds / URL ({len(y_true) / total_time:,.0f} URLs/sec)")

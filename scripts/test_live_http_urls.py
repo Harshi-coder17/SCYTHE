@@ -1,4 +1,11 @@
-import urllib.request, ssl, json, time, jwt, uuid, datetime
+import datetime
+import json
+import ssl
+import time
+import urllib.request
+import uuid
+
+import jwt
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
