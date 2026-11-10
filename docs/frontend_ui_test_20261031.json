@@ -1,0 +1,67 @@
+{
+  "passed": true,
+  "api_calls": [
+    {
+      "path": "/auth/login",
+      "method": "POST",
+      "authorized": false
+    },
+    {
+      "path": "/scans/full",
+      "method": "POST",
+      "authorized": true
+    },
+    {
+      "path": "/scans/11111111-1111-4111-8111-111111111111",
+      "method": "GET",
+      "authorized": true
+    },
+    {
+      "path": "/scans/11111111-1111-4111-8111-111111111111/artifacts/browser.png",
+      "method": "GET",
+      "authorized": true
+    },
+    {
+      "path": "/scans/11111111-1111-4111-8111-111111111111/artifacts/network.har",
+      "method": "GET",
+      "authorized": true
+    },
+    {
+      "path": "/email",
+      "method": "GET",
+      "authorized": true
+    },
+    {
+      "path": "/email/investigate",
+      "method": "POST",
+      "authorized": true
+    },
+    {
+      "path": "/scans?limit=50&offset=0",
+      "method": "GET",
+      "authorized": true
+    },
+    {
+      "path": "/scans?limit=50&offset=0",
+      "method": "GET",
+      "authorized": true
+    },
+    {
+      "path": "/scans?limit=50&offset=50",
+      "method": "GET",
+      "authorized": true
+    },
+    {
+      "path": "/scans?limit=50&offset=0",
+      "method": "GET",
+      "authorized": true
+    },
+    {
+      "path": "/auth/logout",
+      "method": "POST",
+      "authorized": true
+    }
+  ],
+  "browser_errors": [],
+  "fixture_only": true
+}

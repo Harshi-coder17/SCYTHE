@@ -3,13 +3,17 @@ Unit tests for `_find_result_by_request_id` (`tasks/sandbox_analysis.py`),
 verifying that glob fallback check is gated behind `ALLOW_GLOB_FALLBACK`.
 """
 
-import os
 import json
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from tasks.sandbox_analysis import _find_result_by_request_id
+from tasks.sandbox_analysis import _find_result_by_request_id, _extract_sandbox_html
 import tasks.sandbox_analysis as sandbox_module
+
+
+def test_dom_contract_does_not_treat_telemetry_dict_as_html():
+    assert _extract_sandbox_html({"dom_content": {"visible_text_length": 12}}) == ""
+    assert _extract_sandbox_html({"dom": {"page_source": "<html></html>"}}) == "<html></html>"
 
 
 def test_glob_fallback_disabled_by_default(tmp_path):

@@ -17,11 +17,23 @@ logger = logging.getLogger(__name__)
 
 _MAX_PASSWORD_BYTES = 72
 
-try:
-    _redis_auth_client = redis.from_url(settings.REDIS_SECURITY_URL)
-except Exception as e:
-    logger.warning("Could not initialize Redis client for account lockout: %s", e)
-    _redis_auth_client = None
+_redis_auth_client = None
+
+def get_redis_auth_client():
+    global _redis_auth_client
+    if _redis_auth_client is not None:
+        try:
+            _redis_auth_client.ping()
+            return _redis_auth_client
+        except Exception:
+            _redis_auth_client = None
+    try:
+        _redis_auth_client = redis.from_url(settings.REDIS_SECURITY_URL, socket_connect_timeout=2)
+        _redis_auth_client.ping()
+        return _redis_auth_client
+    except Exception as e:
+        logger.warning("Could not connect to Redis for account lockout: %s", e)
+        return None
 
 
 def _lockout_keys(email: str, client_ip: str = "") -> Tuple[str, str]:
@@ -33,21 +45,11 @@ def _lockout_keys(email: str, client_ip: str = "") -> Tuple[str, str]:
 def check_account_lockout(email: str, client_ip: str = "") -> bool:
     """
     Returns True if account is currently locked out due to excessive failed login attempts.
-
-    Note on Architectural Trade-off (DoS vs Brute-Force):
-    Global account lockout (`login_global:{normalized_email}`) prevents distributed brute-force
-    attacks across rotating IPs. However, it can inherently be weaponized by an attacker as a
-    Denial-of-Service (DoS) against a known victim email address by intentionally triggering failed
-    logins from multiple IPs to hit the threshold. Recommended future mitigation roadmap:
-    incorporate behavioral backoff, per-IP throttling, or CAPTCHA validation prior to incrementing
-    global account lockout counters.
-
-    Account lockout logic checks IP-scoped key first (e.g. 5 attempts per IP),
-    and falls back to checking a global per-email counter at a higher threshold (25 attempts)
-    to prevent single-email spam from locking out legitimate users on other IPs while stopping
-    distributed botnet brute-forcing.
+    Uses IP-scoped throttling to prevent unauthenticated attackers from locking out
+    legitimate users on other IPs.
     """
-    if not _redis_auth_client:
+    client = get_redis_auth_client()
+    if not client:
         if getattr(settings, "AUTH_LOCKOUT_FAIL_CLOSED", True) or settings.is_production:
             logger.error("Redis unavailable during account lockout check (fail-closed)")
             raise ValueError("Authentication store unavailable")
@@ -55,14 +57,24 @@ def check_account_lockout(email: str, client_ip: str = "") -> bool:
     
     ip_key, global_key = _lockout_keys(email, client_ip)
     try:
-        ip_attempts = _redis_auth_client.get(ip_key)
+        # Check attempts on this ip_key (whether IP-scoped or default email key)
+        ip_attempts = client.get(ip_key)
         if ip_attempts and int(ip_attempts) >= settings.MAX_LOGIN_ATTEMPTS:
+            logger.warning("Account %s locked out on scope %s due to failed attempts", email, ip_key)
             return True
-        global_attempts = _redis_auth_client.get(global_key)
+
+        # Check global distributed attempts across rotating IPs
+        global_attempts = client.get(global_key)
         global_threshold = getattr(settings, "MAX_GLOBAL_LOGIN_ATTEMPTS", settings.MAX_LOGIN_ATTEMPTS * 5)
         if global_attempts and int(global_attempts) >= global_threshold:
-            logger.warning("Account %s locked globally due to distributed failed logins (storm pattern)", email)
-            return True
+            logger.critical("ALERT [CREDENTIAL_STUFFING]: Account %s targeted by distributed login storm (%s attempts)", email, global_attempts)
+            # If client_ip is provided, only lock out IPs that participated in the failures
+            if client_ip:
+                if ip_attempts and int(ip_attempts) > 0:
+                    return True
+            else:
+                return True
+
         return False
     except redis.exceptions.RedisError as e:
         logger.error("Redis error checking account lockout for %s: %s", email, e)
@@ -76,16 +88,17 @@ def record_failed_login(email: str, client_ip: str = "") -> int:
     Increments failed login counter for both IP-scoped and global counters.
     Returns new attempt count for the active scope.
     """
-    if not _redis_auth_client:
+    client = get_redis_auth_client()
+    if not client:
         return 0
     ip_key, global_key = _lockout_keys(email, client_ip)
     try:
-        count = _redis_auth_client.incr(ip_key)
+        count = client.incr(ip_key)
         if count == 1:
-            _redis_auth_client.expire(ip_key, settings.LOCKOUT_DURATION_SECONDS)
-        g_count = _redis_auth_client.incr(global_key)
+            client.expire(ip_key, settings.LOCKOUT_DURATION_SECONDS)
+        g_count = client.incr(global_key)
         if g_count == 1:
-            _redis_auth_client.expire(global_key, settings.LOCKOUT_DURATION_SECONDS * 2)
+            client.expire(global_key, settings.LOCKOUT_DURATION_SECONDS * 2)
         return count
     except redis.exceptions.RedisError as e:
         logger.error("Redis error recording failed login for %s: %s", email, e)
@@ -96,11 +109,12 @@ def reset_failed_login(email: str, client_ip: str = "") -> None:
     """
     Resets failed login counter on successful login.
     """
-    if not _redis_auth_client:
+    client = get_redis_auth_client()
+    if not client:
         return
     ip_key, global_key = _lockout_keys(email, client_ip)
     try:
-        _redis_auth_client.delete(ip_key, global_key)
+        client.delete(ip_key, global_key)
     except redis.exceptions.RedisError as e:
         logger.warning("Redis error resetting failed login for %s: %s", email, e)
 
@@ -186,11 +200,12 @@ def record_hibp_failure_metric() -> None:
     Allows operations to alert on prolonged external API outages while failing open.
     Emits structured critical warning for SIEM/Slack alerts when failure threshold is breached.
     """
-    if _redis_auth_client:
+    client = get_redis_auth_client()
+    if client:
         try:
-            failures = _redis_auth_client.incr("metric:hibp_api_failures")
+            failures = client.incr("metric:hibp_api_failures")
             if failures == 1:
-                _redis_auth_client.expire("metric:hibp_api_failures", 3600)  # 1h window
+                client.expire("metric:hibp_api_failures", 3600)  # 1h window
             threshold = getattr(settings, "HIBP_FAILURE_ALERT_THRESHOLD", 10)
             if failures >= threshold and failures % threshold == 0:
                 logger.critical("ALERT [HIBP_OUTAGE]: %d HIBP API failures recorded in past hour. Password breach checks are currently failing open!", failures)
@@ -203,8 +218,9 @@ def record_legacy_bcrypt_metric() -> None:
     Increment telemetry counter for legacy bcrypt authentication events.
     Used by operations/CI checks to safely time out ALLOW_LEGACY_BCRYPT.
     """
-    if _redis_auth_client:
+    client = get_redis_auth_client()
+    if client:
         try:
-            _redis_auth_client.incr("metric:legacy_bcrypt_authentications")
+            client.incr("metric:legacy_bcrypt_authentications")
         except Exception as e:
             logger.debug("Failed to record legacy bcrypt telemetry: %s", e)

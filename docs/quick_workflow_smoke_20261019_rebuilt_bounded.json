@@ -1,0 +1,26 @@
+{
+  "started_at": "2026-10-18T21:44:39.677493+00:00",
+  "passed": true,
+  "account_to_disable": "scythe-quick-smoke-d8cd884d3149a210@example.test",
+  "checks": {
+    "quick_unknown_uncached": true,
+    "private_target_rejected": true,
+    "logout_revoked": true
+  },
+  "fixture": "https://example.org/",
+  "step": "quick_scan",
+  "http_status": 200,
+  "retry_after": null,
+  "result": {
+    "risk_level": "UNKNOWN",
+    "risk_score": null,
+    "is_placeholder": true,
+    "availability": "unavailable",
+    "cached": false
+  },
+  "cleanup": {
+    "accounts_disabled": 1,
+    "fixture_scan_count": 1,
+    "incident_count": 0
+  }
+}

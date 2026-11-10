@@ -15,6 +15,7 @@ import logging
 import os
 
 from celery_worker import celery
+from tasks.email_failure import EmailAnalysisTask
 from config import settings
 
 from services.email.detectors.content_detector import ContentDetector
@@ -35,6 +36,7 @@ def _email_dir(email_id: str) -> str:
 
 
 @celery.task(
+    base=EmailAnalysisTask,
     bind=True,
     name="tasks.email_content_analysis.email_content_analysis_task",
     queue="default",
@@ -65,7 +67,8 @@ def email_content_analysis_task(self, email_id: str):
     nlp_result: dict = {}
     if _HAS_NLP:
         subject  = email_json.get("metadata", {}).get("subject", "")
-        body_raw = email_json.get("content", {}).get("body", "")
+        content = email_json.get("content", {})
+        body_raw = content.get("body_text") or content.get("body") or ""
         body     = body_raw if isinstance(body_raw, str) else ""
         nlp_result = _phishing_nlp.analyze(
             subject=subject,
@@ -84,10 +87,14 @@ def email_content_analysis_task(self, email_id: str):
     blended_score = min(blended_score, 100)
 
     def _severity(s: int) -> str:
-        if s <= 20: return "Safe"
-        elif s <= 40: return "Low"
-        elif s <= 60: return "Medium"
-        elif s <= 80: return "High"
+        if s <= 20:
+            return "Safe"
+        elif s <= 40:
+            return "Low"
+        elif s <= 60:
+            return "Medium"
+        elif s <= 80:
+            return "High"
         return "Critical"
 
     content_features = {

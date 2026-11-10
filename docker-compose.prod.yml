@@ -3,20 +3,46 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # DevSecOps Hardening (Finding #1):
-#   - In dev (docker-compose.yml), /etc/nginx/certs is mounted as tmpfs for self-signed certificates.
+#   - Locally, /etc/nginx/certs uses a named volume for persistent self-signed certificates.
 #   - In production when REQUIRE_REAL_CERT=true, real TLS certificates from the host must be mounted.
-#   - This overlay mounts ./containers/nginx/certs from the host and resets tmpfs without /etc/nginx/certs
-#     to avoid mount conflicts between tmpfs and read-only bind mounts.
+#   - This overlay replaces that volume at the same target with the read-only host certificate directory.
 # =======================================================
+
+x-production-env: &production-env
+  ENVIRONMENT: production
+  REQUIRE_REAL_CERT: "true"
+  ALLOWED_HOSTS: "${SCYTHE_PUBLIC_HOST:?Set SCYTHE_PUBLIC_HOST for production},backend,nginx,localhost,127.0.0.1"
+  CORS_ALLOWED_ORIGINS: "${SCYTHE_PUBLIC_ORIGIN:?Set the HTTPS SCYTHE_PUBLIC_ORIGIN for production}"
+  BACKUP_ENCRYPTION_KEY: "${BACKUP_ENCRYPTION_KEY:?Configure and escrow BACKUP_ENCRYPTION_KEY before production}"
 
 services:
   nginx:
+    ports: !override
+      - "${NGINX_BIND_ADDRESS:-0.0.0.0}:${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_BIND_ADDRESS:-0.0.0.0}:${NGINX_HTTPS_PORT:-443}:443"
     environment:
-      - REQUIRE_REAL_CERT=true
+      REQUIRE_REAL_CERT: "true"
     volumes:
       - ./containers/nginx/certs:/etc/nginx/certs:ro
-    tmpfs: !reset
+    tmpfs: !override
       - /var/cache/nginx:rw,noexec,nosuid,size=64m
       - /var/run:rw,noexec,nosuid,size=16m
       - /tmp:rw,noexec,nosuid,size=64m
       - /var/log/nginx:rw,noexec,nosuid,size=32m
+  backend:
+    environment: *production-env
+    volumes:
+      - ./containers/backend/models:/app/models:ro
+  celery_worker:
+    environment: *production-env
+    volumes:
+      - ./containers/backend/models:/app/models:ro
+  celery_beat:
+    environment: *production-env
+  celery_shadow_worker:
+    environment: *production-env
+  scythe_sandbox_runner:
+    environment:
+      ENVIRONMENT: production
+    volumes:
+      - ./containers/backend/models:/app/models:ro

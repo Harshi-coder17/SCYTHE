@@ -23,7 +23,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from celery_worker import celery
 from config import settings
 from database.database import get_db_session
-from database.models import Incident, IOC, Statistics
+from database.models import Incident, IOC, Statistics, Scan
+from tasks import validate_scan_id
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +33,10 @@ def _mark_status(scan_id: str, status: str) -> None:
     try:
         with get_db_session() as db:
             from database.models import Scan
-            scan = db.query(Scan).filter(Scan.id == scan_id).first()
+            scan = db.query(Scan).filter(Scan.id == scan_id).with_for_update().first()
             if scan:
+                if scan.status in {"cancelled", "expired", "failed_timeout"}:
+                    return
                 scan.status = status
                 db.commit()
     except Exception:
@@ -110,9 +113,6 @@ def _send_slack_notification(scan_id: str, risk_report: dict) -> None:
         logger.exception("[%s] Slack notification failed (non-fatal)", scan_id)
 
 
-from tasks import validate_scan_id
-
-
 # ── Pipeline Stage (Diagram → Code) ──────────────────────────────────────────
 # Diagram Stage N/A (Alerts) | Code internal name: "Stage 5 / alert_pipeline"
 @celery.task(
@@ -125,7 +125,6 @@ from tasks import validate_scan_id
 )
 def alert_pipeline_task(self, scan_id: str, risk_report: dict):
     validate_scan_id(scan_id)
-    _mark_status(scan_id, "alert_pipeline_running")
     logger.info(
         "[%s] Stage 5 (alert_pipeline) started - severity=%s",
         scan_id,
@@ -145,8 +144,22 @@ def alert_pipeline_task(self, scan_id: str, risk_report: dict):
         )
         return {"scan_id": scan_id, "status": "alert_skipped", "reason": "is_placeholder"}
 
+    if risk_report.get("severity") not in {"HIGH", "CRITICAL"}:
+        return {"scan_id": scan_id, "status": "alert_skipped", "reason": "severity"}
     try:
         with get_db_session() as db:
+            # Serialise redelivery on the parent scan without a schema migration.
+            # The incident and statistics commit together under this row lock.
+            scan = db.query(Scan).filter(Scan.id == scan_id).with_for_update().first()
+            if scan is None:
+                raise ValueError("Owned scan is missing")
+            if scan.status in {"cancelled", "expired", "failed_timeout"}:
+                return {"scan_id": scan_id, "status": "alert_skipped", "reason": "terminal_scan"}
+            if db.query(Incident).filter(Incident.scan_id == scan_id).first() is not None:
+                scan.status = "alert_pipeline_done"
+                db.commit()
+                return {"scan_id": scan_id, "status": "alert_pipeline_done", "duplicate": True}
+            scan.status = "alert_pipeline_running"
             incident = _create_incident(db, scan_id, risk_report)
             _store_iocs(db, incident, _extract_iocs(risk_report))
             _update_statistics(db, risk_report.get("severity"))

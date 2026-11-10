@@ -31,10 +31,19 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'scythe_db')\gexec
 EOSQL
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "scythe_db" <<-'EOSQL'
+REVOKE CONNECT ON DATABASE scythe_db FROM PUBLIC;
+GRANT CONNECT ON DATABASE scythe_db TO scythe_user;
 GRANT ALL PRIVILEGES ON DATABASE scythe_db TO scythe_user;
 GRANT ALL ON SCHEMA public TO scythe_user;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS pgaudit;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'pgaudit extension not installed in base image, continuing without it';
+END
+$$;
 EOSQL
 
 echo "SCYTHE database initialized successfully."

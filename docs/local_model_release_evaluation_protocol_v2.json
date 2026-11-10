@@ -1,0 +1,42 @@
+{
+  "version": "local_model_release_evaluation_protocol_v2",
+  "registered_at_utc": "2026-10-16T10:28:09.416783+00:00",
+  "status": "approved_protocol_no_qualified_release_holdout",
+  "candidate_freeze": [
+    "Record immutable model, encoder, feature/preprocessing contract, threshold and source-code SHA256 before any release scoring",
+    "Choose candidates and thresholds on training/development validation only"
+  ],
+  "operational_policy": {
+    "status": "approved",
+    "path": "local_operational_model_policy_v1.json",
+    "approval_evidence": "Owner instructed implementation of the preceding local deployment plan on 2026-10-16."
+  },
+  "holdout_requirements": [
+    "Document historical source/capture timestamps per record; processing dates are not capture dates",
+    "Attach independent historical label evidence tied to every URL/capture and checksum-address the evidence manifest",
+    "Exclude all known training, validation, test and examined development URL/domain groups before scoring",
+    "Document unknown domains, unverified cross-domain campaigns, near-duplicate screenshots and acquisition exclusions",
+    "Retain source licenses/attribution; unresolved licenses prevent redistribution",
+    "Include both classes and source strata; describe deployment-prevalence limitations"
+  ],
+  "registration": [
+    "Freeze canonical manifest, image checksums if applicable, labels, domain/campaign grouping and evidence checksum before scoring",
+    "Register independent_evidence_sha256 and operator noninspection attestation with the existing holdout registry",
+    "Freeze approved policy SHA256, candidate hashes and protocol SHA256 before scoring"
+  ],
+  "evaluation": [
+    "Score once, retain negative and positive findings",
+    "Report PR-AUC, ROC-AUC, precision, recall, F1, confusion counts, false positives per10000 benign, Brier and ECE10",
+    "Report source/class/domain strata and95% domain-cluster bootstrap intervals with unknown campaign limitations",
+    "Measure warm/cold end-to-end latency on target worker hardware including validation, preprocessing and inference; extraction throughput is not request p95",
+    "Bind model, data, evidence, policy and contract hashes into an immutable release evaluation",
+    "Release gate: recall Wilson95 lower bound >=0.80 and FPR Wilson95 upper bound <=0.01 on each supported scoring path, with >=5000 benign and >=2000 independently supported phishing records.",
+    "Unavailable outputs remain in recall and coverage denominators; required coverage is 100 percent on registered supported-path inputs.",
+    "Warm model request p95 budgets: quick_url 2000ms, deep_url 15000ms; each inference task <=60000ms."
+  ],
+  "enrichment": "Collect prospectively with timestamped requests and cache freshness; preserve null/unavailable and forbid label-feed membership predictors. Existing1000-domain retrospective observations stay diagnostic. No arbitrary24-hour wait is needed to prepare or register this protocol.",
+  "after_evaluation": "Examined data becomes a declared development benchmark for later model decisions; obtain another untouched holdout for later release claims",
+  "activation": "Owner has authorized implementation and local v10 actions conditional on independently verified release quality. A passing immutable evaluation and operational policy remain technical requirements; no additional repeated permission gate.",
+  "implementation": "scripts/model_release_evaluation.py validates registration before opening predictions and refuses to overwrite output versions.",
+  "supersedes_for_new_releases": "model_release_evaluation_protocol_v1.json; historical v1 retained unchanged in semantics"
+}

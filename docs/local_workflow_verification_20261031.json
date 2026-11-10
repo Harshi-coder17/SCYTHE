@@ -1,0 +1,37 @@
+{
+  "schema_version": "scythe_local_workflow_verification_v3",
+  "created_at_utc": "2026-10-30T20:01:26.159469+00:00",
+  "model_qualified": true,
+  "active_model_release": "candidate_fusion_v26",
+  "active_trust_anchor": "6fe3b2e3a357967ee8b524fe26df645afb1e203ce93c485ec5468d0bf2b8fae1",
+  "passed": true,
+  "bindings": {
+    "frontend_workflow_smoke_20261031_current.json": {
+      "sha256": "cc08b9f5c5586456275622c173fc3efde98747b1f981f07eff6696c34b9f0648",
+      "passed": true,
+      "verified_at_utc": "2026-10-30T20:01:26.153945+00:00"
+    },
+    "email_workflow_smoke_20261031_current.json": {
+      "sha256": "e7c7b1af7926a4c2fcd21fac2de63149320328bbfcdbc098b699c0e32f26b1ad",
+      "passed": true,
+      "verified_at_utc": "2026-10-30T20:01:26.153945+00:00"
+    },
+    "frontend_ui_test_20261031.json": {
+      "sha256": "5435ec82358bd7f7274bebea30fcb8df53c335832f3a0501bea005964ddfff80",
+      "passed": true,
+      "verified_at_utc": "2026-10-30T20:01:26.153945+00:00"
+    },
+    "readiness_test_v26.json": {
+      "sha256": "734e579fbcc83e60020f56592cff5c8a85af5d62ac50980420b3c5d6ab838059",
+      "passed": true,
+      "verified_at_utc": "2026-10-30T20:01:26.159469+00:00"
+    }
+  },
+  "verification_scope": [
+    "Chrome extension auth bridge & token lifecycle",
+    "Frontend dashboard scan submission & async report rendering",
+    "Email IMAP/parser investigation workflow",
+    "Live model-driven scoring (16/16 smoke checks passed)",
+    "Pre-scoring training exclusion integrity (pyarrow-verified: 0 overlaps)"
+  ]
+}

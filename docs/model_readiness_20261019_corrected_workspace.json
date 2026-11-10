@@ -1,0 +1,1850 @@
+{
+  "actions": [
+    "Register a new source/capture manifest with historical independent labels, evidence checksums and domain exclusions",
+    "Freeze candidates and protocol before scoring; evaluate once and archive failure as well as success",
+    "Collect prospective enrichment with source timestamps and licensed provider access; retrospective values remain diagnostic",
+    "Obtain independently supported benign controls; Tranco rank alone does not confirm a benign label"
+  ],
+  "additional_experimental_candidates": [
+    {
+      "contract": {
+        "feature_version": "scythe-url-features-v1",
+        "features": [
+          "url_length",
+          "host_length",
+          "is_https",
+          "is_ip_host",
+          "subdomain_count",
+          "hyphen_count",
+          "digit_count",
+          "special_count",
+          "at_symbol",
+          "question_mark_count",
+          "path_length",
+          "query_length",
+          "has_punycode",
+          "url_shortener_used",
+          "is_bogon_space"
+        ],
+        "missing_values": "native LightGBM nulls",
+        "model_version": "lightgbm_multisource_url_dev_v1",
+        "positive_label": 1,
+        "runtime_feature_order_verified": true,
+        "status": "experimental_development_only"
+      },
+      "hashes": {
+        "checksum_manifest_sha256": "5585e174657518bbf87021a9ea722dba8928d68a2986db819fe5dca1dfbe67be",
+        "errors": [],
+        "valid": true,
+        "verified_files": 7
+      },
+      "path": "lightgbm_dataset/fresh/artifacts/lightgbm_multisource_url_dev_v1",
+      "release_approved": false,
+      "status": "experimental_development_candidate",
+      "supersession_evidence_sha256": null,
+      "validation_metrics": {
+        "brier": 0.029029905989468755,
+        "confusion": {
+          "fn": 657,
+          "fp": 123,
+          "tn": 22612,
+          "tp": 5251
+        },
+        "ece_10_bin": 0.043594744209129364,
+        "f1": 0.9308633221060095,
+        "false_positives_per_10000_benign": 54.10160545414559,
+        "label_confidence_counts": {
+          "openphish_current_listing": 12,
+          "phishtank_verified_online": 63,
+          "phishvn_gold": 914,
+          "phishvn_silver": 1065,
+          "proxy_benign_tranco_not_in_current_feeds": 7554,
+          "uci_dataset_label": 19035
+        },
+        "negatives": 22735,
+        "positives": 5908,
+        "pr_auc": 0.9717869636359107,
+        "precision": 0.9771120208410867,
+        "recall": 0.8887948544346649,
+        "reliability_bins": [
+          {
+            "confidence": 0.032781039269432606,
+            "count": 19774,
+            "lower": 0.0,
+            "observed": 0.00910286234449277,
+            "upper": 0.1
+          },
+          {
+            "confidence": 0.14232923357495336,
+            "count": 1546,
+            "lower": 0.1,
+            "observed": 0.03428201811125485,
+            "upper": 0.2
+          },
+          {
+            "confidence": 0.23330292752402013,
+            "count": 402,
+            "lower": 0.2,
+            "observed": 0.04477611940298507,
+            "upper": 0.3
+          },
+          {
+            "confidence": 0.32658740322287144,
+            "count": 183,
+            "lower": 0.3,
+            "observed": 0.16939890710382513,
+            "upper": 0.4
+          },
+          {
+            "confidence": 0.4596245556851664,
+            "count": 206,
+            "lower": 0.4,
+            "observed": 0.23300970873786409,
+            "upper": 0.5
+          },
+          {
+            "confidence": 0.5574996650024366,
+            "count": 290,
+            "lower": 0.5,
+            "observed": 0.2620689655172414,
+            "upper": 0.6
+          },
+          {
+            "confidence": 0.6203252370673944,
+            "count": 745,
+            "lower": 0.6,
+            "observed": 0.28859060402684567,
+            "upper": 0.7
+          },
+          {
+            "confidence": 0.7556038723640649,
+            "count": 164,
+            "lower": 0.7,
+            "observed": 0.3597560975609756,
+            "upper": 0.8
+          },
+          {
+            "confidence": 0.8360991148146318,
+            "count": 160,
+            "lower": 0.8,
+            "observed": 0.54375,
+            "upper": 0.9
+          },
+          {
+            "confidence": 0.99723235351477,
+            "count": 5173,
+            "lower": 0.9,
+            "observed": 0.9938140344094336,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.9852488393621185,
+        "rows": 28643
+      },
+      "version": "lightgbm_multisource_url_dev_v1"
+    },
+    {
+      "contract": {
+        "feature_version": "scythe-url-features-v1",
+        "features": [
+          "url_length",
+          "host_length",
+          "is_https",
+          "is_ip_host",
+          "subdomain_count",
+          "hyphen_count",
+          "digit_count",
+          "special_count",
+          "at_symbol",
+          "question_mark_count",
+          "path_length",
+          "query_length",
+          "has_punycode",
+          "url_shortener_used",
+          "is_bogon_space"
+        ],
+        "missing_values": "native LightGBM nulls",
+        "model_version": "lightgbm_multisource_url_dev_v2",
+        "positive_label": 1,
+        "runtime_feature_order_verified": true,
+        "status": "experimental_development_only"
+      },
+      "hashes": {
+        "checksum_manifest_sha256": "3adf14008f0b77d03148d5e8b16db2454b7c41099325e2b4c4bdd6a6a45e5b25",
+        "errors": [],
+        "valid": true,
+        "verified_files": 7
+      },
+      "path": "lightgbm_dataset/fresh/artifacts/lightgbm_multisource_url_dev_v2",
+      "release_approved": false,
+      "status": "experimental_development_candidate",
+      "supersession_evidence_sha256": null,
+      "validation_metrics": {
+        "brier": 0.031734914217841886,
+        "confusion": {
+          "fn": 745,
+          "fp": 104,
+          "tn": 23234,
+          "tp": 5346
+        },
+        "ece_10_bin": 0.04575395909137647,
+        "f1": 0.9264361840395113,
+        "false_positives_per_10000_benign": 44.562516068214926,
+        "label_confidence_counts": {
+          "openphish_current_listing": 7,
+          "phishstats_aggregated_source_reported": 31,
+          "phishtank_verified_online": 65,
+          "phishvn_gold": 1458,
+          "phishvn_silver": 1060,
+          "proxy_benign_tranco_not_in_current_feeds": 7534,
+          "uci_dataset_label": 19274
+        },
+        "negatives": 23338,
+        "positives": 6091,
+        "pr_auc": 0.9686693834378657,
+        "precision": 0.9809174311926605,
+        "recall": 0.8776883927105565,
+        "reliability_bins": [
+          {
+            "confidence": 0.03320739418637082,
+            "count": 20140,
+            "lower": 0.0,
+            "observed": 0.00903674280039722,
+            "upper": 0.1
+          },
+          {
+            "confidence": 0.13886922406564114,
+            "count": 1657,
+            "lower": 0.1,
+            "observed": 0.04767652383826192,
+            "upper": 0.2
+          },
+          {
+            "confidence": 0.24609950718846307,
+            "count": 438,
+            "lower": 0.2,
+            "observed": 0.06164383561643835,
+            "upper": 0.3
+          },
+          {
+            "confidence": 0.3422410772046127,
+            "count": 154,
+            "lower": 0.3,
+            "observed": 0.16883116883116883,
+            "upper": 0.4
+          },
+          {
+            "confidence": 0.46045647017516705,
+            "count": 243,
+            "lower": 0.4,
+            "observed": 0.20164609053497942,
+            "upper": 0.5
+          },
+          {
+            "confidence": 0.578595514393045,
+            "count": 549,
+            "lower": 0.5,
+            "observed": 0.23497267759562843,
+            "upper": 0.6
+          },
+          {
+            "confidence": 0.6309525541049501,
+            "count": 529,
+            "lower": 0.6,
+            "observed": 0.29678638941398866,
+            "upper": 0.7
+          },
+          {
+            "confidence": 0.7422229475812524,
+            "count": 222,
+            "lower": 0.7,
+            "observed": 0.3738738738738739,
+            "upper": 0.8
+          },
+          {
+            "confidence": 0.8407945359483695,
+            "count": 185,
+            "lower": 0.8,
+            "observed": 0.5135135135135135,
+            "upper": 0.9
+          },
+          {
+            "confidence": 0.9966978698385605,
+            "count": 5312,
+            "lower": 0.9,
+            "observed": 0.9909638554216867,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.9834130894111066,
+        "rows": 29429
+      },
+      "version": "lightgbm_multisource_url_dev_v2"
+    },
+    {
+      "contract": {
+        "categorical_mapping": {},
+        "features": [
+          "url_length",
+          "host_length",
+          "is_https",
+          "is_ip_host",
+          "subdomain_count",
+          "hyphen_count",
+          "digit_count",
+          "special_count",
+          "at_symbol",
+          "question_mark_count",
+          "path_length",
+          "query_length",
+          "has_punycode",
+          "url_shortener_used",
+          "is_bogon_space"
+        ],
+        "missing_values": "LightGBM native null handling",
+        "model_version": "lightgbm_multisource_url_dev_v3",
+        "positive_label": 1,
+        "source_and_label_columns_are_metadata_only": true,
+        "status": "experimental_only",
+        "training_variant": "baseline_balanced"
+      },
+      "hashes": {
+        "checksum_manifest_sha256": "1a0c4c340d6589d3a1f42a77babf5a36b36b7231e1aaf0d4e0b81e4ac3a0432d",
+        "errors": [],
+        "valid": true,
+        "verified_files": 7
+      },
+      "path": "lightgbm_dataset/fresh/artifacts/lightgbm_multisource_url_dev_v3",
+      "release_approved": false,
+      "status": "experimental_development_candidate",
+      "supersession_evidence_sha256": null,
+      "validation_metrics": {
+        "brier": 0.10264085535283256,
+        "confusion": {
+          "fn": 1918,
+          "fp": 3007,
+          "tn": 36157,
+          "tp": 5077
+        },
+        "ece_10_bin": 0.13831242952111983,
+        "f1": 0.6733868293653426,
+        "false_positives_per_10000_benign": 767.79695638852,
+        "negatives": 39164,
+        "positives": 6995,
+        "pr_auc": 0.7816289179430039,
+        "precision": 0.6280306778822365,
+        "recall": 0.7258041458184418,
+        "reliability_bins": [
+          {
+            "confidence": 0.04065348473262476,
+            "count": 23359,
+            "lower": 0.0,
+            "observed": 0.007577379168628794,
+            "upper": 0.1
+          },
+          {
+            "confidence": 0.1317656514586781,
+            "count": 4630,
+            "lower": 0.1,
+            "observed": 0.03002159827213823,
+            "upper": 0.2
+          },
+          {
+            "confidence": 0.2372788994965423,
+            "count": 1679,
+            "lower": 0.2,
+            "observed": 0.05598570577724836,
+            "upper": 0.3
+          },
+          {
+            "confidence": 0.3627091210455924,
+            "count": 2553,
+            "lower": 0.3,
+            "observed": 0.08656482569526047,
+            "upper": 0.4
+          },
+          {
+            "confidence": 0.46386732952765775,
+            "count": 1750,
+            "lower": 0.4,
+            "observed": 0.12685714285714286,
+            "upper": 0.5
+          },
+          {
+            "confidence": 0.5303168392242941,
+            "count": 838,
+            "lower": 0.5,
+            "observed": 0.15274463007159905,
+            "upper": 0.6
+          },
+          {
+            "confidence": 0.6557181521347034,
+            "count": 2006,
+            "lower": 0.6,
+            "observed": 0.2691924227318046,
+            "upper": 0.7
+          },
+          {
+            "confidence": 0.7577956801346527,
+            "count": 5084,
+            "lower": 0.7,
+            "observed": 0.3690007867820614,
+            "upper": 0.8
+          },
+          {
+            "confidence": 0.8466754319934572,
+            "count": 761,
+            "lower": 0.8,
+            "observed": 0.5256241787122208,
+            "upper": 0.9
+          },
+          {
+            "confidence": 0.9793594933355383,
+            "count": 3499,
+            "lower": 0.9,
+            "observed": 0.913975421549014,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.9343280586414754,
+        "rows": 46159
+      },
+      "version": "lightgbm_multisource_url_dev_v3"
+    },
+    {
+      "contract": {
+        "categorical_mapping": {},
+        "features": [
+          "url_length",
+          "host_length",
+          "is_https",
+          "is_ip_host",
+          "subdomain_count",
+          "hyphen_count",
+          "digit_count",
+          "special_count",
+          "at_symbol",
+          "question_mark_count",
+          "path_length",
+          "query_length",
+          "has_punycode",
+          "url_shortener_used",
+          "is_bogon_space"
+        ],
+        "missing_values": "LightGBM native null handling",
+        "model_version": "lightgbm_multisource_url_dev_v4",
+        "positive_label": 1,
+        "source_and_label_columns_are_metadata_only": true,
+        "status": "experimental_only",
+        "training_variant": "baseline_balanced"
+      },
+      "hashes": {
+        "checksum_manifest_sha256": "f836cf7c003dbc5257506c665d68fab1efb85e1487de03793d86d08561b3b4df",
+        "errors": [],
+        "valid": true,
+        "verified_files": 7
+      },
+      "path": "lightgbm_dataset/fresh/artifacts/lightgbm_multisource_url_dev_v4",
+      "release_approved": false,
+      "status": "experimental_development_candidate",
+      "supersession_evidence_sha256": null,
+      "validation_metrics": {
+        "brier": 0.10124541522790176,
+        "confusion": {
+          "fn": 1935,
+          "fp": 3009,
+          "tn": 36285,
+          "tp": 5044
+        },
+        "ece_10_bin": 0.1366058912472544,
+        "f1": 0.6711016498137307,
+        "false_positives_per_10000_benign": 765.7657657657658,
+        "negatives": 39294,
+        "positives": 6979,
+        "pr_auc": 0.7816108929572001,
+        "precision": 0.626350428411772,
+        "recall": 0.7227396475139705,
+        "reliability_bins": [
+          {
+            "confidence": 0.040816763716641384,
+            "count": 23643,
+            "lower": 0.0,
+            "observed": 0.007570951232923064,
+            "upper": 0.1
+          },
+          {
+            "confidence": 0.1351364289820616,
+            "count": 4638,
+            "lower": 0.1,
+            "observed": 0.028460543337645538,
+            "upper": 0.2
+          },
+          {
+            "confidence": 0.23695513283096725,
+            "count": 1645,
+            "lower": 0.2,
+            "observed": 0.053495440729483285,
+            "upper": 0.3
+          },
+          {
+            "confidence": 0.3568363738475029,
+            "count": 2259,
+            "lower": 0.3,
+            "observed": 0.08764940239043825,
+            "upper": 0.4
+          },
+          {
+            "confidence": 0.45358216720959155,
+            "count": 1982,
+            "lower": 0.4,
+            "observed": 0.12512613521695257,
+            "upper": 0.5
+          },
+          {
+            "confidence": 0.530141956246571,
+            "count": 905,
+            "lower": 0.5,
+            "observed": 0.16132596685082873,
+            "upper": 0.6
+          },
+          {
+            "confidence": 0.6547852322422424,
+            "count": 1899,
+            "lower": 0.6,
+            "observed": 0.28488678251711425,
+            "upper": 0.7
+          },
+          {
+            "confidence": 0.7592144307607529,
+            "count": 5053,
+            "lower": 0.7,
+            "observed": 0.3724520087076984,
+            "upper": 0.8
+          },
+          {
+            "confidence": 0.846204526464036,
+            "count": 804,
+            "lower": 0.8,
+            "observed": 0.47761194029850745,
+            "upper": 0.9
+          },
+          {
+            "confidence": 0.9792777653795802,
+            "count": 3445,
+            "lower": 0.9,
+            "observed": 0.923367198838897,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.9346108824331627,
+        "rows": 46273
+      },
+      "version": "lightgbm_multisource_url_dev_v4"
+    },
+    {
+      "contract": {
+        "feature_contract": {
+          "analyzer": "char",
+          "lowercase": true,
+          "max_features": 100000,
+          "ngram_range": [
+            3,
+            5
+          ],
+          "sublinear_tf": true
+        },
+        "missing_input": "unavailable",
+        "model_version": "url_character_dev_v1",
+        "normalization": "SCYTHE URL normalizer; lowercase char n-grams; training-fitted IDF; L2 norm",
+        "positive_label": 1,
+        "scoring_backend": "url_char_tfidf_linear_v1",
+        "status": "experimental_only",
+        "version": "url_char_tfidf_v1"
+      },
+      "hashes": {
+        "checksum_manifest_sha256": "56cb16da1c4b8a365eec6363712ae7b676fad5fec332ada09bd4bc679ad2b8f8",
+        "errors": [],
+        "valid": true,
+        "verified_files": 9
+      },
+      "path": "lightgbm_dataset/fresh/artifacts/url_character_dev_v1",
+      "release_approved": false,
+      "status": "experimental_development_candidate",
+      "supersession_evidence_sha256": null,
+      "validation_metrics": {
+        "confusion": {
+          "fn": 84,
+          "fp": 16242,
+          "tn": 23052,
+          "tp": 6895
+        },
+        "f1": 0.4578961349448798,
+        "false_positives_per_10000_benign": 4133.455489387693,
+        "fpr": 0.4133455489387693,
+        "negatives": 39294,
+        "positives": 6979,
+        "pr_auc": 0.8937005219226775,
+        "precision": 0.29800752042183515,
+        "recall": 0.9879638916750251,
+        "roc_auc": 0.9695832073728473,
+        "rows": 46273,
+        "threshold": 0.013770287339107803,
+        "wilson95": {
+          "false_positive_rate": [
+            0.40848532855571473,
+            0.41822271068516714
+          ],
+          "precision": [
+            0.29214793043920906,
+            0.30393417328925476
+          ],
+          "recall": [
+            0.9851237238973823,
+            0.9902671739435495
+          ]
+        }
+      },
+      "version": "url_character_dev_v1"
+    },
+    {
+      "contract": {
+        "feature_contract": {
+          "analyzer": "char",
+          "lowercase": true,
+          "max_features": 100000,
+          "ngram_range": [
+            3,
+            5
+          ],
+          "sublinear_tf": true
+        },
+        "missing_input": "unavailable",
+        "model_version": "url_character_dev_v2",
+        "normalization": "SCYTHE URL normalizer; lowercase char n-grams; training-fitted IDF; L2 norm",
+        "positive_label": 1,
+        "scoring_backend": "url_char_tfidf_linear_v1",
+        "status": "experimental_only",
+        "version": "url_char_tfidf_v1"
+      },
+      "hashes": {
+        "checksum_manifest_sha256": "cb9c60172150712e94985e3aad65ee38c00a01b7ddc7367646dfc9537eadb425",
+        "errors": [],
+        "valid": true,
+        "verified_files": 8
+      },
+      "path": "lightgbm_dataset/fresh/artifacts/url_character_dev_v2",
+      "release_approved": false,
+      "status": "experimental_development_candidate",
+      "supersession_evidence_sha256": null,
+      "validation_metrics": {
+        "confusion": {
+          "fn": 84,
+          "fp": 16242,
+          "tn": 23052,
+          "tp": 6895
+        },
+        "f1": 0.4578961349448798,
+        "false_positives_per_10000_benign": 4133.455489387693,
+        "fpr": 0.4133455489387693,
+        "negatives": 39294,
+        "positives": 6979,
+        "pr_auc": 0.8937005219226775,
+        "precision": 0.29800752042183515,
+        "recall": 0.9879638916750251,
+        "roc_auc": 0.9695832073728473,
+        "rows": 46273,
+        "threshold": 0.013770287339107803,
+        "wilson95": {
+          "false_positive_rate": [
+            0.40848532855571473,
+            0.41822271068516714
+          ],
+          "precision": [
+            0.29214793043920906,
+            0.30393417328925476
+          ],
+          "recall": [
+            0.9851237238973823,
+            0.9902671739435495
+          ]
+        }
+      },
+      "version": "url_character_dev_v2"
+    },
+    {
+      "contract": {
+        "features": [
+          "url_length",
+          "host_length",
+          "is_https",
+          "is_ip_host",
+          "subdomain_count",
+          "hyphen_count",
+          "digit_count",
+          "special_count",
+          "at_symbol",
+          "question_mark_count",
+          "path_length",
+          "query_length",
+          "has_punycode",
+          "url_shortener_used",
+          "is_bogon_space"
+        ],
+        "missing_values": "native_null",
+        "positive_label": 1,
+        "scoring_backend": "lightgbm_native_booster",
+        "scythe_enrichment_model": false,
+        "source_names_are_predictors": false,
+        "status": "experimental_only",
+        "version": "lightgbm_prospective_url_v1",
+        "visual_fusion_model": false
+      },
+      "hashes": {
+        "checksum_manifest_sha256": "9b6f14ba4b68eb847155422b0d6b7667ec50cf865a753bd974557fae4fb1750d",
+        "errors": [],
+        "valid": true,
+        "verified_files": 12
+      },
+      "path": "lightgbm_dataset/prospective_collection_v1/url_candidate_v1",
+      "release_approved": false,
+      "status": "superseded_do_not_promote",
+      "supersession_evidence_sha256": "254938584fc9451e6df5bc839d0ecd07841d3e82f5049f9fe1f22cf0dfafbc8c",
+      "validation_metrics": {
+        "brier": 0.013812894099597113,
+        "confusion": {
+          "fn": 315,
+          "fp": 26,
+          "tn": 21705,
+          "tp": 5411
+        },
+        "ece_10_bin": 0.027927492337076913,
+        "f1": 0.9694526560960315,
+        "false_positives_per_10000_benign": 11.964474713542865,
+        "negatives": 21731,
+        "positives": 5726,
+        "pr_auc": 0.9801764816942425,
+        "precision": 0.995217951075961,
+        "recall": 0.9449877750611247,
+        "reliability_bins": [
+          {
+            "confidence": 0.033766175013717925,
+            "count": 20071,
+            "lower": 0.0,
+            "observed": 0.008868516765482537,
+            "upper": 0.1
+          },
+          {
+            "confidence": 0.13990633421056795,
+            "count": 1401,
+            "lower": 0.1,
+            "observed": 0.04425410421127766,
+            "upper": 0.2
+          },
+          {
+            "confidence": 0.2428057429106782,
+            "count": 269,
+            "lower": 0.2,
+            "observed": 0.07434944237918216,
+            "upper": 0.3
+          },
+          {
+            "confidence": 0.34307508974119943,
+            "count": 131,
+            "lower": 0.3,
+            "observed": 0.13740458015267176,
+            "upper": 0.4
+          },
+          {
+            "confidence": 0.4527833890605979,
+            "count": 58,
+            "lower": 0.4,
+            "observed": 0.27586206896551724,
+            "upper": 0.5
+          },
+          {
+            "confidence": 0.5571176950570726,
+            "count": 50,
+            "lower": 0.5,
+            "observed": 0.32,
+            "upper": 0.6
+          },
+          {
+            "confidence": 0.6536150611482443,
+            "count": 29,
+            "lower": 0.6,
+            "observed": 0.13793103448275862,
+            "upper": 0.7
+          },
+          {
+            "confidence": 0.7484313195264334,
+            "count": 25,
+            "lower": 0.7,
+            "observed": 0.36,
+            "upper": 0.8
+          },
+          {
+            "confidence": 0.8408420030721938,
+            "count": 23,
+            "lower": 0.8,
+            "observed": 0.5652173913043478,
+            "upper": 0.9
+          },
+          {
+            "confidence": 0.9995732584111526,
+            "count": 5400,
+            "lower": 0.9,
+            "observed": 0.9981481481481481,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.9866959912934089,
+        "rows": 27457
+      },
+      "version": "lightgbm_prospective_url_v1"
+    },
+    {
+      "contract": {
+        "features": [
+          "url_length",
+          "host_length",
+          "is_https",
+          "is_ip_host",
+          "subdomain_count",
+          "hyphen_count",
+          "digit_count",
+          "special_count",
+          "at_symbol",
+          "question_mark_count",
+          "path_length",
+          "query_length",
+          "has_punycode",
+          "url_shortener_used",
+          "is_bogon_space"
+        ],
+        "missing_values": "native_null",
+        "positive_label": 1,
+        "scoring_backend": "lightgbm_native_booster",
+        "scythe_enrichment_model": false,
+        "source_names_are_predictors": false,
+        "status": "experimental_only",
+        "version": "lightgbm_prospective_url_v2",
+        "visual_fusion_model": false
+      },
+      "hashes": {
+        "checksum_manifest_sha256": "a6e21be38d6d618cab95ce991bf85217ccae5dd4b3f8116a29e0323cdeeee8eb",
+        "errors": [],
+        "valid": true,
+        "verified_files": 12
+      },
+      "path": "lightgbm_dataset/prospective_collection_v1/url_candidate_v2",
+      "release_approved": false,
+      "status": "experimental_only",
+      "supersession_evidence_sha256": null,
+      "validation_metrics": {
+        "brier": 0.013824938805408528,
+        "confusion": {
+          "fn": 253,
+          "fp": 7,
+          "tn": 17371,
+          "tp": 4366
+        },
+        "ece_10_bin": 0.026869171676922567,
+        "f1": 0.9710854092526691,
+        "false_positives_per_10000_benign": 4.028081482333985,
+        "negatives": 17378,
+        "positives": 4619,
+        "pr_auc": 0.9799017150939962,
+        "precision": 0.9983992682369083,
+        "recall": 0.9452262394457674,
+        "reliability_bins": [
+          {
+            "confidence": 0.03228106825157343,
+            "count": 15969,
+            "lower": 0.0,
+            "observed": 0.009267956666040453,
+            "upper": 0.1
+          },
+          {
+            "confidence": 0.13106745388084542,
+            "count": 1112,
+            "lower": 0.1,
+            "observed": 0.05665467625899281,
+            "upper": 0.2
+          },
+          {
+            "confidence": 0.23648696250912055,
+            "count": 264,
+            "lower": 0.2,
+            "observed": 0.03787878787878788,
+            "upper": 0.3
+          },
+          {
+            "confidence": 0.3476753880348586,
+            "count": 177,
+            "lower": 0.3,
+            "observed": 0.062146892655367235,
+            "upper": 0.4
+          },
+          {
+            "confidence": 0.4396301435918085,
+            "count": 38,
+            "lower": 0.4,
+            "observed": 0.18421052631578946,
+            "upper": 0.5
+          },
+          {
+            "confidence": 0.5593590428434724,
+            "count": 38,
+            "lower": 0.5,
+            "observed": 0.23684210526315788,
+            "upper": 0.6
+          },
+          {
+            "confidence": 0.6593216447970642,
+            "count": 17,
+            "lower": 0.6,
+            "observed": 0.17647058823529413,
+            "upper": 0.7
+          },
+          {
+            "confidence": 0.74301917684121,
+            "count": 11,
+            "lower": 0.7,
+            "observed": 0.36363636363636365,
+            "upper": 0.8
+          },
+          {
+            "confidence": 0.8504605068422709,
+            "count": 15,
+            "lower": 0.8,
+            "observed": 0.6666666666666666,
+            "upper": 0.9
+          },
+          {
+            "confidence": 0.9997076456321932,
+            "count": 4356,
+            "lower": 0.9,
+            "observed": 0.9995408631772268,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.9873939288279499,
+        "rows": 21997
+      },
+      "version": "lightgbm_prospective_url_v2"
+    },
+    {
+      "contract": {
+        "features": [
+          "url_length",
+          "host_length",
+          "is_https",
+          "is_ip_host",
+          "subdomain_count",
+          "hyphen_count",
+          "digit_count",
+          "special_count",
+          "at_symbol",
+          "question_mark_count",
+          "path_length",
+          "query_length",
+          "has_punycode",
+          "url_shortener_used",
+          "is_bogon_space"
+        ],
+        "model_version": "zenodo_url_dev_v1",
+        "positive_label": 1,
+        "scoring_backend": "lightgbm_native_booster",
+        "source_label_and_network_features_excluded": true,
+        "status": "experimental_only",
+        "version": "zenodo_url_dev_v1"
+      },
+      "hashes": {
+        "checksum_manifest_sha256": "6deec486008eb4f09a69e0cc3ec0fa20b65e362215ed0c522b8c440b9a93004c",
+        "errors": [],
+        "valid": true,
+        "verified_files": 9
+      },
+      "path": "mobileclip-dataset/artifacts/zenodo_url_dev_v1",
+      "release_approved": false,
+      "status": "experimental_only",
+      "supersession_evidence_sha256": null,
+      "validation_metrics": {
+        "brier": 0.03831214083289592,
+        "confusion": {
+          "fn": 84,
+          "fp": 23,
+          "tn": 1813,
+          "tp": 691
+        },
+        "ece_10_bin": 0.040924429483783296,
+        "f1": 0.9281396910678308,
+        "false_positives_per_10000_benign": 125.2723311546841,
+        "negatives": 1836,
+        "positives": 775,
+        "pr_auc": 0.9706376253859803,
+        "precision": 0.9677871148459384,
+        "recall": 0.8916129032258064,
+        "reliability_bins": [
+          {
+            "confidence": 0.038741606636244305,
+            "count": 1397,
+            "lower": 0.0,
+            "observed": 0.0164638511095204,
+            "upper": 0.1
+          },
+          {
+            "confidence": 0.14492193464107297,
+            "count": 264,
+            "lower": 0.1,
+            "observed": 0.05303030303030303,
+            "upper": 0.2
+          },
+          {
+            "confidence": 0.25977169678371625,
+            "count": 65,
+            "lower": 0.2,
+            "observed": 0.06153846153846154,
+            "upper": 0.3
+          },
+          {
+            "confidence": 0.35430631678886304,
+            "count": 97,
+            "lower": 0.3,
+            "observed": 0.17525773195876287,
+            "upper": 0.4
+          },
+          {
+            "confidence": 0.44765599912842935,
+            "count": 8,
+            "lower": 0.4,
+            "observed": 0.25,
+            "upper": 0.5
+          },
+          {
+            "confidence": 0.571261696114147,
+            "count": 40,
+            "lower": 0.5,
+            "observed": 0.35,
+            "upper": 0.6
+          },
+          {
+            "confidence": 0.6297418943148815,
+            "count": 44,
+            "lower": 0.6,
+            "observed": 0.45454545454545453,
+            "upper": 0.7
+          },
+          {
+            "confidence": 0.7764784921831043,
+            "count": 8,
+            "lower": 0.7,
+            "observed": 0.5,
+            "upper": 0.8
+          },
+          {
+            "confidence": 0.8662401591440708,
+            "count": 56,
+            "lower": 0.8,
+            "observed": 0.875,
+            "upper": 0.9
+          },
+          {
+            "confidence": 0.9942668654015433,
+            "count": 632,
+            "lower": 0.9,
+            "observed": 0.9936708860759493,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.977887413029728,
+        "rows": 2611
+      },
+      "version": "zenodo_url_dev_v1"
+    }
+  ],
+  "blockers": [
+    "No registered independently labeled, domain-disjoint, genuinely untouched holdout is available",
+    "No immutable release evaluation binds approved policy, frozen model/contract hashes, untouched data, and production latency",
+    "No validated final risk-fusion release bundle was supplied; implemented loaders alone cannot certify model quality"
+  ],
+  "bundles": {
+    "lightgbm_dev_v2": {
+      "contract_valid": true,
+      "hashes": {
+        "checksum_manifest_sha256": "a00c0f5cd19d338a075c9a5a8cc1c902ecea0abc51f459f16b6f4b06b6846f4b",
+        "errors": [],
+        "valid": true,
+        "verified_files": 10
+      },
+      "path": "lightgbm_dataset/fresh/artifacts/lightgbm_dev_v2",
+      "status": "experimental_development_candidate",
+      "validation_metrics": {
+        "brier": 0.027094459447410423,
+        "confusion": {
+          "fn": 1079,
+          "fp": 71,
+          "tn": 29370,
+          "tp": 8382
+        },
+        "ece_10_bin": 0.025642073834941888,
+        "f1": 0.9358043987942392,
+        "false_positives_per_10000_benign": 24.1160286675045,
+        "label_confidence_counts": {
+          "openphish_current_listing": 18,
+          "phishtank_verified_online": 2500,
+          "proxy_benign_tranco_not_in_current_feeds": 11494,
+          "source_reported": 24890
+        },
+        "negatives": 29441,
+        "positives": 9461,
+        "pr_auc": 0.9659026753050672,
+        "precision": 0.9916006151662132,
+        "recall": 0.8859528591058028,
+        "reliability_bins": [
+          {
+            "confidence": 0.04051252475081551,
+            "count": 26456,
+            "lower": 0.0,
+            "observed": 0.018143332325370427,
+            "upper": 0.1
+          },
+          {
+            "confidence": 0.1547120136358309,
+            "count": 2085,
+            "lower": 0.1,
+            "observed": 0.08009592326139088,
+            "upper": 0.2
+          },
+          {
+            "confidence": 0.243067692658099,
+            "count": 1035,
+            "lower": 0.2,
+            "observed": 0.16231884057971013,
+            "upper": 0.3
+          },
+          {
+            "confidence": 0.3421920620000088,
+            "count": 351,
+            "lower": 0.3,
+            "observed": 0.2336182336182336,
+            "upper": 0.4
+          },
+          {
+            "confidence": 0.44055222683887035,
+            "count": 217,
+            "lower": 0.4,
+            "observed": 0.29493087557603687,
+            "upper": 0.5
+          },
+          {
+            "confidence": 0.5353717456620569,
+            "count": 172,
+            "lower": 0.5,
+            "observed": 0.38372093023255816,
+            "upper": 0.6
+          },
+          {
+            "confidence": 0.6403721770173816,
+            "count": 106,
+            "lower": 0.6,
+            "observed": 0.3867924528301887,
+            "upper": 0.7
+          },
+          {
+            "confidence": 0.7460208915898658,
+            "count": 85,
+            "lower": 0.7,
+            "observed": 0.5176470588235295,
+            "upper": 0.8
+          },
+          {
+            "confidence": 0.847102970643818,
+            "count": 99,
+            "lower": 0.8,
+            "observed": 0.6565656565656566,
+            "upper": 0.9
+          },
+          {
+            "confidence": 0.9992323268207406,
+            "count": 8296,
+            "lower": 0.9,
+            "observed": 0.9985535197685632,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.9766747696780521,
+        "rows": 38902
+      }
+    },
+    "mobileclip_v1": {
+      "contract_valid": true,
+      "hashes": {
+        "checksum_manifest_sha256": "72daad4dc5bb81a456c5ae6bcfdf1bf3ca63be1b76af3813465d1d918f1ce671",
+        "errors": [],
+        "valid": true,
+        "verified_files": 18
+      },
+      "path": "mobileclip-dataset/artifacts/mobileclip_v1",
+      "status": "experimental",
+      "validation_metrics": {
+        "benign": 1156,
+        "brier": 0.09749812885922948,
+        "confusion": {
+          "fn": 97,
+          "fp": 166,
+          "tn": 990,
+          "tp": 738
+        },
+        "count": 1991,
+        "ece_10_bin": 0.021979188327404406,
+        "f1": 0.8487636572742956,
+        "false_positives_per_10000_benign": 1435.98615916955,
+        "phishing": 835,
+        "pr_auc": 0.9053693201151655,
+        "precision": 0.8163716814159292,
+        "recall": 0.8838323353293414,
+        "reliability_bins": [
+          {
+            "count": 752,
+            "lower": 0.0,
+            "mean_confidence": 0.024332474039822295,
+            "observed_fraction": 0.02526595744680851,
+            "upper": 0.1
+          },
+          {
+            "count": 140,
+            "lower": 0.1,
+            "mean_confidence": 0.14705896262107915,
+            "observed_fraction": 0.1357142857142857,
+            "upper": 0.2
+          },
+          {
+            "count": 82,
+            "lower": 0.2,
+            "mean_confidence": 0.24531480088841862,
+            "observed_fraction": 0.2682926829268293,
+            "upper": 0.3
+          },
+          {
+            "count": 91,
+            "lower": 0.3,
+            "mean_confidence": 0.3472314092249068,
+            "observed_fraction": 0.31868131868131866,
+            "upper": 0.4
+          },
+          {
+            "count": 70,
+            "lower": 0.4,
+            "mean_confidence": 0.4505478766293612,
+            "observed_fraction": 0.5142857142857142,
+            "upper": 0.5
+          },
+          {
+            "count": 54,
+            "lower": 0.5,
+            "mean_confidence": 0.553184628022454,
+            "observed_fraction": 0.5,
+            "upper": 0.6
+          },
+          {
+            "count": 75,
+            "lower": 0.6,
+            "mean_confidence": 0.6498002173575578,
+            "observed_fraction": 0.6,
+            "upper": 0.7
+          },
+          {
+            "count": 94,
+            "lower": 0.7,
+            "mean_confidence": 0.7565113530546171,
+            "observed_fraction": 0.7340425531914894,
+            "upper": 0.8
+          },
+          {
+            "count": 160,
+            "lower": 0.8,
+            "mean_confidence": 0.8563058361193722,
+            "observed_fraction": 0.78125,
+            "upper": 0.9
+          },
+          {
+            "count": 473,
+            "lower": 0.9,
+            "mean_confidence": 0.9636330851734326,
+            "observed_fraction": 0.9386892177589852,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.9379048132109483,
+        "threshold": 0.43343818784800225
+      }
+    },
+    "mobileclip_v2": {
+      "contract_valid": true,
+      "hashes": {
+        "checksum_manifest_sha256": "726c0d9b1cce68d53c7b8fe2aa99d1fe74b546887a11704ee1efed7ad2d91832",
+        "errors": [],
+        "valid": true,
+        "verified_files": 13
+      },
+      "path": "mobileclip-dataset/artifacts/mobileclip_v2",
+      "status": "experimental",
+      "validation_metrics": {
+        "benign": 1156,
+        "brier": 0.07604803686664517,
+        "confusion": {
+          "fn": 50,
+          "fp": 170,
+          "tn": 986,
+          "tp": 785
+        },
+        "count": 1991,
+        "ece_10_bin": 0.01824807635931612,
+        "f1": 0.8770949720670391,
+        "false_positives_per_10000_benign": 1470.5882352941176,
+        "phishing": 835,
+        "pr_auc": 0.9424251346723183,
+        "precision": 0.8219895287958116,
+        "recall": 0.9401197604790419,
+        "reliability_bins": [
+          {
+            "count": 826,
+            "lower": 0.0,
+            "mean_confidence": 0.01780640157644877,
+            "observed_fraction": 0.010895883777239709,
+            "upper": 0.1
+          },
+          {
+            "count": 110,
+            "lower": 0.1,
+            "mean_confidence": 0.14706050900889897,
+            "observed_fraction": 0.15454545454545454,
+            "upper": 0.2
+          },
+          {
+            "count": 60,
+            "lower": 0.2,
+            "mean_confidence": 0.25439969347028496,
+            "observed_fraction": 0.25,
+            "upper": 0.3
+          },
+          {
+            "count": 61,
+            "lower": 0.3,
+            "mean_confidence": 0.35390524657316064,
+            "observed_fraction": 0.3442622950819672,
+            "upper": 0.4
+          },
+          {
+            "count": 51,
+            "lower": 0.4,
+            "mean_confidence": 0.44627308484925454,
+            "observed_fraction": 0.49019607843137253,
+            "upper": 0.5
+          },
+          {
+            "count": 68,
+            "lower": 0.5,
+            "mean_confidence": 0.5479399938059815,
+            "observed_fraction": 0.45588235294117646,
+            "upper": 0.6
+          },
+          {
+            "count": 74,
+            "lower": 0.6,
+            "mean_confidence": 0.6566689006274454,
+            "observed_fraction": 0.581081081081081,
+            "upper": 0.7
+          },
+          {
+            "count": 81,
+            "lower": 0.7,
+            "mean_confidence": 0.7540445569734611,
+            "observed_fraction": 0.6666666666666666,
+            "upper": 0.8
+          },
+          {
+            "count": 143,
+            "lower": 0.8,
+            "mean_confidence": 0.8551524848659577,
+            "observed_fraction": 0.8741258741258742,
+            "upper": 0.9
+          },
+          {
+            "count": 517,
+            "lower": 0.9,
+            "mean_confidence": 0.9672417640118116,
+            "observed_fraction": 0.9574468085106383,
+            "upper": 1.0
+          }
+        ],
+        "roc_auc": 0.9619636160205541,
+        "threshold": 0.37054707150802896
+      }
+    }
+  },
+  "enrichment": {
+    "cohort": {
+      "domains_by_batch": {
+        "20261013T160354568636Z": 526,
+        "20261013T164332838942Z": 474
+      },
+      "rows_by_source_and_label": {
+        "openphish:label_1": 157,
+        "phishtank:label_1": 695,
+        "tranco:label_0": 474
+      },
+      "rows_written": 1326,
+      "selected_domains": 1000,
+      "selection_manifest": "lightgbm_dataset/fresh/enrichment_pilot_v2/selection_manifest.json",
+      "selection_manifest_sha256": "f786c388f802a09d22cdaf91185b87f8a4578afeccb25dc861dced6cca332525",
+      "source_snapshot_sha256": {
+        "20261013T160354568636Z": "698dba16c2f57d9d5c0bf92420b99446daebf3a26b6b7039c2dd70faa58a6d9a",
+        "20261013T164332838942Z": "b1595d06b21f7b9f5348f70d42231d30cda3c8f043f322124db56d29320901ec"
+      },
+      "unique_registrable_domains": 1000
+    },
+    "feature_status_counts": {
+      "brand_homoglyph_detected:unavailable_provider": 1326,
+      "certificate_transparency_velocity:unavailable": 1326,
+      "corporate_lookalike_distance:unavailable_provider": 1326,
+      "domain_expiration_duration_days:error": 319,
+      "domain_expiration_duration_days:not_reported": 11,
+      "domain_expiration_duration_days:observed": 996,
+      "favicon_hash:not_collected": 1326,
+      "hosting_provider_abuse_history:unavailable_provider": 1326,
+      "internetdb_ports:error": 40,
+      "internetdb_ports:observed": 775,
+      "internetdb_ports:unavailable": 511,
+      "internetdb_vulns:error": 40,
+      "internetdb_vulns:observed": 775,
+      "internetdb_vulns:unavailable": 511,
+      "ip_hosting_type:ambiguous": 24,
+      "ip_hosting_type:error": 40,
+      "ip_hosting_type:not_reported": 350,
+      "ip_hosting_type:observed": 401,
+      "ip_hosting_type:unavailable": 511,
+      "is_bogon_space:not_applicable": 1323,
+      "is_bogon_space:observed": 3,
+      "open_threat_exchange_pulse_count:unavailable": 1326,
+      "passive_dns_first_seen:unavailable": 1326,
+      "threat_feed_source_count:excluded_label_source_overlap": 1326,
+      "url_shortener_used:observed": 1326
+    },
+    "limitations": [
+      "All observations are retrospective relative to source collection timestamps and are not training features.",
+      "The OpenPhish/PhishTank positives and Tranco proxy-benign controls are source-confounded.",
+      "Coverage is per provider request/key, not a claim of benign or malicious status.",
+      "DNS, RDAP, and InternetDB can change after observation time."
+    ],
+    "provider_policy": {
+      "internetdb_max_two_public_ips_per_domain": true,
+      "missing_values_remain_null": true,
+      "no_historical_backfill": true,
+      "no_label_feed_membership_predictor": true,
+      "one_dns_and_rdap_lookup_per_registrable_domain": true,
+      "other_unconfigured_providers": "unavailable_or_no_approved_adapter",
+      "otx": "unavailable_no_credential",
+      "providers": [
+        "dns",
+        "rdap",
+        "internetdb"
+      ]
+    }
+  },
+  "generated_at_utc": "2026-10-18T21:33:29.122058+00:00",
+  "inspected_external_url_development_metrics": {
+    "metrics": {
+      "brier": 0.7408987704169756,
+      "confusion": {
+        "fn": 0,
+        "fp": 1479,
+        "tn": 34,
+        "tp": 482
+      },
+      "ece_10_bin": 0.741340115451809,
+      "f1": 0.39459680720425705,
+      "false_positives_per_10000_benign": 9775.280898876405,
+      "negatives": 1513,
+      "positives": 482,
+      "pr_auc": 0.1882270166623502,
+      "precision": 0.24579296277409485,
+      "ranking_auc_bootstrap": {
+        "method": "source-stratified registrable-domain bootstrap",
+        "pr_auc_95_ci": [
+          0.12394123274199173,
+          0.3541110271382694
+        ],
+        "replicates_requested": 1000,
+        "roc_auc_95_ci": [
+          0.18387383140549893,
+          0.3398675215180983
+        ],
+        "seed": 42,
+        "undefined_single_class_replicates": 0,
+        "valid_replicates": 1000
+      },
+      "recall": 1.0,
+      "reliability_bins": [
+        {
+          "confidence": 0.019420606707386913,
+          "count": 30,
+          "lower": 0.0,
+          "observed": 0.0,
+          "upper": 0.1
+        },
+        {
+          "confidence": 0.13351629344041854,
+          "count": 3,
+          "lower": 0.1,
+          "observed": 0.0,
+          "upper": 0.2
+        },
+        {
+          "confidence": null,
+          "count": 0,
+          "lower": 0.2,
+          "observed": null,
+          "upper": 0.3
+        },
+        {
+          "confidence": 0.31500900738623155,
+          "count": 1,
+          "lower": 0.3,
+          "observed": 0.0,
+          "upper": 0.4
+        },
+        {
+          "confidence": null,
+          "count": 0,
+          "lower": 0.4,
+          "observed": null,
+          "upper": 0.5
+        },
+        {
+          "confidence": null,
+          "count": 0,
+          "lower": 0.5,
+          "observed": null,
+          "upper": 0.6
+        },
+        {
+          "confidence": null,
+          "count": 0,
+          "lower": 0.6,
+          "observed": null,
+          "upper": 0.7
+        },
+        {
+          "confidence": null,
+          "count": 0,
+          "lower": 0.7,
+          "observed": null,
+          "upper": 0.8
+        },
+        {
+          "confidence": null,
+          "count": 0,
+          "lower": 0.8,
+          "observed": null,
+          "upper": 0.9
+        },
+        {
+          "confidence": 0.999324504965543,
+          "count": 1961,
+          "lower": 0.9,
+          "observed": 0.24579296277409485,
+          "upper": 1.0
+        }
+      ],
+      "roc_auc": 0.23829302339612704,
+      "rows": 1995,
+      "wilson_95": {
+        "false_positive_rate": [
+          0.9687626337370334,
+          0.9838748298535589
+        ],
+        "precision": [
+          0.22724578213164456,
+          0.26533414307086844
+        ],
+        "recall": [
+          0.9920931844103659,
+          1.0
+        ]
+      }
+    },
+    "model": {
+      "classifier_sha256": "1d8a884ac56050b24cc85bb6bac9855937bdaefedd70ce2f1a8d70842b0d4797",
+      "feature_contract_sha256": "2684186b9d6f593dd339f84b535ec162c182c6c2f59a2f09f7d566a9eca13d8e",
+      "features": [
+        "url_length",
+        "host_length",
+        "is_https",
+        "is_ip_host",
+        "subdomain_count",
+        "hyphen_count",
+        "digit_count",
+        "special_count",
+        "at_symbol",
+        "question_mark_count",
+        "path_length",
+        "query_length",
+        "has_punycode",
+        "url_shortener_used",
+        "is_bogon_space"
+      ],
+      "run_manifest_sha256": "bda59167c83ff41834991fa59e27da82bf0129378f8bbdc9aef04d77a0aa1bb5",
+      "threshold": 0.8175835096260451,
+      "threshold_source": "frozen from v2 validation; no threshold selection or tuning on PhishVN",
+      "version": "lightgbm_fresh_v2"
+    },
+    "role": "Already inspected lightgbm_fresh_v2 development failure, not an untouched evaluation of lightgbm_dev_v2"
+  },
+  "inspected_external_visual_development_metrics": {
+    "mobileclip_v1": {
+      "raw": {
+        "brier_score": 0.16993214962094616,
+        "confusion_counts_weighted": {
+          "fn": 221.0,
+          "fp": 53.0,
+          "tn": 949.0,
+          "tp": 87.0
+        },
+        "ece_10_equal_width_bins": 0.12269047589624987,
+        "f1": 0.38839285714285715,
+        "false_positives_per_10000_benign": 528.942115768463,
+        "pr_auc_average_precision": 0.48960312905109116,
+        "precision": 0.6214285714285714,
+        "recall": 0.2824675324675325,
+        "roc_auc": 0.7442258340461934,
+        "rows": 1310,
+        "weighted_rows": 1310.0
+      },
+      "sampling_weighted": {
+        "brier_score": 0.06333025549312508,
+        "confusion_counts_weighted": {
+          "fn": 221.0,
+          "fp": 387.3099999999999,
+          "tn": 6621.4800000000005,
+          "tp": 87.0
+        },
+        "ece_10_equal_width_bins": 0.061540319987173006,
+        "f1": 0.22241822295509456,
+        "false_positives_per_10000_benign": 552.6060846451384,
+        "pr_auc_average_precision": 0.1406388955300262,
+        "precision": 0.18342434272943858,
+        "recall": 0.2824675324675325,
+        "roc_auc": 0.7382714114296876,
+        "rows": 1310,
+        "weighted_rows": 7316.789999999999
+      }
+    },
+    "mobileclip_v2": {
+      "raw": {
+        "brier_score": 0.18360182698101446,
+        "confusion_counts_weighted": {
+          "fn": 229.0,
+          "fp": 64.0,
+          "tn": 938.0,
+          "tp": 79.0
+        },
+        "ece_10_equal_width_bins": 0.15093757446968914,
+        "f1": 0.35033259423503327,
+        "false_positives_per_10000_benign": 638.7225548902195,
+        "pr_auc_average_precision": 0.4540808788767262,
+        "precision": 0.5524475524475524,
+        "recall": 0.2564935064935065,
+        "roc_auc": 0.7375152292816963,
+        "rows": 1310,
+        "weighted_rows": 1310.0
+      },
+      "sampling_weighted": {
+        "brier_score": 0.06378169406160943,
+        "confusion_counts_weighted": {
+          "fn": 229.0,
+          "fp": 492.94,
+          "tn": 6515.85,
+          "tp": 79.0
+        },
+        "ece_10_equal_width_bins": 0.06404373621731432,
+        "f1": 0.17955769711571243,
+        "false_positives_per_10000_benign": 703.3168350029034,
+        "pr_auc_average_precision": 0.11401613497270388,
+        "precision": 0.13812637689268104,
+        "recall": 0.2564935064935065,
+        "roc_auc": 0.7305455470452554,
+        "rows": 1310,
+        "weighted_rows": 7316.789999999999
+      }
+    }
+  },
+  "latency_evidence": {
+    "encoder_extraction_benchmark": {
+      "batch_sizes": {
+        "1": {
+          "images_per_second": 4.498646891363345,
+          "projected_full_hours": 0.819443930121776,
+          "seconds": 28.453000000008615
+        },
+        "4": {
+          "images_per_second": 8.933556672262915,
+          "projected_full_hours": 0.4126451562494099,
+          "seconds": 14.327999999979511
+        },
+        "8": {
+          "images_per_second": 10.556701030927835,
+          "projected_full_hours": 0.3491989474826389,
+          "seconds": 12.125
+        }
+      },
+      "budget_hours": 6,
+      "cache_key": "c9c2148b178e22ae621e",
+      "chosen_batch_size": 8,
+      "created_at": "2026-09-26T03:55:14.234498+00:00",
+      "device": "cpu",
+      "dtype": "float32",
+      "includes": [
+        "image load",
+        "official preprocessing",
+        "encoder inference",
+        "cache write"
+      ],
+      "projected_full_hours": 0.3491989474826389,
+      "sample_count": 128
+    },
+    "limitation": "Batch extraction throughput does not establish production request p95 latency"
+  },
+  "limitations": [
+    "Previously examined PhishVN/Phish360/visual external sets are development benchmarks",
+    "Unknown screenshot domains prevent complete overlap verification; campaigns remain unverified",
+    "No training, scoring, model deserialization, threshold selection or activation occurs in this command"
+  ],
+  "paired_comparison": {
+    "domain_bootstrap": {
+      "delta_95_percentile_intervals": {
+        "f1": [
+          -0.08132094650435547,
+          -0.0069930868796625285
+        ],
+        "false_positives_per_10000_benign": [
+          -7.054351577203363,
+          305.2364331488619
+        ],
+        "pr_auc_average_precision": [
+          -0.050654287208480066,
+          -0.005884122057893437
+        ],
+        "precision": [
+          -0.08885270123139768,
+          -0.006810474807180446
+        ],
+        "recall": [
+          -0.06579978910691363,
+          0.010146774424601277
+        ],
+        "roc_auc": [
+          -0.027028445561214955,
+          0.010271382359194068
+        ]
+      },
+      "delta_definition": "mobileclip_v2 minus mobileclip_v1; design weights retained",
+      "method": "paired campaign_group cluster bootstrap; groups resampled with replacement",
+      "replicates": 1000,
+      "seed": 42,
+      "single_class_replicates": 0,
+      "valid_auc_replicates": 1000
+    },
+    "v2_minus_v1_raw": {
+      "f1": -0.03806026290782388,
+      "false_positives_per_10000_benign": 109.78043912175644,
+      "pr_auc_average_precision": -0.035522250174364944,
+      "precision": -0.06898101898101905,
+      "recall": -0.025974025974025983,
+      "roc_auc": -0.00671060476449703
+    },
+    "v2_minus_v1_sampling_weighted": {
+      "f1": -0.04286052583938213,
+      "false_positives_per_10000_benign": 150.71075035776505,
+      "pr_auc_average_precision": -0.026622760557322322,
+      "precision": -0.04529796583675755,
+      "recall": -0.025974025974025983,
+      "roc_auc": -0.007725864384432124
+    }
+  },
+  "production_ready": false,
+  "registered_holdouts": [
+    {
+      "independent_evidence_hash_verified": false,
+      "independent_label_evidence_coverage": 0.0,
+      "overlap_domains": 21795,
+      "qualified_untouched": false,
+      "records": 54040,
+      "registration_hash_verified": true,
+      "run_id": "20261015T063533502801Z",
+      "status": "development_benchmark"
+    },
+    {
+      "independent_evidence_hash_verified": false,
+      "independent_label_evidence_coverage": 0.0,
+      "overlap_domains": 14342,
+      "qualified_untouched": false,
+      "records": 167966,
+      "registration_hash_verified": true,
+      "run_id": "20261015T064933452009Z",
+      "status": "development_benchmark"
+    },
+    {
+      "independent_evidence_hash_verified": false,
+      "independent_label_evidence_coverage": null,
+      "overlap_domains": null,
+      "qualified_untouched": false,
+      "records": null,
+      "registration_hash_verified": true,
+      "run_id": "20261017T153015654185Z",
+      "status": "pre_screened_development_benchmark_prior_domain_overlap"
+    },
+    {
+      "independent_evidence_hash_verified": false,
+      "independent_label_evidence_coverage": 0.0,
+      "overlap_domains": 21031,
+      "qualified_untouched": false,
+      "records": 52485,
+      "registration_hash_verified": true,
+      "run_id": "20261017T153611845824Z",
+      "status": "development_benchmark"
+    },
+    {
+      "independent_evidence_hash_verified": false,
+      "independent_label_evidence_coverage": 0.0,
+      "overlap_domains": 96455,
+      "qualified_untouched": false,
+      "records": 100275,
+      "registration_hash_verified": true,
+      "run_id": "20261017T205404889841Z",
+      "status": "development_benchmark"
+    }
+  ],
+  "release": null,
+  "research_artifacts_verified": true,
+  "schema_version": "model_release_readiness_v1",
+  "training_exclusions": {
+    "counts": {
+      "train": {
+        "excluded_domain_hits": 0,
+        "excluded_url_hits": 0,
+        "rows": 155609
+      },
+      "validation": {
+        "excluded_domain_hits": 0,
+        "excluded_url_hits": 0,
+        "rows": 38902
+      }
+    },
+    "cross_split_domain_overlap": 0,
+    "scope": "Frozen candidate-time exclusions; newly registered development datasets cannot retrospectively become its untouched test",
+    "status": "verified"
+  },
+  "workspace": "C:\\Users\\armaa\\Desktop\\Project details"
+}

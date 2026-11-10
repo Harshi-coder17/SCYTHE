@@ -15,6 +15,7 @@ import logging
 import os
 
 from celery_worker import celery
+from tasks.email_failure import EmailAnalysisTask
 from config import settings
 
 from services.email.detectors.authentication_detector import AuthenticationDetector
@@ -30,6 +31,7 @@ def _email_dir(email_id: str) -> str:
 
 
 @celery.task(
+    base=EmailAnalysisTask,
     bind=True,
     name="tasks.email_header_analysis.email_header_analysis_task",
     queue="default",

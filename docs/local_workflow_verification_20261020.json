@@ -1,0 +1,69 @@
+{
+  "schema_version": "scythe_local_workflow_verification_v2",
+  "created_at_utc": "2026-10-19T22:07:14.598675+00:00",
+  "passed": true,
+  "model_qualified": false,
+  "bindings": {
+    "frontend_workflow_smoke_20261020_current.json": {
+      "sha256": "602535966a48389c3b107d354086b5451750fa88f47d1a2de6a5e29548cc72ed",
+      "passed": true,
+      "cleanup": {
+        "accounts_found": 2,
+        "accounts_disabled": 2,
+        "fixture_incidents": 0
+      }
+    },
+    "email_workflow_smoke_20261020_current.json": {
+      "sha256": "ffec36aaa50fd8514348b1c846880a3c3c34d561b050409165feefc349c9c0b4",
+      "passed": true,
+      "cleanup": {
+        "fixture_accounts_disabled": 2
+      }
+    },
+    "quick_workflow_smoke_20261020_final.json": {
+      "sha256": "f1dc2201c7ab711b3699023fec9b151f9ef6c971393674dd90134b0f7e47be96",
+      "passed": true,
+      "cleanup": {
+        "accounts_disabled": 1
+      }
+    }
+  },
+  "containers": [
+    {
+      "name": "scythe_backend",
+      "image": "sha256:41f5b63b0992fdb243adc39d26c06ff873576075bd1d5a198e741011b4194b7d",
+      "created_at": "2026-10-18T21:40:58.857780952Z",
+      "health": "healthy"
+    },
+    {
+      "name": "scythe_celery_worker",
+      "image": "sha256:eb3f4195ed76c72c8dc50df7fe84479d0a361add9c05cbd5a721bd61eb0902ed",
+      "created_at": "2026-10-19T21:56:14.802667593Z",
+      "health": "healthy"
+    },
+    {
+      "name": "scythe_celery_beat",
+      "image": "sha256:6b1319c8cace161172893c2eb54395185f1f0893d257ff6105530005a1026210",
+      "created_at": "2026-10-19T21:56:14.797894213Z",
+      "health": "healthy"
+    },
+    {
+      "name": "scythe_sandbox_runner",
+      "image": "sha256:3db9294e726d5cdd5b6e1b25a03ee79ee4b735ee527f8a57891fafcb4520138e",
+      "created_at": "2026-10-19T09:13:34.312827791Z",
+      "health": "healthy"
+    },
+    {
+      "name": "scythe_nginx",
+      "image": "sha256:5d59d76fad9c96bb7e5c2008383859699b49e906d5642b2367a49621e02003a5",
+      "created_at": "2026-10-17T07:45:33.267933679Z",
+      "health": "healthy"
+    }
+  ],
+  "limitations": [
+    "Model output remained UNKNOWN/unavailable; this does not verify qualified-model activation or quality",
+    "Benign URL/file fixtures only; email local ingestion without IMAP/SMTP",
+    "Preliminary quick-smoke failures were incorrect test expectations for documented registration202/logout204 statuses, retained separately; final contract-aligned checks passed",
+    "Browser-extension verification retains prior evidence; no new qualified-model badge/incident test was possible"
+  ]
+}

@@ -41,7 +41,7 @@ SHARED_DIR: str = getattr(settings, "EMAIL_SHARED_DIR", "/shared/scans")
 
 # Strict email_id format — guards against path traversal attacks before the id
 # is joined into os.path.join(SHARED_DIR, "emails", email_id, ...).
-_EMAIL_ID_RE = re.compile(r"^[a-zA-Z0-9_\-.]{1,128}$")
+_EMAIL_ID_RE = re.compile(r"^[a-zA-Z0-9_-][a-zA-Z0-9_.-]{0,127}$")
 
 
 # ---------------------------------------------------------------------------

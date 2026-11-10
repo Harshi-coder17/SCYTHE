@@ -1,0 +1,94 @@
+{
+  "version": "scythe_rebuilt_workflow_verification_v1",
+  "created_at": "2026-10-18T21:45:57.605469+00:00",
+  "passed": true,
+  "origin": "https://localhost:8443",
+  "report_bindings": {
+    "frontend_workflow_smoke_20261019_rebuilt.json": {
+      "sha256": "2626ae8c494d5861d50d2288e336ab5eaec2c30f39fffaecd53e83064af4dcc9",
+      "passed": true,
+      "cleanup": {
+        "accounts_found": 2,
+        "accounts_disabled": 2,
+        "incidents_for_fixture_scans": 0
+      }
+    },
+    "email_workflow_smoke_20261019_rebuilt.json": {
+      "sha256": "959c167c31cf7ff7b5047fcfc90b24ed6e4c0310ed0de9d64e6799c6a3720dc0",
+      "passed": true,
+      "cleanup": {
+        "fixture_accounts_disabled": 2
+      }
+    },
+    "quick_workflow_smoke_20261019_rebuilt_bounded.json": {
+      "sha256": "fa44af9244431b90ba08dadc19e58f66fe60731f61ad26a3e5137d7dbabbae3c",
+      "passed": true,
+      "cleanup": {
+        "accounts_disabled": 1,
+        "fixture_scan_count": 1,
+        "incident_count": 0
+      }
+    }
+  },
+  "latest_source_parity": {
+    "backend": {
+      "risk_fusion.py": "80465f1fd90a7e6b5f911b314711a0c015ef91dd9d5e8cef273f3e4e4cc575ca",
+      "tasks/risk_fusion.py": "9c0a1a3a496c5a7ac1849e6e982f0d14075d1b38f62f3f194f23ab05a84bd921",
+      "tasks/shadow_model_scoring.py": "57322c517333982824cd1272938da83b98e896a5d6fdb8e8b6cc3a6969ef4926",
+      "services/model_release.py": "19f195954d830025bf1ae77e8d41d025e9177336166b8e1060b8442f1bf7eb13"
+    },
+    "celery_worker": {
+      "risk_fusion.py": "80465f1fd90a7e6b5f911b314711a0c015ef91dd9d5e8cef273f3e4e4cc575ca",
+      "tasks/risk_fusion.py": "9c0a1a3a496c5a7ac1849e6e982f0d14075d1b38f62f3f194f23ab05a84bd921",
+      "tasks/shadow_model_scoring.py": "57322c517333982824cd1272938da83b98e896a5d6fdb8e8b6cc3a6969ef4926",
+      "services/model_release.py": "19f195954d830025bf1ae77e8d41d025e9177336166b8e1060b8442f1bf7eb13"
+    }
+  },
+  "containers": [
+    {
+      "service": "backend",
+      "container_id": "0d7dc505b722",
+      "created_at": "2026-10-18T21:40:58.857780952Z",
+      "image_id": "sha256:41f5b63b0992fdb243adc39d26c06ff873576075bd1d5a198e741011b4194b7d",
+      "health": "healthy"
+    },
+    {
+      "service": "celery_worker",
+      "container_id": "2fde618f452e",
+      "created_at": "2026-10-18T21:41:00.091372129Z",
+      "image_id": "sha256:b2410fb1d06ae852baa9285ed6e487cead17f9807662c0ef92833698b6e37a52",
+      "health": "healthy"
+    },
+    {
+      "service": "nginx",
+      "container_id": "9c72f0b1c2c4",
+      "created_at": "2026-10-17T07:45:33.267933679Z",
+      "image_id": "sha256:5d59d76fad9c96bb7e5c2008383859699b49e906d5642b2367a49621e02003a5",
+      "health": "healthy"
+    },
+    {
+      "service": "scythe_sandbox_runner",
+      "container_id": "5c0d492203c6",
+      "created_at": "2026-10-18T21:40:58.582317609Z",
+      "image_id": "sha256:3db9294e726d5cdd5b6e1b25a03ee79ee4b735ee527f8a57891fafcb4520138e",
+      "health": "healthy"
+    }
+  ],
+  "extension_check": {
+    "passed": true,
+    "real_unpacked_extension": true,
+    "fixture_auth_only": true,
+    "command": "python scripts/test_extension_browser.py --origin https://localhost:8443 --extension chrome-extension"
+  },
+  "script_hashes": {
+    "scripts/frontend_workflow_smoke.py": "df6705191d4ca9c7ffa9c2f640f868667401ad3b847a38e068615084dd6ef75d",
+    "scripts/email_workflow_smoke.py": "6cca77df6a1174511bb80652ce463531c843bdb6c96daa3695784194d6ae4a2e",
+    "scripts/test_extension_browser.py": "c8f9e884c773939edf3654de33276370928245d6c60c15cfb9580b0a4f694322"
+  },
+  "limitations": [
+    "Model remains unqualified and unavailable; this is workflow correctness evidence, not model-quality qualification.",
+    "Deep URL fixture was reserved benign example.org; file and email fixtures harmless local data.",
+    "Email test uses offline ingestion, no IMAP/SMTP; extension bridge test uses intercepted fixture auth.",
+    "Preliminary quick-smoke auth attempts are retained separately; expected nginx429 handled with bounded12s backoff."
+  ]
+}

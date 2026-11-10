@@ -6,10 +6,11 @@ environment variables (or the backend/.env file via pydantic-settings).
 """
 
 import logging
-from typing import Optional, Literal
+import os
+from typing import Optional, Literal, Union
 from urllib.parse import urlparse, urlunparse, quote_plus, unquote
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # pydantic v2 — needed for typed info.data access in validators
@@ -47,6 +48,22 @@ class Settings(BaseSettings):
     # Authentication
     # -------------------------
     SECRET_KEY: str = "change-this-in-production"
+
+    @field_validator("SECRET_KEY", mode="after")
+    @classmethod
+    def _validate_secret_key(cls, v: str, info) -> str:
+        env = str((info.data or {}).get("ENVIRONMENT", "development")).lower().strip()
+        is_prod = env not in ("development", "dev", "test", "testing", "local")
+        if not v or v.strip() == "change-this-in-production":
+            if is_prod:
+                raise ValueError("FATAL: SECRET_KEY must be configured and cannot use default value in production.")
+            logger.warning("[SECURITY_WARNING] SECRET_KEY is using the insecure default value. Set SECRET_KEY in your environment!")
+        elif len(v) < 32:
+            if is_prod:
+                raise ValueError("FATAL: SECRET_KEY must be at least 32 characters in production.")
+            logger.warning("[SECURITY_WARNING] SECRET_KEY is shorter than 32 characters.")
+        return v
+
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     ALLOW_LEGACY_BCRYPT: bool = False
@@ -55,7 +72,7 @@ class Settings(BaseSettings):
     CLAMAV_FAIL_CLOSED: bool = True
     JWT_REVOCATION_FAIL_CLOSED: bool = True
     JWT_ISSUER: str = "scythe-auth-v1"
-    SUPERUSER_EMAILS: list[str] = []
+    SUPERUSER_EMAILS: Union[list[str], str] = []
     HIBP_FAIL_CLOSED: bool = False
     MAX_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_DURATION_SECONDS: int = 900  # 15 minutes
@@ -82,7 +99,9 @@ class Settings(BaseSettings):
     # noted below for REDIS_PASSWORD/REDIS_URL).
     # -------------------------
     SCYTHE_DB_PASSWORD: str = ""
-    DATABASE_URL: str = "postgresql+psycopg2://scythe_user:scythe_pass@postgres:5432/scythe_db"
+    # Keep the credential in one setting. The validator below injects
+    # SCYTHE_DB_PASSWORD so this URL has no stale/default embedded password.
+    DATABASE_URL: str = "postgresql+psycopg2://scythe_user@postgres:5432/scythe_db"
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
     DB_ECHO: bool = False
@@ -200,7 +219,43 @@ class Settings(BaseSettings):
     # -------------------------
     # ML Model
     # -------------------------
-    LIGHTGBM_MODEL_PATH: str = "models/lightgbm.pkl"
+    LIGHTGBM_MODEL_PATH: str = "models/url_only_lightgbm.txt"
+
+    @field_validator("LIGHTGBM_MODEL_PATH", mode="before")
+    @classmethod
+    def _resolve_lightgbm_model_path(cls, v: Optional[str]) -> str:
+        if v and v not in ("models/lightgbm.pkl", "models/url_only_lightgbm.txt"):
+            return v
+        backend_dir = os.path.dirname(__file__)
+        txt_candidate = os.path.join(backend_dir, "models", "url_only_lightgbm.txt")
+        if os.path.exists(txt_candidate):
+            return "models/url_only_lightgbm.txt"
+        return v or "models/url_only_lightgbm.txt"
+
+    MOBILECLIP_ARTIFACT_DIR: str = "models/mobileclip"
+    MOBILECLIP_SOURCE_DIR: str = ""
+    # Experimental visual inference stays off until a local, complete model
+    # bundle and its CPU dependencies are deliberately installed.
+    MOBILECLIP_ENABLED: bool = False
+    MOBILECLIP_CHECKPOINT_PATH: str = ""
+    MOBILECLIP_VENDOR_DIR: str = ""
+    # A validated release is a different artifact from experimental shadow models.
+    MODEL_RELEASE_ENABLED: bool = False
+    MODEL_RELEASE_BUNDLE_DIR: str = ""
+    MODEL_RELEASE_CHECKSUMS_SHA256: str = ""
+    MODEL_ENCODER_SOURCE_DIR: str = "/opt/scythe/mobileclip-dataset"
+
+    # Experimental shadow scoring is opt-in and isolated on its own Celery queue.
+    # Expected hashes pin the local artifact checksum manifests and scorer source;
+    # empty values keep scoring unavailable until an operator explicitly configures it.
+    SHADOW_SCORING_ENABLED: bool = False
+    SHADOW_LIGHTGBM_BUNDLE_DIR: str = ""
+    SHADOW_LIGHTGBM_CHECKSUMS_SHA256: str = ""
+    SHADOW_MOBILECLIP_SOURCE_DIR: str = ""
+    SHADOW_MOBILECLIP_ARTIFACT_DIR: str = ""
+    SHADOW_MOBILECLIP_CHECKSUMS_SHA256: str = ""
+    SHADOW_MOBILECLIP_SCORER_PATH: str = ""
+    SHADOW_MOBILECLIP_SCORER_SHA256: str = ""
 
     # -------------------------
     # Shared Storage
@@ -212,6 +267,10 @@ class Settings(BaseSettings):
     # This resolves to /shared/scans/emails/{email_id}/ which is covered by
     # the docker-compose volume mount: ./shared/scans:/shared/scans
     EMAIL_SHARED_DIR: str = "/shared/scans"
+    # Explicit operator-provisioned mailbox binding; never inferred from registration email.
+    EMAIL_OWNER_USER_ID: str = ""
+    EMAIL_ADDRESS: str = ""
+    EMAIL_POLLER_TOKEN: str = ""
 
     # How many days to retain per-scan artifact directories on the shared
     # volume before the hourly file_cleanup task purges them (finding #8).
@@ -222,16 +281,23 @@ class Settings(BaseSettings):
     INCIDENT_RETENTION_DAYS: int = 365
 
     SANDBOX_NETWORK: Optional[str] = "scythe_sandbox_net"
-    SANDBOX_IMAGE: str = "scythe-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767"
+    SANDBOX_IMAGE: str = "scythe-sandbox@sha256:c10140e89411622b4c6331e440690d186f5b7c9f279cf1d88c589379763ac54c"
     SANDBOX_RUNNER_SECRET: str = ""
     SHARED_SCANS_VOLUME: Optional[str] = "scythe_shared_scans"
     SANDBOX_TIMEOUT_SEC: int = 120
     ALLOW_GLOB_FALLBACK: bool = False
 
     # -------------------------
-    # Alerting
+    # Alerting & Email Gateway
     # -------------------------
     SLACK_WEBHOOK_URL: str = ""
+    SMTP_HOST: Optional[str] = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = ""
+    SMTP_PASSWORD: Optional[str] = ""
+    SMTP_FROM: str = "noreply@scythe.local"
+    SMTP_TLS: bool = True
+    PASSWORD_RESET_EXPIRE_MINUTES: int = 15
 
     # -------------------------
     # Threat Intelligence APIs
@@ -253,12 +319,14 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # Trusted Domain Allowlist (`quickscan.py` finding #11)
-    TRUSTED_ALLOWLIST_DOMAINS: list[str] = [
+    TRUSTED_ALLOWLIST_DOMAINS: Union[list[str], str] = [
         "google.com",
         "github.com",
         "microsoft.com",
         "apple.com",
         "amazon.com",
+        "wikipedia.org",
+        "wikimedia.org",
     ]
 
     @field_validator("SUPERUSER_EMAILS", "TRUSTED_ALLOWLIST_DOMAINS", mode="before")
@@ -281,6 +349,16 @@ class Settings(BaseSettings):
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
+    @model_validator(mode="after")
+    def _validate_risk_thresholds(self):
+        if not (self.SAFE_THRESHOLD <= self.LOW_THRESHOLD <= self.MEDIUM_THRESHOLD <= self.HIGH_THRESHOLD):
+            raise ValueError(
+                f"Risk thresholds must be monotonically non-decreasing: "
+                f"SAFE({self.SAFE_THRESHOLD}) <= LOW({self.LOW_THRESHOLD}) <= "
+                f"MEDIUM({self.MEDIUM_THRESHOLD}) <= HIGH({self.HIGH_THRESHOLD})"
+            )
+        return self
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
@@ -299,12 +377,12 @@ if settings.is_production and not settings.REQUIRE_REAL_CERT:
     )
 
 if settings.is_production:
-    for secret_name in ("SECRET_KEY", "SCYTHE_DB_PASSWORD", "REDIS_PASSWORD", "REDIS_SECURITY_PASSWORD", "SANDBOX_RUNNER_SECRET"):
+    for secret_name in ("SECRET_KEY", "SCYTHE_DB_PASSWORD", "REDIS_PASSWORD", "REDIS_SECURITY_PASSWORD", "SANDBOX_RUNNER_SECRET", "BACKUP_ENCRYPTION_KEY"):
         val = getattr(settings, secret_name, "")
         if not val or val.startswith("CHANGE_THIS_") or val == "change-this-in-production" or len(val) < 32:
             raise RuntimeError(
-                f"Secure-by-default check: {secret_name} is invalid, weak, or still holds a default placeholder value ('{val}'). "
-                f"Set a strong random secret (32+ characters) in backend/.env before running in production."
+                f"Secure-by-default check: {secret_name} is invalid, weak, or still holds a default placeholder. "
+                "Set a strong random secret (32+ characters) in the ignored local environment before production."
             )
 
 hosts = [h.strip() for h in settings.ALLOWED_HOSTS.split(",") if h.strip()]

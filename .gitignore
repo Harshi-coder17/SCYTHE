@@ -25,6 +25,9 @@ ENV/
 .env
 *.env
 *.env.local
+.env.*
+.env.production*
+!.env.production.example
 containers/backend/.env
 
 # ── Certificates & Keys ───────────────────────────────────────────────────────
@@ -77,3 +80,17 @@ Desktop.ini
 *.swp
 *.swo
 *~
+
+# Local verification reports and downloaded tooling are not source.
+security-results/
+audit-output/
+*-smoke*.json
+.tools/
+.local/
+
+models/
+docs/candidate_fusion_v25_final_evaluation/
+research/
+
+tools/
+gitleaks.exe

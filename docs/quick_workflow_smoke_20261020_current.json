@@ -1,0 +1,10 @@
+{
+  "run_id": "27a680346c78",
+  "fixture_email": "scythe-quick-27a680346c78@example.test",
+  "checks": {},
+  "passed": false,
+  "failure_type": "AssertionError",
+  "cleanup": {
+    "accounts_disabled": 1
+  }
+}

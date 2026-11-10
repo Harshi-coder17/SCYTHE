@@ -57,7 +57,7 @@ class ConsistencyEngine:
             similarity = 0.0
 
         return {
-            "similarity": similarity,
+            "similarity": float(similarity),
             "method": "phash" if _HAS_IMAGEHASH else "pixel_diff",
             "indeterminate": False,  # screenshots are always real captured pixels, never placeholder
         }
@@ -68,12 +68,12 @@ class ConsistencyEngine:
             hash_b = imagehash.average_hash(Image.open(path_b))
             max_distance = len(hash_a.hash) ** 2
             distance = hash_a - hash_b
-            return max(0.0, 1.0 - (distance / max_distance))
+            return float(max(0.0, 1.0 - (distance / max_distance)))
 
         img_a = np.asarray(Image.open(path_a).convert("L").resize((64, 64)), dtype=float)
         img_b = np.asarray(Image.open(path_b).convert("L").resize((64, 64)), dtype=float)
         mean_abs_diff = np.mean(np.abs(img_a - img_b)) / 255.0
-        return max(0.0, 1.0 - mean_abs_diff)
+        return float(max(0.0, 1.0 - mean_abs_diff))
 
     def compare_ocr(self, browser_ocr_text: str, sandbox_png_path: str) -> dict:
         try:
@@ -246,10 +246,10 @@ class ConsistencyEngine:
         )
 
         return {
-            "consistency_score": round(overall_score, 4),
+            "consistency_score": round(float(overall_score), 4),
             "comparisons": comparisons,
             "mismatches": mismatches,
-            "cloaking_suspected": cloaking_suspected,
+            "cloaking_suspected": bool(cloaking_suspected),
             # New fields -- surfaced so risk_fusion.py / a future
             # dashboard can flag "this score is based on partial data"
             # rather than presenting it as equally reliable to a

@@ -5,11 +5,28 @@ orphan root files, and quarantine sample cleanup.
 
 import os
 import time
+import json
 import pytest
 from unittest.mock import patch, MagicMock
 
 from tasks.file_cleanup import file_cleanup_task
 import tasks.file_cleanup as cleanup_module
+
+
+@pytest.fixture(autouse=True)
+def isolated_retention_database(monkeypatch):
+    from sqlalchemy import create_engine, event
+    from sqlalchemy.orm import sessionmaker
+    from database.models import Base
+    engine = create_engine("sqlite:///:memory:")
+    @event.listens_for(engine, "connect")
+    def foreign_keys(connection, _record):
+        connection.execute("PRAGMA foreign_keys=ON")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine)
+    monkeypatch.setattr(cleanup_module, "SessionLocal", factory)
+    yield factory
+    engine.dispose()
 
 
 def test_file_cleanup_oserror_on_scandir():
@@ -28,6 +45,7 @@ def test_file_cleanup_prunes_expired_and_preserves_recent(tmp_path):
     expired_uuid = "123e4567-e89b-12d3-a456-426614174000"
     expired_dir = shared_dir / expired_uuid
     expired_dir.mkdir()
+    (expired_dir / "shadow_model_report.json").write_text("{}", encoding="utf-8")
     
     # 2. Recent UUID directory
     recent_uuid = "987fcdeb-51a2-43d7-9012-345678901234"
@@ -62,7 +80,8 @@ def test_file_cleanup_prunes_expired_and_preserves_recent(tmp_path):
     os.utime(non_uuid_dir, (expired_mtime, expired_mtime))
     os.utime(expired_orphan, (expired_mtime, expired_mtime))
     os.utime(recent_orphan, (recent_mtime, recent_mtime))
-    os.utime(expired_quarantine, (expired_mtime, expired_mtime))
+    # Unassociated legacy samples use the longer incident-evidence window.
+    os.utime(expired_quarantine, (now - 400 * 86400, now - 400 * 86400))
     os.utime(recent_quarantine, (recent_mtime, recent_mtime))
 
     with patch.object(cleanup_module.settings, "SHARED_DIR", str(shared_dir)):
@@ -114,12 +133,14 @@ def test_file_cleanup_dual_tier_db_retention_and_statistics_sync():
         s3 = Scan(id="ancient-with-inc", user_id="test-user", url="http://oldphish.local", status="completed", created_at=now - timedelta(days=400))
         # Scan 4: recent -> preserved
         s4 = Scan(id="recent-scan", user_id="test-user", url="http://recent.local", status="completed", created_at=now - timedelta(days=5))
+        for scan in (s1, s2, s3, s4):
+            scan.updated_at = scan.created_at
 
         db.add_all([s1, s2, s3, s4])
         db.commit()
 
-        inc2 = Incident(scan_id="old-with-inc", severity="HIGH")
-        inc3 = Incident(scan_id="ancient-with-inc", severity="CRITICAL")
+        inc2 = Incident(scan_id="old-with-inc", severity="HIGH", created_at=s2.created_at)
+        inc3 = Incident(scan_id="ancient-with-inc", severity="CRITICAL", created_at=s3.created_at)
         db.add_all([inc2, inc3])
 
         # Drifted initial statistics (e.g. 10 total, 5 critical, 5 high)
@@ -146,4 +167,59 @@ def test_file_cleanup_dual_tier_db_retention_and_statistics_sync():
         assert stats.total_incidents == 1, f"Expected 1 total incident, got {stats.total_incidents}"
         assert stats.high_count == 1
         assert stats.critical_count == 0, "Ancient critical incident was purged, critical_count should sync to 0"
+
+
+def test_incident_active_and_nested_artifact_retention(tmp_path, isolated_retention_database, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from database.models import User, Scan, Incident
+    old = datetime.now(timezone.utc) - timedelta(days=40)
+    ids = ["123e4567-e89b-12d3-a456-426614174001", "123e4567-e89b-12d3-a456-426614174002", "123e4567-e89b-12d3-a456-426614174003"]
+    with isolated_retention_database() as db:
+        db.add(User(id="owner", email="retention@example.test", hashed_password="fixture"))
+        db.commit()
+        for key, state in zip(ids, ("completed", "risk_fusion_done", "file_analysis_queued")):
+            db.add(Scan(id=key, user_id="owner", status=state, created_at=old, updated_at=old))
+        db.commit()
+        db.add(Incident(scan_id=ids[1], severity="HIGH", created_at=old))
+        db.commit()
+    for key in ids:
+        folder = tmp_path / key
+        folder.mkdir()
+        os.utime(folder, (old.timestamp(), old.timestamp()))
+    nested = tmp_path / "files" / ids[0]
+    nested.mkdir(parents=True)
+    (nested / "metadata.json").write_text(json.dumps({"scan_id": ids[0]}))
+    os.utime(nested, (old.timestamp(), old.timestamp()))
+    legacy = tmp_path / "emails" / "legacy_email"
+    legacy.mkdir(parents=True)
+    os.utime(legacy, (old.timestamp(), old.timestamp()))
+    monkeypatch.setattr(cleanup_module.settings, "SHARED_DIR", str(tmp_path))
+    result = file_cleanup_task(retention_days=14)
+    assert result["status"] == "ok" and result["dirs_removed"] == 2
+    assert not nested.exists() and not (tmp_path / ids[0]).exists()
+    assert (tmp_path / ids[1]).exists() and (tmp_path / ids[2]).exists()
+    assert legacy.exists() and result["unknown_associations_retained"] == 1
+    with isolated_retention_database() as db:
+        assert {s.id for s in db.query(Scan)} == set(ids[1:])
+
+
+def test_database_outage_preserves_expired_evidence(tmp_path, monkeypatch):
+    folder = tmp_path / "123e4567-e89b-12d3-a456-426614174001"
+    folder.mkdir()
+    old = time.time() - 400 * 86400
+    os.utime(folder, (old, old))
+    monkeypatch.setattr(cleanup_module.settings, "SHARED_DIR", str(tmp_path))
+    monkeypatch.setattr(cleanup_module, "SessionLocal", MagicMock(side_effect=RuntimeError("offline")))
+    assert file_cleanup_task()["status"] == "error"
+    assert folder.exists()
+
+
+def test_remove_refuses_path_outside_shared_root(tmp_path):
+    root = tmp_path / "shared"
+    root.mkdir()
+    outside = tmp_path / "other"
+    outside.mkdir()
+    with pytest.raises(OSError):
+        cleanup_module._remove(outside, root.resolve())
+    assert outside.exists()
 

@@ -31,6 +31,8 @@ celery = Celery(
         "tasks.sandbox_analysis",
         "tasks.consistency",
         "tasks.risk_fusion",
+        "tasks.shadow_model_scoring",
+        "tasks.model_inference",
         "tasks.alert_pipeline",
         "tasks.file_cleanup",     # periodic artifact retention (finding #8 fix)
         "tasks.job_reconciliation", # periodic stuck job reconciliation (finding #7 fix)
@@ -40,6 +42,7 @@ celery = Celery(
         "tasks.email_attachment_analysis",
         "tasks.email_content_analysis",
         "tasks.email_consistency",
+        "tasks.file_analysis",
     ],
 )
 
@@ -53,6 +56,8 @@ celery.conf.update(
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
     result_expires=3600,
+    task_time_limit=600,
+    task_soft_time_limit=300,
     # Suppress Celery 5.x deprecation warning — explicit setting for 6.0 compat
     broker_connection_retry_on_startup=True,
     task_default_queue="default",
@@ -60,7 +65,10 @@ celery.conf.update(
         "tasks.browser_features": {"queue": "default"},
         "tasks.sandbox_analysis": {"queue": "sandbox"},
         "tasks.consistency": {"queue": "default"},
-        "tasks.risk_fusion": {"queue": "default"},
+        "tasks.risk_fusion": {"queue": "models" if settings.MODEL_RELEASE_ENABLED else "default"},
+        "tasks.model_inference": {"queue": "models"},
+        "tasks.warm_model_release": {"queue": "models"},
+        "tasks.shadow_model_scoring": {"queue": "shadow"},
         "tasks.alert_pipeline": {"queue": "alerts"},
         "tasks.file_cleanup": {"queue": "default"},
         "tasks.job_reconciliation": {"queue": "default"},

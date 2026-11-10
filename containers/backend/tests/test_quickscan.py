@@ -4,13 +4,11 @@ database record creation, and preventing placeholder scores from being cached.
 """
 
 import json
-import pytest
 from unittest.mock import patch, MagicMock
-import asyncio
 
 import services.quickscan as quickscan_module
 from services.quickscan import run_quickscan, _domain_from_url
-from schemas.quick_scan import QuickScanRequest, RiskLevel
+from schemas.quick_scan import RiskLevel
 
 
 def test_domain_from_url():
@@ -82,7 +80,8 @@ def test_run_quickscan_placeholder_not_cached():
             mock_redis.setex.assert_not_called()
 
 
-def test_run_quickscan_real_score_is_cached():
+@patch("tasks.alert_pipeline.alert_pipeline_task.delay")
+def test_run_quickscan_real_score_is_cached(mock_alert_delay):
     mock_redis = MagicMock()
     mock_redis.get.return_value = None
     
@@ -110,4 +109,5 @@ def test_run_quickscan_real_score_is_cached():
             
             # Redis setex SHOULD be called because is_placeholder=False
             mock_redis.setex.assert_called_once()
-            assert mock_redis.setex.call_args[0][0] == "quickscan:url:https://realsite.com/"
+            assert mock_redis.setex.call_args[0][0] == quickscan_module._cache_key("https://realsite.com/")
+            mock_alert_delay.assert_called_once()

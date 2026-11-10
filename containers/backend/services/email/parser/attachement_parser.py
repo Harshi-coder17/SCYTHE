@@ -4,11 +4,22 @@ import hashlib
 import os
 import tempfile
 import zipfile
-import py7zr
-import rarfile
-import mailparser
+import email
 
-from oletools.olevba import VBA_Parser
+try:
+    import py7zr
+except ImportError:
+    py7zr = None
+
+try:
+    import rarfile
+except ImportError:
+    rarfile = None
+
+try:
+    from oletools.olevba import VBA_Parser
+except ImportError:
+    VBA_Parser = None
 
 
 class AttachmentParser:
@@ -44,11 +55,16 @@ class AttachmentParser:
     @staticmethod
     def has_macro(path):
 
+        if VBA_Parser is None:
+            return False
+
         try:
 
             parser = VBA_Parser(path)
-
-            return parser.detect_vba_macros()
+            try:
+                return parser.detect_vba_macros()
+            finally:
+                parser.close()
 
         except Exception:
 
@@ -78,12 +94,16 @@ class AttachmentParser:
 
             elif ext == ".7z":
 
+                if py7zr is None:
+                    return True
                 with py7zr.SevenZipFile(path):
 
                     return False
 
             elif ext == ".rar":
 
+                if rarfile is None:
+                    return True
                 with rarfile.RarFile(path) as r:
 
                     return r.needs_password()
@@ -116,101 +136,38 @@ class AttachmentParser:
 
     @staticmethod
     def parse(raw_email):
-
-        mail = mailparser.parse_from_bytes(raw_email)
-
+        """Inspect decoded MIME bytes and always remove private temporary files."""
+        message = email.message_from_bytes(raw_email)
         results = []
-
-        for attachment in mail.attachments:
-
-            payload = attachment.get("payload")
-
-            if isinstance(payload, str):
-                payload = payload.encode()
-
-            filename = attachment.get("filename")
-
-            disposition = (
-                attachment.get(
-                    "content-disposition"
-                )
-                or
-                "attachment"
-            )
-
-            ##################################################
-            # Save temporary file
-            ##################################################
-
-            suffix = ""
-
-            if filename:
-                suffix = os.path.splitext(filename)[1]
-
-            with tempfile.NamedTemporaryFile(
-                delete=False,
-                suffix=suffix
-            ) as tmp:
-
-                tmp.write(payload)
-
-                temp_path = tmp.name
-
-            ##################################################
-
-            results.append({
-
-                "attachment_name":
-                    filename,
-
-                "attachment_size":
-                    len(payload),
-
-                "file_extension":
-                    AttachmentParser.extension(
-                        filename
-                    ),
-
-                "mime_type":
-                    attachment.get(
-                        "mail_content_type"
-                    ),
-
-                "sha256_hash":
-                    AttachmentParser.sha256(
-                        payload
-                    ),
-
-                "malware_detected":
-                    AttachmentParser.malware_detected(
-                        temp_path
-                    ),
-
-                "macro_present":
-                    AttachmentParser.has_macro(
-                        temp_path
-                    ),
-
-                "content_disposition":
-                    disposition,
-
-                "is_inline":
-                    AttachmentParser.is_inline(
-                        disposition
-                    ),
-
-                "attachment_password_protected":
-                    AttachmentParser.is_password_protected(
-                        temp_path
-                    )
-            })
-
-        return {
-
-            "attachment_count":
-                len(results),
-
-            "attachments":
-                results
-
-        }
+        errors = []
+        count = 0
+        for part in message.walk():
+            filename = part.get_filename()
+            disposition = part.get_content_disposition()
+            if not filename and disposition != "attachment":
+                continue
+            count += 1
+            payload = part.get_payload(decode=True)
+            if not isinstance(payload, bytes) or len(payload) > 25 * 1024 * 1024:
+                errors.append("Attachment unavailable or exceeds the 25 MB inspection limit")
+                continue
+            filename = filename or "attachment"
+            suffix = os.path.splitext(filename)[1][:20]
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
+                    handle.write(payload)
+                    temporary = handle.name
+                results.append({
+                    "attachment_name": filename, "attachment_size": len(payload),
+                    "file_extension": AttachmentParser.extension(filename),
+                    "mime_type": part.get_content_type(), "sha256_hash": AttachmentParser.sha256(payload),
+                    "malware_detected": None, "macro_present": AttachmentParser.has_macro(temporary),
+                    "content_disposition": disposition or "attachment",
+                    "is_inline": disposition == "inline",
+                    "attachment_password_protected": AttachmentParser.is_password_protected(temporary),
+                })
+            finally:
+                if temporary is not None:
+                    os.unlink(temporary)
+        return {"attachment_count": count, "attachments": results, "analysis_errors": errors}

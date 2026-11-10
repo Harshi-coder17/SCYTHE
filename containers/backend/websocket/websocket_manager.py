@@ -18,6 +18,34 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+_REPORT_STATUSES = {
+    "risk_fusion_done", "alert_pipeline_running", "alert_pipeline_retrying",
+    "alert_pipeline_done", "alert_pipeline_failed", "alert_pipeline_dispatch_failed",
+    "file_scan_done", "file_scan_unavailable", "email_scan_done", "email_scan_unavailable",
+    "quick_scan_done", "blocked_by_cyberintel",
+}
+
+
+def report_is_visible(scan_status: str, report: dict) -> bool:
+    """An artifact is not a committed verdict until its scan state permits it."""
+    if not isinstance(report, dict):
+        return False
+    if scan_status in _REPORT_STATUSES:
+        return True
+    # Reconciliation writes this diagnostic before committing failed_timeout.
+    # A stale model verdict in the same directory must never pass this branch.
+    return (scan_status == "failed_timeout" and report.get("status") == "unavailable"
+            and report.get("error") == "analysis_timeout" and report.get("severity") == "UNKNOWN"
+            and report.get("risk_score") is None)
+
+
+def _persisted_scan_status(scan_id: str) -> str | None:
+    from database.database import get_db_session
+    from database.models import Scan
+    with get_db_session() as db:
+        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        return scan.status if scan is not None else None
+
 
 def _scan_channel(scan_id: str) -> str:
     return f"ws:scan:{scan_id}"
@@ -46,6 +74,21 @@ class WebSocketManager:
             )
         return sync_redis.Redis(connection_pool=self._sync_redis_pool)
 
+    async def _visible_cached_report(self, scan_id: str) -> str | None:
+        cached = await self._redis.get(f"risk:{scan_id}")
+        if not cached:
+            path = os.path.join(settings.SHARED_DIR, scan_id, "risk_report.json")
+            if os.path.isfile(path):
+                def read_report():
+                    with open(path, encoding="utf-8") as stream:
+                        return stream.read()
+                cached = await asyncio.to_thread(read_report)
+        if not cached:
+            return None
+        report = json.loads(cached)
+        scan_status = await asyncio.to_thread(_persisted_scan_status, scan_id)
+        return cached if report_is_visible(scan_status, report) else None
+
     async def connect_browser(self, scan_id: str, websocket: WebSocket) -> None:
         # NOTE: websocket.accept() is called by main.py BEFORE frame-based auth.
         # Calling accept() here again would raise a Starlette RuntimeError
@@ -56,15 +99,7 @@ class WebSocketManager:
         # First check Redis cache (or disk fallback) to avoid hanging on late connection
         # if the scan has already finished and published its result (finding #5 / race condition fix).
         try:
-            cached_data = await self._redis.get(f"risk:{scan_id}")
-            if not cached_data:
-                import os
-                report_path = os.path.join(settings.SHARED_DIR, scan_id, "risk_report.json")
-                if os.path.exists(report_path):
-                    def _read_file():
-                        with open(report_path, "r") as f:
-                            return f.read()
-                    cached_data = await asyncio.to_thread(_read_file)
+            cached_data = await self._visible_cached_report(scan_id)
             if cached_data:
                 logger.info("[%s] sending cached risk report immediately to late connecting browser", scan_id)
                 await websocket.send_text(cached_data)
@@ -144,14 +179,7 @@ class WebSocketManager:
                 # Double-check Redis/disk cache immediately after subscribing to close the TOCTOU gap
                 # where risk_fusion finished and published between our initial check and subscribe().
                 try:
-                    cached_data = await self._redis.get(f"risk:{scan_id}")
-                    if not cached_data:
-                        report_path = os.path.join(settings.SHARED_DIR, scan_id, "risk_report.json")
-                        if os.path.exists(report_path):
-                            def _read_file():
-                                with open(report_path, "r") as f:
-                                    return f.read()
-                            cached_data = await asyncio.to_thread(_read_file)
+                    cached_data = await self._visible_cached_report(scan_id)
                     if cached_data:
                         logger.info("[%s] sending cached risk report immediately post-subscribe (TOCTOU gap closed)", scan_id)
                         await websocket.send_text(cached_data)
@@ -164,6 +192,10 @@ class WebSocketManager:
                     if message.get("type") != "message":
                         continue
                     try:
+                        if scan_id and one_shot:
+                            scan_status = await asyncio.to_thread(_persisted_scan_status, scan_id)
+                            if not report_is_visible(scan_status, json.loads(message["data"])):
+                                continue
                         await websocket.send_text(message["data"])
                     except Exception:
                         logger.exception("[%s] failed to forward message to websocket", channel)

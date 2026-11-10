@@ -1,0 +1,173 @@
+{
+  "run_id": "b8178d148295",
+  "started_at": "2026-10-30T21:18:19.855889+00:00",
+  "base": "https://localhost:8443",
+  "fixture_accounts": [
+    {
+      "email": "scythe-email-smoke-b8178d148295-1@example.test",
+      "user_id": "140764a7-da68-48c6-b85e-f67c2ea68e5e"
+    },
+    {
+      "email": "scythe-email-smoke-b8178d148295-2@example.test",
+      "user_id": "c17eda08-ae75-4f71-aeac-b40654b670ec"
+    }
+  ],
+  "email_id": "email-smoke-b8178d148295",
+  "scan_id": "5d33a3dc-9e67-49d3-a830-1e25fa9b681e",
+  "checks": [
+    {
+      "check": "register_1",
+      "passed": true,
+      "http_status": 202
+    },
+    {
+      "check": "login_1",
+      "passed": true,
+      "http_status": 200
+    },
+    {
+      "check": "register_2",
+      "passed": true,
+      "http_status": 202
+    },
+    {
+      "check": "login_2",
+      "passed": true,
+      "http_status": 200
+    },
+    {
+      "check": "fixture_identity_lookup",
+      "passed": true
+    },
+    {
+      "check": "decoded_attachment_integrity",
+      "passed": true
+    },
+    {
+      "check": "cross_user_email_read_denied",
+      "passed": true,
+      "http_status": 403
+    },
+    {
+      "check": "cross_user_investigate_denied",
+      "passed": true,
+      "http_status": 403
+    },
+    {
+      "check": "owner_investigate_queued",
+      "passed": true,
+      "http_status": 200
+    },
+    {
+      "check": "owned_scan_association",
+      "passed": true
+    },
+    {
+      "check": "inflight_duplicate_idempotent",
+      "passed": true
+    },
+    {
+      "check": "all_celery_branches_finalized",
+      "passed": true,
+      "status": "email_scan_done"
+    },
+    {
+      "check": "final_model_gate_preserved",
+      "passed": true
+    },
+    {
+      "check": "canonical_scan_report_parity",
+      "passed": true
+    },
+    {
+      "check": "cross_user_scan_artifact_denied_5d33a3dc-9e67-49d3-a830-1e25fa9b681e",
+      "passed": true,
+      "http_status": 404
+    },
+    {
+      "check": "cross_user_scan_artifact_denied_risk_report.json",
+      "passed": true,
+      "http_status": 404
+    },
+    {
+      "check": "stage_artifacts_present",
+      "passed": true
+    },
+    {
+      "check": "parsed_url_reaches_offline_detector_contract",
+      "passed": true
+    },
+    {
+      "check": "attachment_clamav_verified",
+      "passed": true
+    },
+    {
+      "check": "no_automatic_incident",
+      "passed": true
+    },
+    {
+      "check": "terminal_duplicate_does_not_resurrect",
+      "passed": true
+    },
+    {
+      "check": "unconfigured_mailbox_fails_closed",
+      "passed": true,
+      "http_status": 503
+    }
+  ],
+  "passed": true,
+  "fixture_mode": "local RFC822 parser and Celery only; no IMAP or SMTP; DNS enrichment explicitly unavailable",
+  "fixture_checksums": {
+    "raw_sha256": "8300a03a019d057d7c051a254d6b4ca63fd2a8ffdf0da54620c899bd12d352bb",
+    "attachment_sha256": "c15b0e44d553f0230d2c82cc07d0250812e93b14adb406944dd502f1b0ddc16c",
+    "parser_attachment_sha256": "c15b0e44d553f0230d2c82cc07d0250812e93b14adb406944dd502f1b0ddc16c",
+    "manifest_count": 1
+  },
+  "job_id": "f561a509-893e-492f-9b39-03cb75175666",
+  "final_status": "email_scan_done",
+  "technical_verification": {
+    "stage_files": {
+      "header_features.json": true,
+      "url_features.json": true,
+      "attachment_features.json": true,
+      "content_features.json": true,
+      "email_consistency.json": true,
+      "risk_report.json": true
+    },
+    "av_available": true,
+    "av_results": [
+      {
+        "sha256": "c15b0e44d553f0230d2c82cc07d0250812e93b14adb406944dd502f1b0ddc16c",
+        "available": true,
+        "malware_detected": false,
+        "detail": "Clean (clamd)"
+      }
+    ],
+    "url_contract": "email_url_diagnostics_v1",
+    "url_count": 1,
+    "url_enrichment": {
+      "url_count": "observed",
+      "shortener_used": "observed",
+      "ip_address_url": "observed",
+      "https": "observed",
+      "homoglyph": "observed",
+      "longest_url_length": "observed",
+      "blacklisted": "unavailable",
+      "typosquatting": "unavailable",
+      "domain_age_days": "unavailable",
+      "redirect_count": "unavailable"
+    },
+    "payload_checksum_matches": true,
+    "incident_count": 0
+  },
+  "scoped_ingestion": {
+    "http_status": 503,
+    "owner_configured": false,
+    "mailbox_configured": false,
+    "token_configured": true
+  },
+  "cleanup": {
+    "fixture_accounts_disabled": 2
+  },
+  "finished_at": "2026-10-30T21:19:18.162633+00:00"
+}

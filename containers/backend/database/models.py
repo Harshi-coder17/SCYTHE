@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, func, JSON
 from sqlalchemy.dialects.postgresql import JSONB
@@ -21,7 +22,9 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
     is_superuser = Column(Boolean, nullable=False, default=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     scans = relationship("Scan", back_populates="user", cascade="all, delete-orphan")
 
@@ -46,7 +49,7 @@ class Scan(Base):
 
     user = relationship("User", back_populates="scans")
     incidents = relationship("Incident", back_populates="scan", cascade="all, delete-orphan", passive_deletes=True)
-    
+
     # Telemetry relationships
     network_activity = relationship("NetworkActivity", back_populates="scan", cascade="all, delete-orphan", passive_deletes=True)
     tls_connections = relationship("TLSConnection", back_populates="scan", cascade="all, delete-orphan", passive_deletes=True)
@@ -178,3 +181,16 @@ class EvasionTechnique(Base):
     evidence_snippet = Column(String(2048), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     scan = relationship("Scan", back_populates="evasion_techniques")
+
+
+class RevokedToken(Base):
+    __tablename__ = "revoked_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String(64), unique=True, index=True, nullable=False)
+    token_type = Column(String(32), default="access")
+    revoked_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<RevokedToken id={self.id} jti={self.jti} type={self.token_type}>"

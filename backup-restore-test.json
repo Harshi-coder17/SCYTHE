@@ -1,0 +1,63 @@
+{
+  "passed": true,
+  "disposable_database": "scythe_restore_verify_8e8fd43d55a844c7a60ff985ff710b41",
+  "cleanup_succeeded": true,
+  "existing_backups_untouched": true,
+  "host_plaintext_created": false,
+  "generated_at_utc": "2026-10-28T15:58:08.251090+00:00",
+  "postgres_versions": {
+    "server_major": 16,
+    "restore_major": 16
+  },
+  "backup": {
+    "table_counts": {
+      "alembic_version": 1,
+      "downloads": 4,
+      "evasion_techniques": 70,
+      "form_metrics": 2174,
+      "incidents": 5,
+      "iocs": 0,
+      "network_activity": 128380,
+      "redirects": 2073,
+      "revoked_tokens": 64,
+      "scans": 4186,
+      "statistics": 1,
+      "tls_connections": 2160,
+      "users": 217
+    },
+    "schema_sha256": "4b4f9b16ea2a2970c4683275ec57bbbe8634e8158abaafa0ce9b5eec86e39e06",
+    "archive_name": "scythe_db_20261028_155809_l3_lat1u.dump.p6pc4fld.scbk1.enc",
+    "archive_sha256": "7915aeffde3f4a1e242c1b84008716638b8f55bd6c116c40c0e096d86f3d9464",
+    "archive_bytes": 22300351,
+    "dump_major": 16,
+    "restore_major": 16,
+    "server_major": 16,
+    "pruned_existing_backups": 0,
+    "encrypted": true,
+    "snapshot_consistent": true,
+    "authenticated": true,
+    "encryption_format": "scythe_aes256gcm_v1"
+  },
+  "restore": {
+    "verified": true,
+    "table_counts": {
+      "alembic_version": 1,
+      "downloads": 4,
+      "evasion_techniques": 70,
+      "form_metrics": 2174,
+      "incidents": 5,
+      "iocs": 0,
+      "network_activity": 128380,
+      "redirects": 2073,
+      "revoked_tokens": 64,
+      "scans": 4186,
+      "statistics": 1,
+      "tls_connections": 2160,
+      "users": 217
+    },
+    "schema_sha256": "4b4f9b16ea2a2970c4683275ec57bbbe8634e8158abaafa0ce9b5eec86e39e06",
+    "database_owner": "scythe_user",
+    "host_plaintext_created": false,
+    "authenticated_before_restore": true
+  }
+}

@@ -28,6 +28,10 @@ x-common-env: &common-env
   REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
   REDIS_SECURITY_PASSWORD: ${REDIS_SECURITY_PASSWORD:-${REDIS_PASSWORD}}
   REQUIRE_REAL_CERT: ${REQUIRE_REAL_CERT:-false}
+  SHADOW_SCORING_ENABLED: ${SHADOW_SCORING_ENABLED:-false}
+  MODEL_RELEASE_ENABLED: ${MODEL_RELEASE_ENABLED:-false}
+  MODEL_RELEASE_BUNDLE_DIR: ${MODEL_RELEASE_BUNDLE_DIR:-/opt/scythe/bundle}
+  MODEL_RELEASE_CHECKSUMS_SHA256: ${MODEL_RELEASE_CHECKSUMS_SHA256:-}
 
 x-backend-common: &backend-common
   env_file:
@@ -35,10 +39,12 @@ x-backend-common: &backend-common
   environment:
     <<: *common-env
   volumes:
-    - ./shared/scans:/shared/scans
+    - scythe_shared_scans:/shared/scans
+    - ./containers/backend/models:/app/models:ro
+    - ${MODEL_RELEASE_HOST_DIR:-./models/releases}:/opt/scythe/release:ro
   # Python (FastAPI, Celery worker, Beat) requires read_only: false for runtime bytecode compilation
   # (__pycache__) across dynamic module loads and Celery Beat schedule database synchronization.
-  # Hardening is enforced via non-root execution (UID 1001), cap_drop: [ALL], and no-new-privileges: true.
+  # Hardening is enforced via non-root execution (UID 10001), cap_drop: [ALL], and no-new-privileges: true.
   read_only: false
   tmpfs:
     - /tmp
@@ -85,12 +91,17 @@ services:
       context: ./containers/nginx
       dockerfile: Dockerfile
     ports:
-      - "80:80"
-      - "443:443"
+      - "${NGINX_BIND_ADDRESS:-127.0.0.1}:${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_BIND_ADDRESS:-127.0.0.1}:${NGINX_HTTPS_PORT:-443}:443"
     environment:
       - REQUIRE_REAL_CERT=${REQUIRE_REAL_CERT:-false}
+      - NGINX_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}
+    volumes:
+      - ./dashboard:/var/www/dashboard:ro
+      - nginx_local_certs:/etc/nginx/certs
     networks:
-      - scythe_net
+      scythe_net:
+        ipv4_address: ${SCYTHE_NGINX_IPV4:-172.24.0.10}
     depends_on:
       backend:
         condition: service_healthy
@@ -99,7 +110,6 @@ services:
       - /var/cache/nginx:rw,noexec,nosuid,size=64m
       - /var/run:rw,noexec,nosuid,size=16m
       - /tmp:rw,noexec,nosuid,size=64m
-      - /etc/nginx/certs:rw,noexec,nosuid,size=16m
       - /var/log/nginx:rw,noexec,nosuid,size=32m
     security_opt:
       - no-new-privileges:true
@@ -124,6 +134,11 @@ services:
       context: ./containers/backend
       dockerfile: Dockerfile
     container_name: scythe_backend
+    volumes:
+      - scythe_shared_scans:/shared/scans
+      - scythe_bundle_v26:/opt/scythe/bundle
+      - ./containers/backend/models:/app/models:ro
+      - ${MODEL_RELEASE_HOST_DIR:-./models/releases}:/opt/scythe/release:ro
     command: >
       uvicorn main:app
       --host 0.0.0.0
@@ -131,11 +146,11 @@ services:
       --workers ${WORKER_COUNT:-2}
       --log-level info
       --proxy-headers
-      --forwarded-allow-ips='*'
+      --forwarded-allow-ips=${SCYTHE_NGINX_IPV4:-172.24.0.10}
     expose:
       - "8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5)"]
       interval: 30s
       timeout: 10s
       start_period: 20s
@@ -154,7 +169,10 @@ services:
   # ---------------------------------------------------
   redis:
     container_name: scythe_redis
-    image: redis:7.2-alpine@sha256:dfa18828cbc07b3ae6a95ec7343f6c214fdee2d836197b4be8e9904420762cd8
+    build:
+      context: ./containers/vendor
+      dockerfile: redis/Dockerfile
+    image: scythe-redis:7.2-alpine-hardened
     user: "999"
     command: >
       redis-server
@@ -183,7 +201,10 @@ services:
 
   redis_security:
     container_name: scythe_redis_security
-    image: redis:7.2-alpine@sha256:dfa18828cbc07b3ae6a95ec7343f6c214fdee2d836197b4be8e9904420762cd8
+    build:
+      context: ./containers/vendor
+      dockerfile: redis/Dockerfile
+    image: scythe-redis:7.2-alpine-hardened
     user: "999"
     command: >
       redis-server
@@ -214,7 +235,7 @@ services:
   # ---------------------------------------------------
   postgres:
     container_name: scythe_postgres
-    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD:?POSTGRES_ROOT_PASSWORD must be set in .env}
@@ -224,7 +245,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./containers/postgres/init.sh:/docker-entrypoint-initdb.d/01_init.sh:ro
     networks:
-      - scythe_net
+      scythe_net:
+        aliases:
+          - postgres
     expose:
       - "5432"
     healthcheck:
@@ -273,7 +296,10 @@ services:
   # ---------------------------------------------------
   docker_socket_proxy:
     container_name: scythe_socket_proxy
-    image: tecnativa/docker-socket-proxy:v0.4.2@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476
+    build:
+      context: ./containers/vendor
+      dockerfile: socket-proxy/Dockerfile
+    image: scythe-socket-proxy:v0.5.0-hardened
     environment:
       CONTAINERS: 1
       POST: 1
@@ -344,9 +370,11 @@ services:
       DOCKER_HOST: tcp://docker_socket_proxy:2375
       SANDBOX_NETWORK: scythe_sandbox_net
       SHARED_SCANS_VOLUME: scythe_shared_scans
-      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-scythe-sandbox@sha256:6a132eb6c9155b0e0b2df6d680b061fe570db4fa57ebd06579484717d038d767}
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-scythe-sandbox@sha256:c10140e89411622b4c6331e440690d186f5b7c9f279cf1d88c589379763ac54c}
       SANDBOX_RUNNER_SECRET: ${SANDBOX_RUNNER_SECRET:?SANDBOX_RUNNER_SECRET must be set in .env}
       MAX_CONCURRENT_DETONATIONS: "10"
+    volumes:
+      - ./containers/backend/models:/app/models:ro
     networks:
       - scythe_net          # celery_worker communicates here via RPC
       - docker_proxy_net   # docker_socket_proxy ONLY reachable by this service
@@ -363,7 +391,7 @@ services:
       docker_socket_proxy:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=5)"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -384,8 +412,10 @@ services:
       dockerfile: Dockerfile.worker
     container_name: scythe_celery_worker
     volumes:
-      - ./shared/scans:/shared/scans
+      - scythe_shared_scans:/shared/scans
       - db_backups:/backups
+      - ./containers/backend/models:/app/models:ro
+      - ${MODEL_RELEASE_HOST_DIR:-./models/releases}:/opt/scythe/release:ro
     networks:
       - scythe_net          # Postgres, Redis, scythe_sandbox_runner
     entrypoint: ["/app/celery_entrypoint.sh"]
@@ -430,8 +460,134 @@ services:
           memory: 512M
 
   # ---------------------------------------------------
+  # 6A. OPTIONAL SHADOW MODEL WORKER — isolated CPU queue
+  # Start only with: --profile shadow and SHADOW_SCORING_ENABLED=true.
+  # Model bundles are mounted read-only and must match operator-pinned hashes.
+  # ---------------------------------------------------
+  celery_shadow_worker: &ml-worker
+    profiles: ["shadow"]
+    env_file:
+      - ./.env
+    build:
+      context: ./containers/backend
+      dockerfile: Dockerfile.shadow
+    container_name: scythe_celery_shadow_worker
+    volumes:
+      - scythe_shared_scans:/shared/scans
+      - ${SHADOW_LIGHTGBM_HOST_DIR:-../lightgbm_dataset/fresh/artifacts/lightgbm_dev_v2_shadow_native_v1}:/opt/scythe/lightgbm_dev_v2_shadow_native_v1:ro
+      - ${SHADOW_MOBILECLIP_HOST_DIR:-../mobileclip-dataset}:/opt/scythe/mobileclip-dataset:ro
+    networks:
+      - scythe_net
+    entrypoint: ["/app/celery_entrypoint.sh"]
+    command: >
+      celery -A celery_worker worker
+      --loglevel=info
+      --concurrency=1
+      --queues=shadow
+      --hostname=shadow@%h
+    environment: &ml-environment
+      <<: *common-env
+      SCYTHE_DB_PASSWORD: ${SCYTHE_DB_PASSWORD:?SCYTHE_DB_PASSWORD must be set in .env}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      REDIS_SECURITY_PASSWORD: ${REDIS_SECURITY_PASSWORD:-${REDIS_PASSWORD}}
+      SHADOW_SCORING_ENABLED: ${SHADOW_SCORING_ENABLED:-false}
+      SHADOW_LIGHTGBM_BUNDLE_DIR: /opt/scythe/lightgbm_dev_v2_shadow_native_v1
+      SHADOW_LIGHTGBM_CHECKSUMS_SHA256: ${SHADOW_LIGHTGBM_CHECKSUMS_SHA256:-245221b077ea22abdc8f5732b5e4a846bf09f4dfc45ec4d179edae693ee2186c}
+      SHADOW_MOBILECLIP_SOURCE_DIR: /opt/scythe/mobileclip-dataset
+      SHADOW_MOBILECLIP_ARTIFACT_DIR: /opt/scythe/mobileclip-dataset/artifacts/mobileclip_v2
+      SHADOW_MOBILECLIP_CHECKSUMS_SHA256: ${SHADOW_MOBILECLIP_CHECKSUMS_SHA256:-726c0d9b1cce68d53c7b8fe2aa99d1fe74b546887a11704ee1efed7ad2d91832}
+      SHADOW_MOBILECLIP_SCORER_PATH: /opt/scythe/mobileclip-dataset/score_mobileclip_v2.py
+      SHADOW_MOBILECLIP_SCORER_SHA256: ${SHADOW_MOBILECLIP_SCORER_SHA256:-8e427b9ae71bdd242ec15d83777c633781cc0acde951c060298c3f65903bc1c4}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redis_security:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A celery_worker inspect ping --timeout 5 2>&1 | grep -c pong || exit 1"]
+      interval: 45s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4096M
+        reservations:
+          cpus: "0.5"
+          memory: 1024M
+
+  # Validated inference uses the same isolated dependencies, its own queue and
+  # read-only release mount. Enabling the profile alone never approves a model.
+  celery_model_worker:
+    <<: *ml-worker
+    profiles: ["models"]
+    container_name: scythe_celery_model_worker
+    command: >
+      celery -A celery_worker worker
+      --loglevel=info --concurrency=1 --queues=models --hostname=models@%h
+    environment:
+      <<: *ml-environment
+      SHADOW_SCORING_ENABLED: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A celery_worker inspect ping --destination=models@$$HOSTNAME --timeout 5 2>&1 | grep -q pong"]
+      interval: 45s
+      timeout: 15s
+      retries: 3
+      start_period: 45s
+    volumes:
+      - scythe_shared_scans:/shared/scans
+      - scythe_bundle_v26:/opt/scythe/bundle
+      - ${MODEL_RELEASE_HOST_DIR:-./models/releases}:/opt/scythe/release:ro
+      - ${SHADOW_LIGHTGBM_HOST_DIR:-../lightgbm_dataset/fresh/artifacts/lightgbm_dev_v2_shadow_native_v1}:/opt/scythe/lightgbm_dev_v2_shadow_native_v1:ro
+      - ${SHADOW_MOBILECLIP_HOST_DIR:-../mobileclip-dataset}:/opt/scythe/mobileclip-dataset:ro
+
+  # ---------------------------------------------------
   # 7. CELERY BEAT — Periodic Scheduler
   # ---------------------------------------------------
+  # Explicit opt-in only; no mailbox is contacted by the default stack.
+  email_poller:
+    profiles: ["mailbox"]
+    image: scythe-celery_worker:latest
+    entrypoint: ["python", "-m", "email_engine.poller"]
+    environment:
+      EMAIL_OWNER_USER_ID: ${EMAIL_OWNER_USER_ID:-}
+      EMAIL_ADDRESS: ${EMAIL_ADDRESS:-}
+      EMAIL_POLLER_TOKEN: ${EMAIL_POLLER_TOKEN:-}
+      EMAIL_IMAP_HOST: ${EMAIL_IMAP_HOST:-imap.gmail.com}
+      EMAIL_AUTH_MODE: ${EMAIL_AUTH_MODE:-oauth2}
+      EMAIL_ACCESS_TOKEN: ${EMAIL_ACCESS_TOKEN:-}
+      EMAIL_APP_PASSWORD: ${EMAIL_APP_PASSWORD:-}
+      EMAIL_POLL_INTERVAL: ${EMAIL_POLL_INTERVAL:-30}
+      EMAIL_SHARED_DIR: /shared/scans
+      BACKEND_INGEST_URL: http://backend:8000
+    volumes:
+      - scythe_shared_scans:/shared/scans
+    networks: [scythe_net]
+    depends_on:
+      backend:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+      - /home/scythe/.cache:rw,noexec,nosuid,size=32m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    restart: "no"
+    <<: *default-resources
+
   celery_beat:
     <<: [*backend-common,  *default-resources]
     build:
@@ -452,7 +608,7 @@ services:
       --scheduler celery.beat:PersistentScheduler
       --schedule /app/celerybeat-schedule/celerybeat-schedule
     volumes:
-      - ./shared/scans:/shared/scans
+      - scythe_shared_scans:/shared/scans
       - celery_beat_data:/app/celerybeat-schedule
     healthcheck:
       test: ["CMD-SHELL", "test -f /app/celerybeat-schedule/celerybeat-schedule"]
@@ -466,13 +622,15 @@ services:
   # ---------------------------------------------------
   clamav:
     container_name: scythe_clamav
-    image: clamav/clamav:stable@sha256:83130a3b60654a4f226feffea549792cfcf28ea6b9de1dee210c8064cd114006
+    image: clamav/clamav:stable@sha256:638d90201ee7ee6a82d249a2fc23b132e578673b5f1f2766852b127676ca1ef6
     environment:
       - CLAMAV_NO_FRESHCLAM=false
     volumes:
       - clamav_db:/var/lib/clamav
     networks:
-      - scythe_net
+      scythe_net:
+        aliases:
+          - clamav
     expose:
       - "3310"
     healthcheck:
@@ -504,7 +662,7 @@ services:
   # 8b. SANDBOX NET HOLDER — Keeps `scythe_sandbox_net` active
   # ---------------------------------------------------
   sandbox_net_holder:
-    image: alpine:3.19
+    image: alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
     container_name: scythe_sandbox_net_holder
     command: ["tail", "-f", "/dev/null"]
     networks:
@@ -541,7 +699,7 @@ services:
     # microservice (POST /detonate), which dynamically isolates each scan using `--mount
     # type=volume,source=shared_scans,target=/app/output,volume-subpath=<scan_id>`.
     volumes:
-      - ./shared/scans:/app/output
+      - scythe_shared_scans:/app/output
     networks:
       - sandbox_net
     cap_drop:
@@ -572,6 +730,8 @@ services:
 # VOLUMES
 # -------------------------------------------------------
 volumes:
+  nginx_local_certs:
+    name: scythe_nginx_local_certs
   postgres_data:
     driver: local
     name: scythe_postgres_data
@@ -590,6 +750,12 @@ volumes:
   redis_security_data:
     driver: local
     name: scythe_redis_security_data
+  scythe_shared_scans:
+    driver: local
+    name: scythe_shared_scans
+  scythe_bundle_v26:
+    external: true
+    name: scythe_bundle_v26
 
 # -------------------------------------------------------
 # NETWORKS
@@ -598,6 +764,9 @@ networks:
   scythe_net:
     driver: bridge
     name: scythe_net
+    ipam:
+      config:
+        - subnet: ${SCYTHE_NETWORK_SUBNET:-172.24.0.0/16}
 
   docker_proxy_net:
     driver: bridge

@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 RUNNING_STATUSES = {
     "created",
+    "file_analysis_queued",
+    "email_analysis_queued",
     "submitted",
     "browser_features_running",
     "browser_features_done",
@@ -48,13 +50,14 @@ def job_reconciliation_task(self, timeout_minutes: int = 30) -> dict:
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
     reconciled_count = 0
     stuck_ids = []
+    diagnostic_updates = []
 
     try:
         with get_db_session() as db:
             stuck_scans = db.query(Scan).filter(
                 Scan.status.in_(RUNNING_STATUSES),
                 Scan.updated_at < cutoff,
-            ).all()
+            ).with_for_update(skip_locked=True).all()
 
             for scan in stuck_scans:
                 logger.error(
@@ -64,7 +67,19 @@ def job_reconciliation_task(self, timeout_minutes: int = 30) -> dict:
                     scan.updated_at,
                 )
                 stuck_ids.append(scan.id)
+                if scan.status in {"file_analysis_queued", "email_analysis_queued"}:
+                    from services.diagnostic_reports import write_report_artifact
+                    kind = "file" if scan.status.startswith("file_") else "email"
+                    report = {"scan_type": kind, "status": "unavailable", "risk_score": None,
+                              "severity": "UNKNOWN", "availability": "unavailable", "error": "analysis_timeout",
+                              "findings": ["Analysis timed out; no clean verdict is available"]}
+                    # The same row lock is used by finalizers. Write before committing
+                    # the timeout, so an I/O failure rolls back and is retried next sweep.
+                    write_report_artifact(scan.id, report)
+                    diagnostic_updates.append((scan.id, report, scan.user_id))
                 scan.status = "failed_timeout"
+                scan.risk_score = None
+                scan.severity = "UNKNOWN"
                 reconciled_count += 1
 
             if reconciled_count > 0:
@@ -76,4 +91,7 @@ def job_reconciliation_task(self, timeout_minutes: int = 30) -> dict:
         logger.exception("[job_reconciliation] Error reconciling stuck jobs")
         return {"status": "error", "reconciled": 0}
 
+    from services.diagnostic_reports import publish_report
+    for scan_id, report, user_id in diagnostic_updates:
+        publish_report(scan_id, report, user_id)
     return {"status": "success", "reconciled": reconciled_count, "stuck_ids": stuck_ids}

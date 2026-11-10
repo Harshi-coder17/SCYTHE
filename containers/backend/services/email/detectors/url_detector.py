@@ -68,7 +68,7 @@ class URLDetector:
 
         url_count = urls.get("url_count", 0)
 
-        if url_count > 10:
+        if isinstance(url_count, (int, float)) and url_count > 10:
 
             score += self.weights["many_urls"]
 
@@ -108,7 +108,7 @@ class URLDetector:
         # HTTPS
         # ----------------------------------
 
-        if not urls.get("https", True):
+        if urls.get("https") is False:
 
             score += self.weights["no_https"]
 
@@ -138,9 +138,9 @@ class URLDetector:
         # Domain Age
         # ----------------------------------
 
-        domain_age = urls.get("domain_age_days", 9999)
+        domain_age = urls.get("domain_age_days")
 
-        if domain_age < 30:
+        if isinstance(domain_age, (int, float)) and not isinstance(domain_age, bool) and 0 <= domain_age < 30:
 
             score += self.weights["young_domain"]
 
@@ -154,7 +154,7 @@ class URLDetector:
 
         longest = urls.get("longest_url_length", 0)
 
-        if longest > 100:
+        if isinstance(longest, (int, float)) and longest > 100:
 
             score += self.weights["long_url"]
 
@@ -168,7 +168,7 @@ class URLDetector:
 
         redirects = urls.get("redirect_count", 0)
 
-        if redirects > 3:
+        if isinstance(redirects, (int, float)) and redirects > 3:
 
             score += self.weights["redirect_chain"]
 

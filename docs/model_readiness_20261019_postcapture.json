@@ -1,0 +1,89 @@
+{
+  "actions": [
+    "Register a new source/capture manifest with historical independent labels, evidence checksums and domain exclusions",
+    "Freeze candidates and protocol before scoring; evaluate once and archive failure as well as success",
+    "Collect prospective enrichment with source timestamps and licensed provider access; retrospective values remain diagnostic",
+    "Obtain independently supported benign controls; Tranco rank alone does not confirm a benign label"
+  ],
+  "additional_experimental_candidates": [],
+  "blockers": [
+    "One or more frozen bundle hashes/contracts failed verification",
+    "Candidate exclusion/domain split verification did not pass",
+    "No registered independently labeled, domain-disjoint, genuinely untouched holdout is available",
+    "No immutable release evaluation binds approved policy, frozen model/contract hashes, untouched data, and production latency",
+    "No validated final risk-fusion release bundle was supplied; implemented loaders alone cannot certify model quality"
+  ],
+  "bundles": {
+    "lightgbm_dev_v2": {
+      "contract_valid": false,
+      "hashes": {
+        "errors": [
+          "missing checksums.sha256"
+        ],
+        "valid": false,
+        "verified_files": 0
+      },
+      "path": "lightgbm_dataset/fresh/artifacts/lightgbm_dev_v2",
+      "status": null,
+      "validation_metrics": {}
+    },
+    "mobileclip_v1": {
+      "contract_valid": false,
+      "hashes": {
+        "errors": [
+          "missing checksums.sha256"
+        ],
+        "valid": false,
+        "verified_files": 0
+      },
+      "path": "mobileclip-dataset/artifacts/mobileclip_v1",
+      "status": null,
+      "validation_metrics": {}
+    },
+    "mobileclip_v2": {
+      "contract_valid": false,
+      "hashes": {
+        "errors": [
+          "missing checksums.sha256"
+        ],
+        "valid": false,
+        "verified_files": 0
+      },
+      "path": "mobileclip-dataset/artifacts/mobileclip_v2",
+      "status": null,
+      "validation_metrics": {}
+    }
+  },
+  "enrichment": {
+    "cohort": null,
+    "feature_status_counts": null,
+    "limitations": null,
+    "provider_policy": null
+  },
+  "generated_at_utc": "2026-10-18T21:27:21.121664+00:00",
+  "inspected_external_url_development_metrics": {
+    "metrics": null,
+    "model": null,
+    "role": "Already inspected lightgbm_fresh_v2 development failure, not an untouched evaluation of lightgbm_dev_v2"
+  },
+  "inspected_external_visual_development_metrics": {},
+  "latency_evidence": {
+    "encoder_extraction_benchmark": {},
+    "limitation": "Batch extraction throughput does not establish production request p95 latency"
+  },
+  "limitations": [
+    "Previously examined PhishVN/Phish360/visual external sets are development benchmarks",
+    "Unknown screenshot domains prevent complete overlap verification; campaigns remain unverified",
+    "No training, scoring, model deserialization, threshold selection or activation occurs in this command"
+  ],
+  "paired_comparison": {},
+  "production_ready": false,
+  "registered_holdouts": [],
+  "release": null,
+  "research_artifacts_verified": false,
+  "schema_version": "model_release_readiness_v1",
+  "training_exclusions": {
+    "reason": "FileNotFoundError",
+    "status": "unverified"
+  }
+}

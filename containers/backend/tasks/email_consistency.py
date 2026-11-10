@@ -18,6 +18,7 @@ import logging
 import os
 
 from celery_worker import celery
+from tasks.email_failure import EmailAnalysisTask
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ def _overall_severity(scores: list[int]) -> str:
 
 
 @celery.task(
+    base=EmailAnalysisTask,
     bind=True,
     name="tasks.email_consistency.email_consistency_task",
     queue="default",
@@ -89,69 +91,13 @@ def email_consistency_task(self, results, email_id: str):
     #   - Weighted signal scoring: header 30%, url 30%, attachment 25%, content 15%
     #   - 7 compound cross-signal correlation rules
     #   - Confidence calculation based on non-zero signal agreement
-    try:
-        from consistency_engine.email_consistency_engine import EmailConsistencyEngine
-        consistency_report_data = EmailConsistencyEngine.analyze(
-            header_features=header,
-            url_features=url,
-            attachment_features=attach,
-            content_features=content,
-        )
-    except Exception:
-        logger.exception(
-            "EmailConsistencyEngine.analyze() failed for email_id=%s — "
-            "falling back to inline aggregation", email_id
-        )
-        # ── Fallback: basic inline aggregation (preserved from original) ──
-        header_score     = header.get("header_score", 0)
-        url_score        = url.get("url_score", 0)
-        attachment_score = attach.get("attachment_score", 0)
-        content_score    = content.get("content_score", 0)
+    if not all((header, url, attach, content)):
+        raise ValueError("Email evidence is incomplete; no clean result is available")
+    from consistency_engine.email_consistency_engine import EmailConsistencyEngine
+    consistency_report_data = EmailConsistencyEngine.analyze(
+        header_features=header, url_features=url, attachment_features=attach, content_features=content,
+    )
 
-        all_reasons = []
-        for block in [
-            header.get("authentication", {}),
-            header.get("identity", {}),
-            url.get("urls", {}),
-            url.get("infrastructure", {}),
-            attach.get("attachments", {}),
-            content.get("content", {}),
-        ]:
-            all_reasons.extend(block.get("reasons", []))
-
-        consistency_flags = []
-        if url_score >= 50 and attachment_score == 0:
-            consistency_flags.append("High URL risk with no attachments — possible phishing link")
-        if header_score >= 40 and content_score >= 40:
-            consistency_flags.append("Authentication failure combined with urgent content — high phishing confidence")
-        if attachment_score >= 60 and header_score < 20:
-            consistency_flags.append("Dangerous attachment from seemingly legitimate sender — possible targeted attack")
-
-        overall_score = min(
-            int((header_score + url_score + attachment_score + content_score) / 4),
-            100,
-        )
-        overall_severity = _overall_severity([header_score, url_score, attachment_score, content_score])
-
-        consistency_report_data = {
-            "overall_score":    overall_score,
-            "overall_severity": overall_severity,
-            "scores": {
-                "header":     header_score,
-                "url":        url_score,
-                "attachment": attachment_score,
-                "content":    content_score,
-            },
-            "consistency_flags": consistency_flags,
-            "all_reasons":       all_reasons,
-            "classification": (
-                "phishing" if overall_score >= 60
-                else "suspicious" if overall_score >= 30
-                else "clean"
-            ),
-        }
-
-    # ── Attach email_id to the report before persisting ───────────────────
     consistency_report_data["email_id"] = email_id
 
     output_path = os.path.join(email_dir, "email_consistency.json")
@@ -161,7 +107,36 @@ def email_consistency_task(self, results, email_id: str):
         json.dump(consistency_report_data, f, indent=2)
     os.replace(tmp_path, output_path)  # atomic write
 
-    logger.info(
-        "email_consistency_task done email_id=%s overall_score=%s severity=%s classification=%s",
-    )
+    # Resolve the immutable, operator-bound owner and Scan association.
+    owner = _load_feature(email_dir, "owner.json")
+    scan_id = owner.get("scan_id")
+    if not owner.get("owner_user_id") or not scan_id:
+        raise ValueError("Email has no authenticated scan ownership binding")
+    from services.diagnostic_reports import save_report
+    attachment_unavailable = attach.get("av_available") is False
+    final_report = {
+        **consistency_report_data,
+        "scan_type": "email", "status": "unavailable" if attachment_unavailable else "complete", "email_id": email_id,
+        "risk_score": None, "severity": "UNKNOWN", "availability": "evidence_unavailable" if attachment_unavailable else "model_unavailable",
+        "attachment_av_available": attach.get("av_available"),
+        "heuristic_score": consistency_report_data.get("overall_score"),
+        "heuristic_severity": consistency_report_data.get("overall_severity"),
+        "findings": consistency_report_data.get("all_reasons", []),
+        "feature_availability": {"header": bool(header), "url": bool(url), "attachment": bool(attach), "content": bool(content)},
+        "is_placeholder": True, "heuristic_only": True, "automatic_decision": False,
+    }
+    # Verify scan ownership before publishing any report or broadcasting.
+    from database.database import get_db_session
+    from database.models import Scan
+    with get_db_session() as db:
+        scan = db.query(Scan).filter(Scan.id == scan_id, Scan.user_id == owner["owner_user_id"]).first()
+        if scan is None:
+            raise ValueError("Email scan owner does not match the collection binding")
+    if not save_report(scan_id, final_report, "email_scan_unavailable" if attachment_unavailable else "email_scan_done", owner_user_id=owner["owner_user_id"]):
+        return email_id
+    report_path = os.path.join(email_dir, "risk_report.json")
+    with open(report_path + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(final_report, f, indent=2)
+    os.replace(report_path + ".tmp", report_path)
+    logger.info("email_consistency_task done email_id=%s scan_id=%s (heuristic only)", email_id, scan_id)
     return email_id

@@ -1,0 +1,23 @@
+{
+  "run_id": "478d868cd235",
+  "fixture_email": "scythe-quick-478d868cd235@example.test",
+  "checks": {
+    "unavailable_uncached_1": true,
+    "unavailable_uncached_2": true,
+    "private_url_rejected": true,
+    "logout_revocation": true
+  },
+  "passed": true,
+  "stage": "complete",
+  "result": {
+    "risk_level": "UNKNOWN",
+    "risk_score": null,
+    "is_placeholder": true,
+    "cached": false,
+    "availability": "unavailable"
+  },
+  "logout_status": 204,
+  "cleanup": {
+    "accounts_disabled": 1
+  }
+}

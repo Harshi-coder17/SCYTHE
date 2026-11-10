@@ -66,7 +66,7 @@ class InfrastructureDetector:
         # ASN Reputation
         # -----------------------------
 
-        asn_reputation = routing.get("asn_reputation", "good").lower()
+        asn_reputation = (routing.get("asn_reputation") or "").lower()
 
         if asn_reputation == "poor":
             score += self.weights["poor_asn"]
@@ -76,9 +76,9 @@ class InfrastructureDetector:
         # Reverse DNS
         # -----------------------------
 
-        reverse_dns = routing.get("reverse_dns_exists", True)
+        reverse_dns = routing.get("reverse_dns_exists")
 
-        if not reverse_dns:
+        if reverse_dns is False:
             score += self.weights["missing_reverse_dns"]
             reasons.append("Reverse DNS record missing")
 
@@ -86,9 +86,9 @@ class InfrastructureDetector:
         # Country Mismatch
         # -----------------------------
 
-        country_match = routing.get("country_matches_sender", True)
+        country_match = routing.get("country_matches_sender")
 
-        if not country_match:
+        if country_match is False:
             score += self.weights["country_mismatch"]
             reasons.append("Origin country differs from expected sender")
 
@@ -98,7 +98,7 @@ class InfrastructureDetector:
 
         hop_count = routing.get("hop_count", 0)
 
-        if hop_count > 15:
+        if isinstance(hop_count, (int, float)) and hop_count > 15:
             score += self.weights["high_hop_count"]
             reasons.append(f"High hop count ({hop_count})")
 
@@ -106,9 +106,9 @@ class InfrastructureDetector:
         # DNSSEC
         # -----------------------------
 
-        dnssec = domain.get("dnssec_enabled", True)
+        dnssec = domain.get("dnssec_enabled")
 
-        if not dnssec:
+        if dnssec is False:
             score += self.weights["dnssec_missing"]
             reasons.append("DNSSEC not enabled")
 

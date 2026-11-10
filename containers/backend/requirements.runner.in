@@ -3,6 +3,7 @@
 # Run pip-compile --generate-hashes backend/requirements.runner.in -o backend/requirements.runner.txt
 # ===================================================
 
-fastapi==0.111.1
+fastapi==0.143.1
+starlette==1.8.0
 uvicorn[standard]==0.30.1
-pydantic==2.8.2
+pydantic==2.14.1

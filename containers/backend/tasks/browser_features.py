@@ -4,25 +4,26 @@ tasks/browser_features.py
 """
 
 import json
-import logging
 import os
 
 from celery.utils.log import get_task_logger
 
 from celery_worker import celery
 from config import settings
+from services.url_policy import hostname_matches
+from urllib.parse import urlparse
 
 from ai_engine.ocr import extract_text
-from ai_engine.vision import analyze_screenshot
+from ai_engine.vision import analyze_screenshot, score_screenshot_mobileclip
 from ai_engine.dom_extractor import extract_features
 
 from database.database import get_db_session
 from database.models import Scan
 
-logger = get_task_logger(__name__)
-
-
 from tasks import validate_scan_id
+
+logger = get_task_logger(__name__)
+_FINAL_STATUSES = {"risk_fusion_done", "completed", "complete", "cancelled", "expired", "blocked_by_cyberintel"}
 
 
 def _scan_dir(scan_id: str) -> str:
@@ -33,12 +34,22 @@ def _scan_dir(scan_id: str) -> str:
 def _mark_status(scan_id: str, status: str) -> None:
     try:
         with get_db_session() as db:
-            scan = db.query(Scan).filter(Scan.id == scan_id).first()
-            if scan:
-                scan.status = status
-                db.commit()
+            # An old delivery must not race a completed fusion back into a
+            # running/failed state. Enforce the condition in the UPDATE itself.
+            db.query(Scan).filter(Scan.id == scan_id, Scan.status.notin_(_FINAL_STATUSES)).update(
+                {Scan.status: status}, synchronize_session=False,
+            )
+            db.commit()
     except Exception:
         logger.exception("Failed to update scan status to %s for %s", status, scan_id)
+
+
+def _already_finalized(scan_id: str) -> bool:
+    if os.path.isfile(os.path.join(_scan_dir(scan_id), "risk_report.json")):
+        return True
+    with get_db_session() as db:
+        row = db.query(Scan.status).filter(Scan.id == scan_id).first()
+        return bool(row and row[0] in _FINAL_STATUSES)
 
 
 # ── Pipeline Stage (Diagram → Code) ──────────────────────────────────────────
@@ -51,8 +62,10 @@ def _mark_status(scan_id: str, status: str) -> None:
     default_retry_delay=10,
     acks_late=True,
 )
-def browser_features_task(self, scan_id: str):
+def browser_features_task(self, scan_id: str, dispatch_next: bool = True):
     validate_scan_id(scan_id)
+    if _already_finalized(scan_id):
+        return {"scan_id": scan_id, "status": "already_finalized"}
     logger.info("[%s] Stage 1 (browser_features) started", scan_id)
     _mark_status(scan_id, "browser_features_running")
 
@@ -89,13 +102,29 @@ def browser_features_task(self, scan_id: str):
             _mark_status(scan_id, "browser_features_retrying")
         raise self.retry(exc=exc)
 
+    try:
+        visual_score = score_screenshot_mobileclip(png_path)
+    except Exception as exc:
+        logger.warning("[%s] MobileCLIP visual scoring error: %s", scan_id, exc)
+        visual_score = {"score": None, "status": "UNAVAILABLE", "visual_phishing_probability": None}
+
+    visual_prob = visual_score.get("score") if isinstance(visual_score, dict) else visual_score
+    if isinstance(vision_result, dict):
+        vision_result["visual_phishing_probability"] = visual_prob
+        vision_result["visual_score"] = visual_score
+
     browser_features = {
         "scan_id": scan_id,
         "url": scan_url,
         "ocr_text": ocr_text,
         "vision": vision_result,
         "dom": dom_features,
+        "visual_phishing_probability": visual_prob,
+        "visual_score": visual_score,
     }
+
+    if _already_finalized(scan_id):
+        return {"scan_id": scan_id, "status": "already_finalized"}
 
     out_path = os.path.join(scan_dir, "browser_features.json")
     tmp_path = out_path + ".tmp"
@@ -106,16 +135,20 @@ def browser_features_task(self, scan_id: str):
     logger.info("[%s] browser_features.json written", scan_id)
     _mark_status(scan_id, "browser_features_done")
 
+    # A Celery chord owns continuation in parallel mode. This branch must
+    # never enqueue its own sandbox/consistency or replace sibling metadata.
+    if not dispatch_next:
+        return {"scan_id": scan_id, "status": "browser_features_done"}
+
     # ── Conditional Sandbox Dispatch ─────────────────────────────────────────
     # Skip sandbox entirely for trusted/allowlisted domains — known-safe and
     # the 45-second detonation is not worth it for them.
     from tasks.sandbox_analysis import sandbox_analysis_task
     from tasks.consistency import consistency_task
 
-    allowlisted = any(
-        scan_url.rstrip("/").endswith(d)
-        for d in settings.TRUSTED_ALLOWLIST_DOMAINS
-    )
+    hostname = urlparse(scan_url).hostname or ""
+    allowlisted = any(hostname_matches(hostname, d)
+                      for d in settings.TRUSTED_ALLOWLIST_DOMAINS)
 
     if not allowlisted:
         preliminary_score = 0

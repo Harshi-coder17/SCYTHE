@@ -68,7 +68,7 @@ class AuthenticationDetector:
 
         # ---------------- SPF ----------------
 
-        spf = auth.get("spf_result", "none").lower()
+        spf = (auth.get("spf_result") or "none").lower()
 
         score += self.scoring["spf"].get(spf, 15)
 
@@ -77,7 +77,7 @@ class AuthenticationDetector:
 
         # ---------------- DKIM ----------------
 
-        dkim = auth.get("dkim_result", "none").lower()
+        dkim = (auth.get("dkim_result") or "none").lower()
 
         score += self.scoring["dkim"].get(dkim, 15)
 
@@ -86,7 +86,7 @@ class AuthenticationDetector:
 
         # ---------------- DMARC ----------------
 
-        dmarc = auth.get("dmarc_result", "none").lower()
+        dmarc = (auth.get("dmarc_result") or "none").lower()
 
         score += self.scoring["dmarc"].get(dmarc, 15)
 

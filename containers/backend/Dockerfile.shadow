@@ -1,0 +1,45 @@
+# Isolated CPU inference worker. Research dependencies stay out of the API and
+# normal Celery worker images. This worker consumes only the `shadow` queue.
+FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377 AS builder
+WORKDIR /app
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+    build-essential libpq-dev gcc \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt requirements.shadow.txt ./
+# An isolated venv lets pip see and remove replaced base distributions. Two
+# --prefix installs otherwise leave both sklearn/joblib dist-info versions.
+RUN python -m venv /opt/inference \
+    && /opt/inference/bin/python -m pip install --no-cache-dir -r requirements.txt \
+    && /opt/inference/bin/python -m pip install --no-cache-dir -r requirements.shadow.txt \
+    && /opt/inference/bin/python -m pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0 wheel==0.48.0 \
+    && /opt/inference/bin/python -m pip check \
+    && /opt/inference/bin/python -m pip uninstall -y pip
+
+FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78aafaf37af98377 AS runtime
+RUN groupadd --gid 10001 scythe \
+    && useradd --uid 10001 --gid scythe --shell /bin/bash --create-home scythe
+WORKDIR /app
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+    git libpq5 libgomp1 openssl gosu \
+    && rm -rf /var/lib/apt/lists/*
+RUN git config --system --add safe.directory /opt/scythe/mobileclip-dataset/vendor/ml-mobileclip
+COPY --from=builder /opt/inference /opt/inference
+RUN python -m pip install --no-cache-dir --upgrade pip==26.2.1 setuptools==84.0.0 wheel==0.48.0 \
+    && python -m pip uninstall -y pip
+COPY --chown=scythe:scythe . .
+ENV VIRTUAL_ENV=/opt/inference
+ENV PATH="/opt/inference/bin:$PATH"
+RUN python -m services.inference_dependency_contract
+RUN mkdir -p /app /shared/scans /backups /app/models \
+    && chown -R scythe:scythe /app /shared /backups \
+    && chmod -R 0775 /app /shared
+COPY --chown=scythe:scythe celery_entrypoint.sh /app/celery_entrypoint.sh
+RUN chmod +x /app/celery_entrypoint.sh
+VOLUME ["/shared/scans"]
+USER scythe
+
+# Celery health check
+HEALTHCHECK --interval=45s --timeout=15s --start-period=30s --retries=3 \
+    CMD celery -A celery_worker inspect ping --timeout 5 2>&1 | grep -c pong || exit 1
+
+ENTRYPOINT ["/app/celery_entrypoint.sh"]

@@ -42,7 +42,7 @@ import os
 import re
 from typing import Optional
 
-from config import settings
+from email_engine.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,8 @@ def _sanitise_filename(filename: str) -> str:
     if not filename:
         return "attachment"
 
+    # Strip any directory path components from hostile filenames
+    filename = os.path.basename(filename)
     # Replace path-traversal chars and null bytes
     safe = re.sub(r'[\\/:*?"<>|\x00]', "_", filename)
     # Collapse multiple consecutive underscores/spaces
@@ -191,9 +193,14 @@ def extract_and_save(
         if os.path.exists(dest_path):
             name_root, ext = os.path.splitext(safe_name)
             safe_name = f"{name_root}_{att['sha256'][:8]}{ext}"
-            dest_path = os.path.join(attach_dir, safe_name)
+        # Canonical boundary check to prevent path traversal
+        canonical_dest = os.path.realpath(dest_path)
+        canonical_attach_dir = os.path.realpath(attach_dir)
+        if not canonical_dest.startswith(canonical_attach_dir + os.sep):
+            logger.warning("[attachment_handler] Traversal attempt detected for attachment %r — skipped", att["filename"])
+            continue
 
-        with open(dest_path, "wb") as f:
+        with open(canonical_dest, "wb") as f:
             f.write(att["data"])
 
         entry = {

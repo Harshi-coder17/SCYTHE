@@ -38,19 +38,19 @@ class AuthenticationParser:
                 AuthenticationParser._extract(
                     r"spf=(pass|fail|softfail|neutral|none|temperror|permerror)",
                     auth_header
-                ),
+                ) or "none",
 
             "spf_domain":
                 AuthenticationParser._extract(
                     r"smtp\.mailfrom=([^\s;]+)",
                     auth_header
-                ),
+                ) or "none",
 
             "dkim_result":
                 AuthenticationParser._extract(
                     r"dkim=(pass|fail|none|temperror|permerror)",
                     auth_header
-                ),
+                ) or "none",
 
             "dkim_domain":
                 AuthenticationParser._extract(
@@ -68,7 +68,7 @@ class AuthenticationParser:
                 AuthenticationParser._extract(
                     r"dmarc=(pass|fail|bestguesspass|none)",
                     auth_header
-                ),
+                ) or "none",
 
             "dmarc_policy":
                 AuthenticationParser._extract(
