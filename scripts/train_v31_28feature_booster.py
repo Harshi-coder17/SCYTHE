@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import sys
 import time
@@ -42,11 +41,11 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
-from services.model_features.url_features import (
+from services.model_features.url_features import (  # noqa: E402
     FEATURE_NAMES_V3,
     build_url_feature_vector,
 )
-from services.model_release import sha256, verify_release
+from services.model_release import sha256, verify_release  # noqa: E402
 
 PHILEGIT_CSV = Path(r"C:\Users\armaa\Desktop\Project details\dataset-acquisition\philegit_100k_source_v1\contents_v1\PhiLegit-100K.csv")
 URL_PHISH_V2_ZIP = Path(r"C:\Users\armaa\Desktop\Project details\dataset-acquisition\url_phish_v2_source\url_phish_v2.zip")
@@ -83,7 +82,7 @@ def _worker_extract_v3_chunk(chunk_urls: list[str]) -> list[list[float]]:
     b_path = r"C:\Users\armaa\Desktop\Project details\SCYTHE\containers\backend"
     if b_path not in sys.path:
         sys.path.insert(0, b_path)
-    from services.model_features.url_features import build_url_feature_vector, FEATURE_NAMES_V3
+    from services.model_features.url_features import FEATURE_NAMES_V3
 
     res_list = []
     for u in chunk_urls:
@@ -162,7 +161,7 @@ def main():
     y_all = combined["scythe_label"].iloc[perm].values.astype(np.int32)
 
     # 2. Extract 28 features in parallel
-    print(f"\n[2/5] Parallel extraction of 28 V3 features across 12 workers...")
+    print("\n[2/5] Parallel extraction of 28 V3 features across 12 workers...")
     n_workers = min(12, max(cpu_count() - 2, 2))
     X_all = extract_features_parallel(urls_all, n_workers=n_workers, chunk_size=5000)
 
@@ -174,7 +173,7 @@ def main():
     print(f"Val set:   {len(X_val):,} ({y_val.sum():,} phish, {(y_val==0).sum():,} benign)")
 
     # 4. Train LightGBM Booster
-    print(f"\n[3/5] Training 28-feature LightGBM booster...")
+    print("\n[3/5] Training 28-feature LightGBM booster...")
     model = lgb.LGBMClassifier(
         n_estimators=600,
         num_leaves=127,
@@ -244,6 +243,7 @@ def main():
     print(f"  Holdout Accuracy:  {acc_h*100:.2f}%")
     print(f"  Holdout ROC-AUC:   {roc_h:.4f}")
     print(f"  Holdout PR-AUC:    {pr_h:.4f}")
+    print(f"  Holdout Brier:     {brier_h:.4f}")
     print(f"  Holdout Recall:    {rec_h*100:.2f}% (TP={tp_h}, FN={fn_h})")
     print(f"  Holdout Precision: {prec_h*100:.2f}% (FP={fp_h})")
     print(f"  Holdout FPR:       {fpr_h*100:.2f}%")

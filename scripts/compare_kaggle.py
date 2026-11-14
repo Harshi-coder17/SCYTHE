@@ -1,21 +1,24 @@
 import csv
-import random
-import numpy as np
-import lightgbm as lgb
 from pathlib import Path
+import random
+import sys
+import lightgbm as lgb
+import numpy as np
 from sklearn.metrics import (
-    roc_auc_score, average_precision_score, precision_recall_fscore_support,
-    accuracy_score, brier_score_loss
+    accuracy_score,
+    average_precision_score,
+    brier_score_loss,
+    precision_recall_fscore_support,
+    roc_auc_score,
 )
 
-REPO = Path(r"C:\Users\armaa\Desktop\Project details\SCYTHE")
-sys_backend = REPO / "containers" / "backend"
-import sys; sys.path.insert(0, str(sys_backend))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "containers" / "backend"))
 
-from services.model_features.url_features import (
-    build_url_feature_vector,
+from services.model_features.url_features import (  # noqa: E402
     FEATURE_NAMES_V2,
     FEATURE_NAMES_V3,
+    build_url_feature_vector,
 )
 
 v30_path = REPO / "models" / "releases" / "candidate_fusion_v30" / "url_classifier.txt"

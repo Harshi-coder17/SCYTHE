@@ -1,3 +1,8 @@
+function getGridItem(el) {
+  if (!el) return null;
+  if (typeof el.closest === "function") return getGridItem(el);
+  return el.parentElement || null;
+}
 // popup.js
 // Logic for the extension's popup.html — pulls scan data for the active tab,
 // renders it into the UI, and wires up the action buttons, theme toggle, and live protection.
@@ -7,11 +12,7 @@ const DASHBOARD_URL = (typeof SCYTHE_CONFIG !== "undefined")
   ? SCYTHE_CONFIG.DASHBOARD_URL
   : "https://localhost:8443/dashboard/components/dashboard.html";
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
-} else {
-  init();
-}
+document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
   applyStoredTheme();
@@ -56,17 +57,17 @@ async function init() {
     if (isHttpInit) {
       initSSL.textContent = "Unencrypted (HTTP)";
       initSSL.title = "Unencrypted plain HTTP connection (Insecure)";
-      const item = initSSL.closest(".grid-item");
+      const item = getGridItem(initSSL);
       if (item) item.className = "grid-item blocked";
     } else if (isInternalInit) {
       initSSL.textContent = "Internal Page";
       initSSL.title = "Local or browser internal page";
-      const item = initSSL.closest(".grid-item");
+      const item = getGridItem(initSSL);
       if (item) item.className = "grid-item";
     } else {
       initSSL.textContent = "Encrypted (HTTPS)";
       initSSL.title = "Verified HTTPS SSL/TLS encryption";
-      const item = initSSL.closest(".grid-item");
+      const item = getGridItem(initSSL);
       if (item) item.className = "grid-item allowed";
     }
   }
@@ -111,13 +112,22 @@ function wireThemeToggle() {
 
 function applyStoredTheme() {
   if (typeof chrome === "undefined" || !chrome.storage || !chrome.storage.sync) {
-    const theme = localStorage.getItem("theme") === "light" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", theme);
+    let theme = "dark";
+    try {
+      if (typeof localStorage !== "undefined" && localStorage) {
+        theme = localStorage.getItem("theme") === "light" ? "light" : "dark";
+      }
+    } catch {}
+    if (document.documentElement && document.documentElement.setAttribute) {
+      document.documentElement.setAttribute("data-theme", theme);
+    }
     return;
   }
   chrome.storage?.sync?.get(["theme"], (result) => {
     const theme = result?.theme === "light" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", theme);
+    if (document.documentElement && document.documentElement.setAttribute) {
+      document.documentElement.setAttribute("data-theme", theme);
+    }
   });
 }
 
@@ -278,20 +288,20 @@ function renderResult(data, hostname, currentUrl) {
 
     // Always pre-populate SSL Status cleanly from currentUrl
     if (gridSSL) {
-      if (isHttp) {
+            if (isHttp) {
         gridSSL.textContent = "Unencrypted (HTTP)";
         gridSSL.title = "Unencrypted plain HTTP connection (Insecure)";
-        const item = gridSSL.closest(".grid-item");
+        const item = getGridItem(gridSSL);
         if (item) item.className = "grid-item blocked";
       } else if (isInternal) {
         gridSSL.textContent = "Internal Page";
         gridSSL.title = "Local or browser internal page";
-        const item = gridSSL.closest(".grid-item");
+        const item = getGridItem(gridSSL);
         if (item) item.className = "grid-item";
       } else {
         gridSSL.textContent = "Encrypted (HTTPS)";
         gridSSL.title = "Verified HTTPS SSL/TLS encryption";
-        const item = gridSSL.closest(".grid-item");
+        const item = getGridItem(gridSSL);
         if (item) item.className = "grid-item allowed";
       }
     }
@@ -350,7 +360,7 @@ function renderResult(data, hostname, currentUrl) {
       if (gridRep) {
         gridRep.textContent = repText;
         gridRep.title = repTooltip;
-        const item = gridRep.closest(".grid-item");
+        const item = getGridItem(gridRep);
         if (item) item.className = `grid-item ${heuristicSeverity}`;
       }
 
@@ -359,12 +369,12 @@ function renderResult(data, hostname, currentUrl) {
         if (indicators.length > 0) {
           gridThreat.textContent = `${indicators.length} Signal${indicators.length > 1 ? "s" : ""} Flagged`;
           gridThreat.title = indicators.join("; ");
-          const item = gridThreat.closest(".grid-item");
+          const item = getGridItem(gridThreat);
           if (item) item.className = `grid-item ${heuristicSeverity}`;
         } else {
           gridThreat.textContent = "Clean Scan";
           gridThreat.title = "No suspicious characteristics found by local heuristic inspection.";
-          const item = gridThreat.closest(".grid-item");
+          const item = getGridItem(gridThreat);
           if (item) item.className = "grid-item allowed";
         }
       }
@@ -440,17 +450,17 @@ function renderResult(data, hostname, currentUrl) {
     if (httpCheck || isHttp) {
       gridSSL.textContent = "Unencrypted (HTTP)";
       gridSSL.title = "Unencrypted plain HTTP connection (Insecure)";
-      const item = gridSSL.closest(".grid-item");
+      const item = getGridItem(gridSSL);
       if (item) item.className = "grid-item blocked";
     } else if (isInternal) {
       gridSSL.textContent = "Internal Page";
       gridSSL.title = "Local or browser internal page";
-      const item = gridSSL.closest(".grid-item");
+      const item = getGridItem(gridSSL);
       if (item) item.className = "grid-item";
     } else {
       gridSSL.textContent = "Encrypted (HTTPS)";
       gridSSL.title = "Verified HTTPS SSL/TLS encryption";
-      const item = gridSSL.closest(".grid-item");
+      const item = getGridItem(gridSSL);
       if (item) item.className = "grid-item allowed";
     }
   }
@@ -458,14 +468,14 @@ function renderResult(data, hostname, currentUrl) {
   if (gridRep) {
     gridRep.textContent = repText;
     gridRep.title = `Domain reputation verified by SCYTHE multi-tier pipeline: ${repText}`;
-    const item = gridRep.closest(".grid-item");
+    const item = getGridItem(gridRep);
     if (item) item.className = `grid-item ${severityClass}`;
   }
 
   if (gridThreat) {
     gridThreat.textContent = threatsText;
     gridThreat.title = reasons || (indicators.length > 0 ? indicators.join("; ") : "Zero malicious signals detected across all inspection tiers");
-    const item = gridThreat.closest(".grid-item");
+    const item = getGridItem(gridThreat);
     if (item) item.className = `grid-item ${severityClass}`;
   }
 
@@ -494,7 +504,7 @@ function renderError(message, hostname, currentUrl) {
     hTitle.className = "hero-status-title";
   }
   if (hBadge) {
-    hBadge.textContent = "CLOUD AI OFFLINE";
+    hBadge.textContent = "UNKNOWN";
     hBadge.className = "hero-status-badge";
   }
   if (gRating) {
@@ -514,17 +524,17 @@ function renderError(message, hostname, currentUrl) {
     if (isHttp) {
       gridSSL.textContent = "Unencrypted (HTTP)";
       gridSSL.title = "Unencrypted plain HTTP connection (Insecure)";
-      const item = gridSSL.closest(".grid-item");
+      const item = getGridItem(gridSSL);
       if (item) item.className = "grid-item blocked";
     } else if (isInternal) {
       gridSSL.textContent = "Internal Page";
       gridSSL.title = "Local or browser internal page";
-      const item = gridSSL.closest(".grid-item");
+      const item = getGridItem(gridSSL);
       if (item) item.className = "grid-item";
     } else {
       gridSSL.textContent = "Encrypted (HTTPS)";
       gridSSL.title = "Verified HTTPS SSL/TLS encryption";
-      const item = gridSSL.closest(".grid-item");
+      const item = getGridItem(gridSSL);
       if (item) item.className = "grid-item allowed";
     }
   }
@@ -532,14 +542,14 @@ function renderError(message, hostname, currentUrl) {
   if (gridRep) {
     gridRep.textContent = "—";
     gridRep.title = "Reputation data unavailable offline";
-    const item = gridRep.closest(".grid-item");
+    const item = getGridItem(gridRep);
     if (item) item.className = "grid-item";
   }
 
   if (gridThreat) {
     gridThreat.textContent = "Verdict Unavailable";
     gridThreat.title = message || "Cannot reach SCYTHE analysis engine";
-    const item = gridThreat.closest(".grid-item");
+    const item = getGridItem(gridThreat);
     if (item) item.className = "grid-item";
   }
 

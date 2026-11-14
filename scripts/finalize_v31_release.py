@@ -4,10 +4,9 @@ from __future__ import annotations
 import json
 import shutil
 import sys
-import time
 from pathlib import Path
 
-REPO = Path(r"C:\Users\armaa\Desktop\Project details\SCYTHE")
+REPO = Path(__file__).resolve().parents[1]
 BACKEND = REPO / "containers" / "backend"
 V26_DIR = REPO / "models" / "releases" / "candidate_fusion_v26"
 V30_DIR = REPO / "models" / "releases" / "candidate_fusion_v30"
@@ -17,8 +16,8 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
-from services.model_features.url_features import FEATURE_NAMES_V3
-from services.model_release import sha256, verify_release
+from services.model_features.url_features import FEATURE_NAMES_V3  # noqa: E402
+from services.model_release import sha256, verify_release  # noqa: E402
 
 def main():
     print("=" * 70)

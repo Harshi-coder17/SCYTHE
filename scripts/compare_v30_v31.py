@@ -1,18 +1,24 @@
 import json
-import time
-import numpy as np
-import lightgbm as lgb
 from pathlib import Path
-from sklearn.metrics import roc_auc_score, average_precision_score, precision_recall_fscore_support, accuracy_score, brier_score_loss
+import sys
+import time
+import lightgbm as lgb
+import numpy as np
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    brier_score_loss,
+    precision_recall_fscore_support,
+    roc_auc_score,
+)
 
-REPO = Path(r"C:\Users\armaa\Desktop\Project details\SCYTHE")
-sys_backend = REPO / "containers" / "backend"
-import sys; sys.path.insert(0, str(sys_backend))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "containers" / "backend"))
 
-from services.model_features.url_features import (
-    build_url_feature_vector,
+from services.model_features.url_features import (  # noqa: E402
     FEATURE_NAMES_V2,
     FEATURE_NAMES_V3,
+    build_url_feature_vector,
 )
 
 v30_path = REPO / "models" / "releases" / "candidate_fusion_v30" / "url_classifier.txt"
@@ -22,8 +28,8 @@ b31 = lgb.Booster(model_file=str(v31_path))
 
 # Load holdout.jsonl
 holdout_file = REPO / "models" / "releases" / "candidate_fusion_v26" / "evidence" / "holdout.jsonl"
-lines = holdout_file.read_text(encoding="utf-8").splitlines()
-samples = [json.loads(l) for l in lines if l.strip()]
+raw_lines = holdout_file.read_text(encoding="utf-8").splitlines()
+samples = [json.loads(line) for line in raw_lines if line.strip()]
 print(f"Total holdout samples in file: {len(samples)}")
 
 y_true = []
@@ -33,7 +39,8 @@ feats_v31 = []
 for s in samples:
     url = s.get("canonical_url") or s.get("url")
     lbl = s.get("label")
-    if not url or lbl is None: continue
+    if not url or lbl is None:
+        continue
     
     r2 = build_url_feature_vector(url, feature_names=FEATURE_NAMES_V2)
     r3 = build_url_feature_vector(url, feature_names=FEATURE_NAMES_V3)

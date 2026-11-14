@@ -1,11 +1,11 @@
-import lightgbm as lgb
+import sys
 from pathlib import Path
+import lightgbm as lgb
 
-REPO = Path(r"C:\Users\armaa\Desktop\Project details\SCYTHE")
-sys_backend = REPO / "containers" / "backend"
-import sys; sys.path.insert(0, str(sys_backend))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "containers" / "backend"))
 
-from services.model_features.url_features import build_url_feature_vector, FEATURE_NAMES_V2, FEATURE_NAMES_V3
+from services.model_features.url_features import FEATURE_NAMES_V2, FEATURE_NAMES_V3, build_url_feature_vector  # noqa: E402
 
 v30 = lgb.Booster(model_file=str(REPO / "models" / "releases" / "candidate_fusion_v30" / "url_classifier.txt"))
 v31 = lgb.Booster(model_file=str(REPO / "models" / "releases" / "candidate_fusion_v31" / "url_classifier.txt"))

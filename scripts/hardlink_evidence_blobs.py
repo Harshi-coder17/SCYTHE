@@ -1,5 +1,4 @@
 import os
-import subprocess
 from pathlib import Path
 
 root = Path(r"C:\Users\armaa\Desktop\Project details\SCYTHE\models\releases\candidate_fusion_v31")

@@ -11,8 +11,6 @@ import json
 import logging
 import shutil
 import subprocess
-import sys
-import time
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("azure_cloud_test")
