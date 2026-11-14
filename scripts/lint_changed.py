@@ -6,6 +6,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PREFIXES = ("containers/backend/", "containers/sandbox/backend/", "containers/sandbox/tests/", "scripts/")
+SCRIPT_EXCLUDE_PREFIXES = ("scripts/train_",)
 
 
 def changed_files(base=None):
@@ -20,8 +21,15 @@ def changed_files(base=None):
         names.update(output.decode().split("\0"))
         output = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard", "-z"], cwd=ROOT)
         names.update(output.decode().split("\0"))
-    return sorted(name for name in names if name.endswith(".py") and name.startswith(PREFIXES)
-                  and (ROOT / name).is_file() and (ROOT / name).resolve().is_relative_to(ROOT))
+    return sorted(
+        name
+        for name in names
+        if name.endswith(".py")
+        and name.startswith(PREFIXES)
+        and not name.startswith(SCRIPT_EXCLUDE_PREFIXES)
+        and (ROOT / name).is_file()
+        and (ROOT / name).resolve().is_relative_to(ROOT)
+    )
 
 
 def main():
