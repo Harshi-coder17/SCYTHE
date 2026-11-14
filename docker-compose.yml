@@ -41,6 +41,7 @@ x-backend-common: &backend-common
   volumes:
     - scythe_shared_scans:/shared/scans
     - ./containers/backend/models:/app/models:ro
+    - ./containers/backend/data:/app/data:ro
     - ${MODEL_RELEASE_HOST_DIR:-./models/releases}:/opt/scythe/release:ro
   # Python (FastAPI, Celery worker, Beat) requires read_only: false for runtime bytecode compilation
   # (__pycache__) across dynamic module loads and Celery Beat schedule database synchronization.
@@ -138,6 +139,7 @@ services:
       - scythe_shared_scans:/shared/scans
       - scythe_bundle_v26:/opt/scythe/bundle
       - ./containers/backend/models:/app/models:ro
+      - ./containers/backend/data:/app/data:ro
       - ${MODEL_RELEASE_HOST_DIR:-./models/releases}:/opt/scythe/release:ro
     command: >
       uvicorn main:app

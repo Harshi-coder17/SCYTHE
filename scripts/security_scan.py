@@ -19,7 +19,11 @@ REQUIREMENTS = ("containers/backend/requirements.txt", "containers/backend/requi
 
 
 def run(command, *, cwd=ROOT):
-    return subprocess.run(command, cwd=cwd, check=False).returncode
+    try:
+        return subprocess.run(command, cwd=cwd, check=False).returncode
+    except OSError as err:
+        print(f"Command execution blocked or failed: {err}")
+        return 126
 
 
 def source_snapshot(destination):

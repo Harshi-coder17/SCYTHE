@@ -37,6 +37,7 @@ celery = Celery(
         "tasks.file_cleanup",     # periodic artifact retention (finding #8 fix)
         "tasks.job_reconciliation", # periodic stuck job reconciliation (finding #7 fix)
         "tasks.db_backup",        # automated daily PostgreSQL logical backups (Finding #6)
+        "tasks.threat_feed",      # automated threat intel feed ingestion into Redis Tier 0
         "tasks.email_header_analysis",
         "tasks.email_url_analysis",
         "tasks.email_attachment_analysis",
@@ -73,6 +74,7 @@ celery.conf.update(
         "tasks.file_cleanup": {"queue": "default"},
         "tasks.job_reconciliation": {"queue": "default"},
         "tasks.db_backup": {"queue": "default"},
+        "tasks.sync_threat_feeds": {"queue": "default"},
         "tasks.email_header_analysis": {"queue": "default"},
         "tasks.email_url_analysis": {"queue": "default"},
         "tasks.email_attachment_analysis": {"queue": "default"},

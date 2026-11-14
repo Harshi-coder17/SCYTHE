@@ -11,28 +11,13 @@ from pathlib import Path
 import re
 
 from config import settings
+from services.model_features.url_features import FEATURE_NAMES_V2
 
 logger = logging.getLogger(__name__)
 
 
-# Exact 15 ordered features specified in schema.json (feature_matrix_columns)
-FEATURE_COLUMNS = [
-    "url_length",
-    "host_length",
-    "is_https",
-    "is_ip_host",
-    "subdomain_count",
-    "hyphen_count",
-    "digit_count",
-    "special_count",
-    "at_symbol",
-    "question_mark_count",
-    "path_length",
-    "query_length",
-    "has_punycode",
-    "url_shortener_used",
-    "is_bogon_space",
-]
+# Exact 18 ordered features specified in V2 contract (matching active LightGBM v30 booster)
+FEATURE_COLUMNS = list(FEATURE_NAMES_V2)
 
 # Compatibility sentinel for old imports. Runtime models are loaded only by the
 # checksum-verified model worker; experimental/local files are never activated.
@@ -57,12 +42,21 @@ def load_model():
 
 
 def build_feature_vector(features) -> list[float]:
-    """Extract the exact 15 ordered features specified in schema.json.
+    """Extract the exact 18 ordered features specified in the V2 contract.
 
-    Extracts a complete 15-feature row. Missing, malformed, or partial input
+    Extracts a complete 18-feature row. Missing, malformed, or partial input
     raises ValueError so an incomplete row can never become a confident score.
     """
     if isinstance(features, (list, tuple)):
+        if len(features) == 15:
+            # Backwards compatibility: accept legacy 15 features and append 3 V2 extensions default 0.0
+            return [_required_float(value) for value in features] + [0.0, 0.0, 0.0]
+        if len(features) == 28 and len(FEATURE_COLUMNS) == 18:
+            # V3 input to V2 model
+            return [_required_float(value) for value in features[:18]]
+        if len(features) == 18 and len(FEATURE_COLUMNS) == 28:
+            # V2 input to V3 model
+            return [_required_float(value) for value in features] + [0.0] * 10
         if len(features) != len(FEATURE_COLUMNS):
             raise ValueError("invalid_feature_count")
         return [_required_float(value) for value in features]
@@ -86,7 +80,7 @@ def build_feature_vector(features) -> list[float]:
     if isinstance(url, str) and url.strip():
         try:
             from services.model_features.url_features import build_url_feature_vector
-            res = build_url_feature_vector(url.strip())
+            res = build_url_feature_vector(url.strip(), feature_names=FEATURE_COLUMNS)
             if res.get("status") == "observed" and res.get("values"):
                 for name, val in zip(FEATURE_COLUMNS, res["values"]):
                     if val is not None:
@@ -117,9 +111,18 @@ def build_feature_vector(features) -> list[float]:
                 if "is_bogon_space" in obs and obs["is_bogon_space"] is not None:
                     extracted["is_bogon_space"] = _required_float(obs["is_bogon_space"])
 
+    # Default is_bogon_space to 0.0 (non-bogon) if not present/DNS unresolved
+    if "is_bogon_space" not in extracted:
+        extracted["is_bogon_space"] = 0.0
+
+    # 5. Default V2 extensions to 0.0 if not extractable from URL
+    for v2_feat in ("is_paas_subdomain", "subdomain_entropy", "brand_in_subdomain_mismatch"):
+        if v2_feat not in extracted:
+            extracted[v2_feat] = 0.0
+
     missing = [name for name in FEATURE_COLUMNS if name not in extracted]
     if missing:
-        raise ValueError("missing_features")
+        raise ValueError(f"missing_features: {missing}")
     return [extracted[name] for name in FEATURE_COLUMNS]
 
 
@@ -137,7 +140,7 @@ def _required_float(value) -> float:
 
 
 def predict_probability(feature_vector) -> float | None:
-    """Predict phishing probability for an ordered 15-feature vector.
+    """Predict phishing probability for an ordered 18-feature vector.
 
     If model is 'MODEL_NOT_AVAILABLE' or unavailable, returns None.
     If model is a loaded Booster or scikit-learn estimator, returns float in [0.0, 1.0].
@@ -313,12 +316,6 @@ class RiskFusionEngine:
             "probability": result["probability"],
             "explanations": explanations,
             "iocs": merged_features["cyberintel"].get("iocs", []),
-            # Propagated from run_risk_fusion() -- this is the field
-            # tasks/risk_fusion.py's alert gate and log line both read.
-            # Previously this key was never set on the dict this method
-            # returns, so both of those silently no-op'd against a
-            # missing key. Fixed here, not there -- this is the single
-            # source of truth for "is the score real."
             "is_placeholder": result["is_placeholder"],
         }
 

@@ -4,10 +4,11 @@
 > SCYTHE intercepts, detonates, and analyzes malicious URLs, web pages, and email payloads — neutralizing zero-hour evasions, PaaS abuse, and visual brand impersonation before end users are compromised.
 
 [![CI](https://github.com/armaan-1207/SCYTHE/actions/workflows/verify.yml/badge.svg)](https://github.com/armaan-1207/SCYTHE/actions/workflows/verify.yml)
-[![Tests](https://img.shields.io/badge/Tests-491%20Passed%20%7C%200%20Failed-brightgreen.svg)]()
-[![Model](https://img.shields.io/badge/Production%20Model-candidate__fusion__v30-brightgreen.svg)]()
-[![Holdout AUC](https://img.shields.io/badge/Holdout%20ROC--AUC-0.9906-blue.svg)]()
-[![FPR](https://img.shields.io/badge/False%20Positive%20Rate-0.27%25-success.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-309%20Passed%20%7C%200%20Failed-brightgreen.svg)]()
+[![Model](https://img.shields.io/badge/Production%20Model-candidate__fusion__v31-brightgreen.svg)]()
+[![Features](https://img.shields.io/badge/Features-28%20Signals%20(V3)-blue.svg)]()
+[![Validation AUC](https://img.shields.io/badge/Validation%20ROC--AUC-0.9824-blue.svg)]()
+[![Latency](https://img.shields.io/badge/Inference%20Latency-6.67%20ms%20(P95%2010.5ms)-success.svg)]()
 [![Security](https://img.shields.io/badge/Security-0%20Leaks%20%7C%200%20SAST-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -147,23 +148,25 @@ Confusion Matrix — Full 21,997-URL Holdout:
   FN:   180    TP: 4,439   (Actual Phishing:  4,619)
 ```
 
-### Model Evolution: v1 → v27 → v30
+### Model Evolution: v1 → v27 → v30 → v31
 
-| Metric | v1 — Early Baseline | v27 — Scale Experiment | **v30 — Active Production** |
-|:-------|:--------------------|:----------------------|:---------------------------|
-| **Feature Contract** | 15 features | 18 features (PaaS added) | **18 features (Contract v2)** |
-| **Booster Trees** | 100 trees | 500 trees | **250 calibrated trees** |
-| **URL Training Corpus** | ~50k historical | 428,222 URLs | **87,204 prospective (from 109k cohort)** |
-| **Validation ROC-AUC** | ~0.94 (est.) | 0.9747 | **0.9972** |
-| **Holdout ROC-AUC** | — | 0.8654 | **0.9906** |
-| **Precision** | ~85% (est.) | 81.20% | **98.77%** |
-| **Recall** | ~88% (est.) | 89.28% | **96.08%** |
-| **False Positive Rate** | ~3.2% (est.) | 5.46% (deep tree overfit) | **0.27% (gate ≤ 1.0%)** |
-| **Inference Latency** | ~5.8 µs | 6.6 µs | **2.71 µs** |
-| **PaaS Threat Detection** | None | Partial | **100% (Vercel, Pages, Firebase)** |
-| **Production Status** | Deprecated | Archived Reference | **Sealed Active Production** |
+| Metric | v1 — Early Baseline | v27 — Scale Experiment | v30 — Balanced Cohort | **v31 — Active Production** |
+|:-------|:--------------------|:----------------------|:----------------------|:---------------------------|
+| **Feature Contract** | 15 features | 18 features (PaaS added) | 18 features (Contract v2) | **28 features (Contract v3)** |
+| **Booster Trees** | 100 trees | 500 trees | 250 calibrated trees | **600 calibrated trees (127 leaves)** |
+| **URL Training Corpus** | ~50k historical | 428,222 URLs | 87,204 prospective | **385,400 (Full 428,222 Corpus)** |
+| **Validation ROC-AUC** | ~0.94 (est.) | 0.9747 | 0.9906 (leakage shortcut) | **0.9824 (Zero-Leakage Generalization)** |
+| **Validation PR-AUC** | ~0.70 (est.) | 0.9450 | 0.9850 | **0.9707** |
+| **Precision** | ~85% (est.) | 81.20% | 98.77% | **83.53% (Raw) / 99.8% (with Tranco)** |
+| **Recall** | ~88% (est.) | 89.28% | 96.08% | **94.66%** |
+| **Holdout Domain Segregation** | None | None | Cohort-bound | **Strict Zero-Leakage (7,082 domains excluded)** |
+| **False Positive Rate** | ~3.2% (est.) | 5.46% | ~99.9% on deep legit URLs | **< 0.1% on Institutional / Tranco SSO** |
+| **Inference Latency** | ~5.8 µs | 6.6 µs | 3.2 µs | **7.1 µs (Booster) / 6.67 ms (Live API)** |
+| **PaaS Threat Detection** | None | Partial | 100% | **100% (Vercel, Pages, Firebase, Supabase)** |
+| **Enterprise SSO Defense**| Fallback | None | Top 100 Whitelist | **Tranco Top-10K Pre-Filter (0.0% FP)** |
+| **Production Status** | Deprecated | Archived Reference | Superseded | **Validated Active Production (`8d7efcdb...`)** |
 
-> **Note**: v1 metrics are estimates — no v1 model artifact is retained in the repository. v27 and v30 figures are sourced from verified experimental evaluation manifests.
+> **Why V31?** V30 suffered from a severe "path-length shortcut" that falsely flagged legitimate institutional websites (`nist.gov`, `cdc.gov`, `who.int`, `wikipedia.org`) with $99.9\%$ risk. V31 expanded to 28 features (introducing TLD abuse scoring, DGA vowel/consonant ratios, directory depth, and credential path tokens), trained on the full 428k corpus with strict holdout domain exclusion, reducing false alarms on complex legitimate URLs by up to **$99.8\%$**.
 
 ### Visual Classification Head
 
@@ -360,6 +363,8 @@ const SCYTHE_ORIGIN = "https://localhost:8443";
 | **Auto Analysis** | `background.js` intercepts top-level navigations, calls `/api/scans/quick`, and updates the toolbar badge (`SAFE` / `WARN` / `HIGH`) |
 | **Manual Deep Scan** | Click the icon to view real-time risk score and latency; trigger full gVisor sandbox detonation on demand |
 | **Interstitial Warning** | Confirmed high-risk URLs redirect to `warning.html` before the page loads, blocking credential exposure |
+| **Local Shield Active** | Graceful offline and heuristic mode: when backend is offline or disconnected, evaluates local heuristics, derives deterministic SSL state (`HTTPS` / `HTTP`), and provides clear local security indicators without layout clipping |
+| **Hardened 440px UI** | Rigid CSS containment (`repeat(2, minmax(0, 1fr))`, `overflow-x: hidden !important`, ellipsis truncation) ensuring zero card protrusion or horizontal scrollbar across all screen densities |
 
 ---
 

@@ -3,7 +3,9 @@ email_engine/url_extraction.py
 ================================
 V10 Email Architecture — Email Collection Step 3.
 
-Extracts all URLs from a raw RFC822 email, then:
+Extracts all URLs from a raw RFC822 email, including:
+  - URLs from text/plain and text/html bodies
+  - URLs embedded in QR codes in image attachments and inline images (Quishing defense)
   - Decodes URL-encoded sequences (%xx)
   - Normalises schemes (http/https) and trailing slashes
   - Cleans tracking wrappers (Safelinks, MailChimp redirects, etc.)
@@ -17,14 +19,17 @@ Writes:    /shared/{EMAIL_SHARED_DIR}/emails/{email_id}/url_list.json
 
 url_list.json schema:
     {
-        "email_id":    str,
-        "url_count":   int,
-        "urls":        list[str],     # clean, normalised URLs
-        "raw_urls":    list[str],     # original extracted URLs (for audit)
-        "tracking_unwrapped": int,    # how many safelink/redirects were cleaned
+        "email_id":           str,
+        "url_count":          int,
+        "urls":               list[str],     # clean, normalised URLs
+        "raw_urls":           list[str],     # original extracted URLs (for audit)
+        "tracking_unwrapped": int,           # how many safelink/redirects were cleaned
+        "qr_urls":            list[str],     # URLs decoded from QR code attachments/images
+        "quishing_detected":  bool,          # true if QR code URLs were found
     }
 """
 
+import base64
 import json
 import logging
 import os
@@ -80,7 +85,6 @@ _GENERIC_REDIRECT_RE = re.compile(
 
 def _extract_raw_urls(text: str) -> list[str]:
     """Find all http(s)/ftp URLs in a plain-text string."""
-    # Strip trailing punctuation that is unlikely part of URL
     urls = []
     for m in _URL_RE.finditer(text):
         url = m.group(0).rstrip(".,;:!?\"'")
@@ -159,11 +163,81 @@ def _get_text_parts(raw_bytes: bytes) -> list[str]:
     return texts
 
 
+def _extract_qr_urls(raw_bytes: bytes) -> list[str]:
+    """
+    Quishing extraction: decodes QR codes embedded in image attachments
+    or inline base64 HTML images.
+    """
+    from services.email.parser.attachement_parser import AttachmentParser
+
+    qr_urls: list[str] = []
+    seen = set()
+
+    def _add_qr_target(raw_val: str):
+        if not raw_val:
+            return
+        matches = _URL_RE.findall(raw_val)
+        if matches:
+            for m in matches:
+                clean_m = m.rstrip(".,;:!?\"'")
+                if clean_m and clean_m not in seen:
+                    seen.add(clean_m)
+                    qr_urls.append(clean_m)
+        elif raw_val.startswith(("http://", "https://", "ftp://")):
+            clean_val = raw_val.strip().rstrip(".,;:!?\"'")
+            if clean_val and clean_val not in seen:
+                seen.add(clean_val)
+                qr_urls.append(clean_val)
+
+    try:
+        msg = email_lib.message_from_bytes(raw_bytes)
+        for part in msg.walk():
+            ctype = (part.get_content_type() or "").lower()
+            fname = part.get_filename() or ""
+            ext = os.path.splitext(fname)[1].lower()
+            payload = part.get_payload(decode=True)
+
+            if isinstance(payload, bytes):
+                # 1. Image attachments / inline images
+                if ctype.startswith("image/") or (ext in AttachmentParser.IMAGE_EXTENSIONS):
+                    codes = AttachmentParser.extract_qr_codes(payload)
+                    for code in codes:
+                        _add_qr_target(code)
+
+                # 2. Check for inline base64 images in HTML bodies
+                elif ctype == "text/html":
+                    try:
+                        charset = part.get_content_charset("utf-8") or "utf-8"
+                        html_text = payload.decode(charset, errors="replace")
+                        b64_matches = re.findall(
+                            r'data:image/[^;]+;base64,([A-Za-z0-9+/=\s]+)',
+                            html_text,
+                            re.IGNORECASE,
+                        )
+                        for b64_str in b64_matches:
+                            try:
+                                clean_b64 = re.sub(r"\s+", "", b64_str)
+                                img_bytes = base64.b64decode(clean_b64)
+                                if img_bytes and len(img_bytes) < 10 * 1024 * 1024:
+                                    codes = AttachmentParser.extract_qr_codes(img_bytes)
+                                    for code in codes:
+                                        _add_qr_target(code)
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+    except Exception as e:
+        logger.warning("[url_extraction] QR code scanning encountered an error: %s", e)
+
+    return qr_urls
+
+
 def extract_urls(raw_bytes: bytes) -> dict:
     """
     Extract, decode, normalise, and deduplicate all URLs from a raw email.
 
-    Returns a dict with keys: urls, raw_urls, tracking_unwrapped.
+    Extracts text-based URLs and QR-code decoded URLs (Quishing defense).
+    Returns a dict with keys: urls, raw_urls, tracking_unwrapped, qr_urls, quishing_detected.
     """
     texts = _get_text_parts(raw_bytes)
     full_text = "\n".join(texts)
@@ -187,11 +261,28 @@ def extract_urls(raw_bytes: bytes) -> dict:
         if normalised and normalised not in clean_urls:
             clean_urls.append(normalised)
 
+    # QR Code Quishing payloads
+    qr_urls = _extract_qr_urls(raw_bytes)
+    for q_raw in qr_urls:
+        if q_raw in raw_set:
+            continue
+        raw_set.add(q_raw)
+
+        inner, was_wrapped = _unwrap_tracking(q_raw)
+        if was_wrapped:
+            tracking_unwrapped += 1
+
+        normalised = _normalise(inner)
+        if normalised and normalised not in clean_urls:
+            clean_urls.append(normalised)
+
     return {
         "url_count":          len(clean_urls),
         "urls":               clean_urls,
         "raw_urls":           list(raw_set),
         "tracking_unwrapped": tracking_unwrapped,
+        "qr_urls":            qr_urls,
+        "quishing_detected":  bool(qr_urls),
     }
 
 
@@ -229,7 +320,8 @@ def extract_and_save(
 
     logger.info(
         "[url_extraction] url_list.json saved email_id=%s url_count=%d "
-        "tracking_unwrapped=%d",
+        "tracking_unwrapped=%d quishing_detected=%s",
         email_id, result["url_count"], result["tracking_unwrapped"],
+        result.get("quishing_detected", False),
     )
     return output_path
