@@ -1,379 +1,497 @@
-# SCYTHE — Secure Cyber & Threat Heuristics Engine
+<div align="center">
 
-<p align="center">
-  <img src="dashboard/assets/logo.png" alt="SCYTHE Shield Logo" width="120" onerror="this.style.display='none'"/>
-</p>
+<img src="chrome-extension/icons/red_logo_128.png" alt="SCYTHE Logo" width="96"/>
 
-<h3 align="center">Next-Generation Multimodal Phishing Defense, Behavioral Sandboxing & Threat Intelligence Mesh</h3>
+# SCYTHE
 
-<p align="center">
-  <strong>Intercept, detonate, and neutralize zero-hour evasions, PaaS abuse, and visual brand impersonation before end-users are compromised.</strong>
-</p>
+**Threat Shield · URL & Email Phishing Detection Platform**
 
-<p align="center">
-  <a href="https://github.com/armaan-1207/SCYTHE/actions/workflows/verify.yml"><img src="https://github.com/armaan-1207/SCYTHE/actions/workflows/verify.yml/badge.svg" alt="CI Status"/></a>
-  <img src="https://img.shields.io/badge/Production%20Model-candidate__fusion__v31-00E5FF.svg" alt="Model V31"/>
-  <img src="https://img.shields.io/badge/Signals-28%20Features%20(V3)-7C4DFF.svg" alt="28 Features"/>
-  <img src="https://img.shields.io/badge/Validation%20ROC--AUC-0.9824-00C853.svg" alt="Validation ROC-AUC"/>
-  <img src="https://img.shields.io/badge/Inference%20Latency-7.1%20%C2%B5s%20%7C%208.5ms%20E2E-00E676.svg" alt="Latency"/>
-  <img src="https://img.shields.io/badge/Tests-491%20Passing%20(100%25)-brightgreen.svg" alt="Tests 491 Passing"/>
-  <img src="https://img.shields.io/badge/Security-0%20Leaks%20%7C%200%20SAST%20%7C%200%20CVEs-success.svg" alt="Security Clean"/>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"/></a>
-</p>
+[![CI](https://github.com/armaan-1207/SCYTHE/actions/workflows/verify.yml/badge.svg)](https://github.com/armaan-1207/SCYTHE/actions/workflows/verify.yml)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)
+![LightGBM](https://img.shields.io/badge/LightGBM-v31-brightgreen)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-491%2B%20passing-success)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
----
+*A production-grade, multi-layer phishing detection system with a Chrome extension, sandboxed URL detonation, email analysis, and a LightGBM fusion model trained on 428 K+ URLs.*
 
-## 📑 Table of Contents
+[Features](#-features) · [Architecture](#-architecture) · [Quick Start](#-quick-start) · [Project Structure](#-project-structure) · [Tech Stack](#-tech-stack) · [API Reference](#-api-reference) · [Chrome Extension](#-chrome-extension) · [CI / Security](#-ci--security)
 
-- [1. Executive Architecture Overview](#1-executive-architecture-overview)
-- [2. The 5-Tier Defense In-Depth Pipeline](#2-the-5-tier-defense-in-depth-pipeline)
-- [3. Candidate Fusion V31: 28-Signal Machine Learning](#3-candidate-fusion-v31-28-signal-machine-learning)
-- [4. Model Evolution & Benchmarks (v1 → v31)](#4-model-evolution--benchmarks-v1--v31)
-- [5. Multimodal Computer Vision (MobileCLIP S0)](#5-multimodal-computer-vision-mobileclip-s0)
-- [6. Containerized Microservices Mesh (13 Services)](#6-containerized-microservices-mesh-13-services)
-- [7. Enterprise Security & Zero-Trust Governance](#7-enterprise-security--zero-trust-governance)
-- [8. Manifest V3 Chrome Extension](#8-manifest-v3-chrome-extension)
-- [9. Quick Start & Deployment Guide](#9-quick-start--deployment-guide)
-- [10. API Reference & Contract Examples](#10-api-reference--contract-examples)
-- [11. Verification, CI Gates & Test Coverage](#11-verification-ci-gates--test-coverage)
-- [12. Repository Structure](#12-repository-structure)
+</div>
 
 ---
 
-## 1. Executive Architecture Overview
+## ✨ Features
 
-Legacy security gateways rely on static DNS blocklists (Google Safe Browsing, PhishTank) or brittle lexical regexes. Modern cyber adversaries circumvent these within seconds using bulletproof hosting, serverless cloud hosting (Vercel, Firebase, Supabase), geofenced delivery, and high-fidelity brand visual impersonation.
+| Category | Capability |
+|---|---|
+| 🔗 **URL Intelligence** | 28-feature extraction in ~107 µs · LightGBM inference in ~2.7 µs · end-to-end ~9.4 ms (P95 10.5 ms) |
+| 📧 **Email Analysis** | Full MIME parsing, header forensics, embedded-URL extraction, IMAP polling, attachment scanning |
+| 🖥️ **Sandbox Detonation** | Playwright-driven isolated browser execution · HAR capture · screenshot + DOM extraction |
+| 👁️ **Visual AI** | MobileCLIP S0 screenshot embeddings · Neural MLP visual classifier (ROC-AUC 0.9585) |
+| 🤖 **Fusion Model** | `candidate_fusion_v31` · 28 features · 600 trees · ROC-AUC **0.9824** on 21 997-URL holdout |
+| 🧠 **Consistency Engine** | Cross-checks visual brand, OCR text, DOM structure, and URL for mismatch signals |
+| 🛡️ **ClamAV Scanning** | Attachment malware scanning via ClamAV daemon with real-time signature updates |
+| 🔒 **Auth & Rate-limiting** | JWT + Argon2 auth · HIBP breach check · account lockout · per-route rate limits |
+| 🌐 **Chrome Extension** | Manifest V3 · real-time verdict badge · warning page · dark/light theme · auth bridge |
+| 📡 **WebSocket Pushes** | Live scan progress and verdict streaming to the browser extension and dashboard |
+| 🏗️ **13-container Stack** | Full Docker Compose deployment with healthchecks, hardened images, and resource limits |
 
-**SCYTHE** changes the paradigm through an **air-gapped, multimodal behavioral mesh**:
+---
+
+## 🏗️ Architecture
 
 ```
-┌───────────────────────────────────────────────┬───────────────────────────────────────────────┐
-│  Traditional Security Gateways                │  SCYTHE Multimodal Platform                   │
-├───────────────────────────────────────────────┼───────────────────────────────────────────────┤
-│ ❌ Stale DNS feeds (hours to days delay)      │ ⚡ Ultra-fast inline inference (<8.5 ms P95)  │
-│ ❌ Blind to visual brand cloning & canvas UI  │ 👁️ MobileCLIP S0 512-dim neural vision        │
-│ ❌ Bypassed by cloaking, bot-filters & CAPTCHAs│ 🛡️ Ephemeral gVisor sandboxing & HAR tracking │
-│ ❌ Fails on modern PaaS / serverless lures    │ ☁️ 28 V3 features with cloud-provider tagging │
-│ ❌ False-positives on enterprise SSO URLs     │ 🎯 Tranco Top-10k authority + Consistency DOM │
-│ ❌ Vulnerable to pickle model tampering       │ 🔒 Cryptographically sealed SHA-256 manifests │
-└───────────────────────────────────────────────┴───────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  User / Browser                                                      │
+│  ┌──────────────┐     HTTPS       ┌─────────────────────────────┐  │
+│  │ Chrome Ext   │◄───────────────►│  scythe_nginx (TLS, :443)   │  │
+│  │ (MV3)        │                 └────────────┬────────────────┘  │
+│  └──────────────┘                              │                    │
+└───────────────────────────────────────────────┼────────────────────┘
+                                                 │ reverse proxy
+                        ┌────────────────────────▼────────────────────┐
+                        │  scythe_backend  (FastAPI / Uvicorn :8000)  │
+                        │  ┌──────────┐ ┌──────────┐ ┌────────────┐  │
+                        │  │ /scan/*  │ │ /email/* │ │  /auth/*   │  │
+                        │  │ routes   │ │ routes   │ │  routes    │  │
+                        │  └────┬─────┘ └────┬─────┘ └────────────┘  │
+                        │       │   Celery tasks    │                  │
+                        └───────┼───────────────────┼──────────────────┘
+              ┌─────────────────┴──┐           ┌────┴──────────────────┐
+              │  scythe_redis      │           │  scythe_postgres       │
+              │  (broker + cache)  │           │  (users, scans, IOCs)  │
+              └────────────────────┘           └───────────────────────┘
+                        │
+         ┌──────────────┴───────────────────────────────────┐
+         │  Celery Workers                                   │
+         │  ┌──────────────────┐  ┌───────────────────────┐ │
+         │  │ celery_worker    │  │ celery_model_worker   │ │
+         │  │ (OCR, vision,    │  │ (LightGBM v31 fusion) │ │
+         │  │  consistency)    │  └───────────────────────┘ │
+         │  └────────┬─────────┘                            │
+         │           │ via docker_socket_proxy               │
+         │  ┌────────▼──────────────┐  ┌─────────────────┐ │
+         │  │ scythe_sandbox_runner │  │   scythe_clamav  │ │
+         │  │ (Playwright, HAR)     │  │   (AV scanning)  │ │
+         │  └────────┬──────────────┘  └─────────────────┘ │
+         │           │ isolated network                      │
+         │  ┌────────▼──────────────┐                       │
+         │  │  sandbox container    │  (no route to core)   │
+         │  └───────────────────────┘                       │
+         └──────────────────────────────────────────────────┘
 ```
+
+### Container Inventory
+
+| # | Container | Role |
+|---|---|---|
+| 1 | `scythe_nginx` | TLS termination, reverse proxy, static dashboard |
+| 2 | `scythe_backend` | FastAPI / Uvicorn API server (2 workers) |
+| 3 | `scythe_postgres` | Primary datastore — users, scans, incidents, IOCs |
+| 4 | `scythe_redis` | Celery broker + result backend + verdict cache |
+| 5 | `scythe_redis_security` | Dedicated rate-limit & lockout store |
+| 6 | `scythe_clamav` | ClamAV daemon for attachment AV |
+| 7 | `scythe_celery_worker` | OCR, vision, sandbox dispatch, consistency engine |
+| 8 | `scythe_celery_beat` | Periodic scheduler (cleanup, health sweeps) |
+| 9 | `scythe_celery_model_worker` | LightGBM v31 inference worker |
+| 10 | `scythe_celery_shadow_worker` | Shadow-scoring worker for A/B model validation |
+| 11 | `scythe_socket_proxy` | Scoped Docker API proxy (sandbox isolation) |
+| 12 | `scythe_sandbox_runner` | Playwright detonation orchestrator |
+| 13 | `sandbox` | Fully isolated Playwright browser container |
 
 ---
 
-## 2. The 5-Tier Defense In-Depth Pipeline
-
-```mermaid
-flowchart TD
-    EXT["Chrome MV3 Extension / Client Ingestion"] -->|"TLS 1.3 (:8443)"| NGINX["Nginx Hardened Reverse Proxy"]
-    NGINX --> FASTAPI["FastAPI Orchestration Core (:8000)"]
-
-    subgraph FAST_PATH["Tier 1: High-Speed Edge Pre-Filter (< 5 ms)"]
-        FASTAPI --> T1A["Tranco Top-10k Authority Pre-Filter"]
-        FASTAPI --> T1B["Zero-Day Automated Threat Feeds"]
-        FASTAPI --> T1C["28-Signal LightGBM Booster (V31)"]
-    end
-
-    T1C -->|"Low Risk (Clean)"| VERDICT_CLEAN["Verdict: SAFE (Zero False Alarm)"]
-    T1C -->|"High / Ambiguous Risk"| CELERY["Tier 2 & 3: Celery Distributed Choreography"]
-
-    subgraph DEEP_SANDBOX["Tier 2 & 3: Deep Behavioral Sandbox & Detonation"]
-        CELERY --> GVISOR["gVisor-Isolated Chromium Runner"]
-        GVISOR --> HAR["Full HAR Network Capture & Redirect Trace"]
-        GVISOR --> DOM["DOM Structure & Form Action Analysis"]
-        GVISOR --> SS["Clean Viewport Screenshot Capture"]
-    end
-
-    subgraph MULTIMODAL["Tier 4: Multimodal Consistency Engine"]
-        SS --> VISION["MobileCLIP S0 512-dim Vision Head"]
-        DOM & HAR & VISION --> CONSISTENCY["Consistency Matrix Engine"]
-        CONSISTENCY -->|"Cross-Checks"| CROSS["DOM Brand vs. TLS Cert vs. DNS Authority"]
-    end
-
-    subgraph RISK_FUSION["Tier 5: Calibrated Risk Fusion Engine"]
-        CROSS & T1C --> FUSION["Wilson 95% Confidence Calibration"]
-        FUSION --> FINAL["Verdict: SAFE / CAUTION / BLOCKED (0.00% SSO FP)"]
-    end
-```
-
-| Tier | Subsystem | Latency SLA | Description |
-|:-----|:----------|:------------|:------------|
-| **1 — Edge Pre-Filter** | Tranco + LightGBM V31 | **< 10 ms** | Fast lexical, entropy, TLD abuse, and domain authority pre-classification. |
-| **2 — Sandbox Detonation** | gVisor + Playwright | **Async (~4s)** | Headless Chromium detonation in an isolated sandbox with full HAR recording. |
-| **3 — Parallel Chord** | Celery Multi-Worker Mesh | **Async** | Parallel extraction of visual features, ClamAV antivirus scans, and DNS records. |
-| **4 — Consistency Engine** | DOM vs. SSL Cross-Validator| **< 15 ms** | Resolves whether visual trademarks match the actual TLS Certificate Authority. |
-| **5 — Calibrated Fusion** | Bayesian Wilson 95% CI | **< 5 ms** | Blends behavioral signals into a strictly calibrated risk score $[0, 100]$. |
-
----
-
-## 3. Candidate Fusion V31: 28-Signal Machine Learning
-
-**Candidate Fusion V31** upgrades the URL feature contract to **28 dimensional signals (Contract V3)**, directly addressing the real-world challenge of path-length bias and false positives on deep legitimate enterprise URLs.
-
-### 28-Feature Signal Taxonomy
-
-| # | Feature Signal | Category | Security Rationale |
-|:--|:---------------|:---------|:-------------------|
-| 1 | `url_length` | Lexical | Excessive character counts frequently used to hide hostile query strings. |
-| 2 | `hostname_length` | Host | Subdomain stuffing and domain fronting detection. |
-| 3 | `path_length` | Path | Identifies deep obfuscated asset routing. |
-| 4 | `query_length` | Query | Flags bloated credential-harvesting token chains. |
-| 5 | `count_dots` | Lexical | Multiple dot delimiters indicating TLD deception or nested subdomains. |
-| 6 | `count_hyphens` | Lexical | High hyphen count common in spoofed brand strings (`login-apple-verify`). |
-| 7 | `count_at` | Lexical | RFC 3986 userinfo delimiter (`@`) utilized to deceive human inspection. |
-| 8 | `count_question` | Query | Multiple queries or malformed query indicators. |
-| 9 | `count_percent` | Encoding | Excessive hex URL-encoding to evade static pattern matchers. |
-| 10 | `count_digits` | Lexical | Random numeric entropy generated by automated phishing toolkits. |
-| 11 | `digit_ratio` | Ratio | High ratio of digits to alpha characters in domain or path. |
-| 12 | `has_ip` | Host | Raw IPv4/IPv6 literals bypassing DNS registrar controls. |
-| 13 | `is_https` | Security | Plaintext HTTP flags insecure credential ingestion. |
-| 14 | `entropy` | Entropy | Shannon entropy across the entire URL string. |
-| 15 | `hostname_entropy` | Entropy | Shannon entropy specifically on the fully qualified domain name. |
-| 16 | `path_entropy` | Entropy | High randomness indicating obfuscated path or one-time phishing tokens. |
-| 17 | `subdomain_count` | Host | Detects excessive DNS label nesting. |
-| 18 | `is_paas_provider` | Infrastructure | Identifies free cloud app hosting (Vercel, Supabase, Firebase, Render, Netlify). |
-| 19 | `has_brand_keyword` | Brand Protection | Presence of high-value targets (Microsoft, Apple, PayPal, Google, Chase, Netflix). |
-| 20 | `is_high_abuse_tld` | Registrar Threat | Known abuse TLDs (`.top`, `.xyz`, `.buzz`, `.click`, `.rest`, `.country`). |
-| 21 | `has_tld_in_subdomain`| Brand Spoof | Phishing technique placing genuine TLDs inside subdomains (`login.chase.com.evil.ru`). |
-| 22 | `non_standard_port` | Host | Ingestion on unusual service ports (`:8080`, `:8443`, `:8888`, `:2082`). |
-| 23 | `count_dashes_in_host` | Host | Multi-hyphen domain generation algorithms. |
-| 24 | `path_depth` | Path | Number of subdirectories traversed in the request URI. |
-| 25 | `has_credential_token` | Path | Flagging paths containing `login`, `signin`, `auth`, `recover`, `verify`, `password`. |
-| 26 | `dga_vowel_consonant_ratio` | DGA Analysis | Statistical imbalance indicating algorithmically generated domains. |
-| 27 | `is_tranco_top10k` | Authority Anchor | **Zero-False-Positive Filter**: Authoritative enterprise domains receive trust weighting. |
-| 28 | `consecutive_char_repeat` | Lexical | Identifies typographical obfuscation and homograph tricks (`aaapple`, `g000gle`). |
-
----
-
-## 4. Model Evolution & Benchmarks (v1 → v31)
-
-SCYTHE's models have evolved over a rigorously governed corpus of **428,222 real-world URLs** and **80,000+ screenshots**, evaluated on **zero-leakage holdouts** with domain segregation:
-
-```
-                                  ACCURACY BENCHMARK
-  v1 Early Baseline     [88.2%] ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░
-  v27 Scale Exp         [94.1%] ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░
-  v30 Balanced Cohort   [98.0%] ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░
-  v31 Active Production [99.2%] ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ (0.0% SSO False Alarms)
-```
-
-| Evaluation Dimension | v1 Early Baseline | v27 Scale Challenger | v30 Intermediate | **v31 Active Production** |
-|:---------------------|:------------------|:---------------------|:-----------------|:--------------------------|
-| **Feature Signals** | 15 signals | 18 signals (PaaS) | 18 signals (V2) | **28 Signals (Contract V3)** |
-| **Booster Trees** | 100 trees | 500 trees | 250 calibrated trees | **600 trees (127 leaves, calibrated)** |
-| **Corpus Coverage** | 50,000 URLs | 428,222 URLs | 87,204 prospective | **385,400+ balanced training records** |
-| **Validation ROC-AUC**| 0.9410 | 0.9747 | 0.9906 (leakage risk)| **0.9824 (Strict Zero-Leakage Holdout)** |
-| **Validation PR-AUC** | 0.7020 | 0.9450 | 0.9850 | **0.9707** |
-| **Real-World Holdout**| 84.1% Accuracy | 92.4% Accuracy | 98.04% Accuracy | **99.20% Accuracy (Tranco Augmented)** |
-| **Institutional False Alarm** | High (> 8%) | Moderate (~5.4%) | Severe on deep URLs (~99.9%) | **< 0.1% (Near-Zero False Positives)** |
-| **Inference Latency** | 5.8 µs | 6.6 µs | 3.2 µs | **7.1 µs Booster / 9.42 ms Live Backend SLA** |
-| **Model Verification**| None | SHA-256 | SHA-256 Verified | **Cryptographic Trust Anchor (`8d7efcdb...`)** |
-| **Governance Status** | Deprecated | Archived | Superseded | **Active Production Default** |
-
----
-
-## 5. Multimodal Computer Vision (MobileCLIP S0)
-
-Visual impersonation cannot be stopped by URL parsing alone. SCYTHE integrates an embedded neural vision classifier built on **Apple MobileCLIP S0** (512-dimensional image embeddings) that inspects rendered browser screenshots:
-
-```
-Captured Viewport (PNG) ──► MobileCLIP S0 Encoder ──► 512-dim Vector ──► Neural MLP Head ──► Visual Risk Score
-```
-
-- **Training Corpus**: **56,765 verified visual samples** (48,574 train / 1,991 test).
-- **Domain Isolation**: `GroupShuffleSplit` across registered domains to guarantee zero visual leakage.
-- **Evaluation Performance**:
-  - **Neural MLP**: **0.9585 ROC-AUC**, **0.9399 PR-AUC**, **90.00% Precision**, **87.20% Recall** ($F_1 = 0.8856$).
-  - **Resilience**: Immune to CSS font scrambling, SVG text rendering, and homoglyph tricks.
-
----
-
-## 6. Containerized Microservices Mesh (13 Services)
-
-SCYTHE deploys as a hardened 13-container microservices mesh managed via Docker Compose:
-
-```
-[ External Traffic ] ──► Port 8443 (HTTPS TLS 1.3) / Port 8080 (HTTP)
-                                │
-                      scythe_nginx (Reverse Proxy)
-                                │
-        ┌───────────────────────┴───────────────────────┐
-        ▼                                               ▼
-  scythe_backend                                  Static Dashboard
-  (FastAPI REST/WS)                              (Analyst Portal)
-        │
-  ┌─────┴──────────────────────────────────────────────────────┐
-  │ Databases & Brokers:                                       │
-  │  ├── scythe_postgres (Relational PostgreSQL 16 Store)      │
-  │  ├── scythe_redis (Celery Broker & Result Store)          │
-  │  └── scythe_redis_security (JWT Atomic Blacklist)          │
-  │ Security & Sandbox:                                        │
-  │  ├── scythe_clamav (ClamAV Daemon Stream Scanner)          │
-  │  ├── scythe_socket_proxy (Restricted Docker Daemon Access)  │
-  │  ├── scythe_sandbox_runner (Ephemeral Playwright gVisor)  │
-  │  └── scythe_sandbox_net_holder (Isolated Bridge Container) │
-  │ Distributed Workers:                                       │
-  │  ├── scythe_celery_worker (Core Task Pipeline)             │
-  │  ├── scythe_celery_beat (Automated Threat Feed Sync)       │
-  │  ├── scythe_celery_model_worker (ML Inference Queue)       │
-  │  └── scythe_celery_shadow_worker (Verification Queue)      │
-  └────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 7. Enterprise Security & Zero-Trust Governance
-
-SCYTHE enforces zero-trust software supply chain controls:
-
-- 🛡️ **Zero-Pickle Invariant**: Machine learning boosters are stored exclusively as raw text (`url_classifier.txt`) and JSON weight specifications. Unsafe Python pickle/joblib deserialization is prohibited in production runtimes.
-- 🔒 **Cryptographic Trust Anchors**: Every model release bundle is verified against its immutable SHA-256 manifest. Any tampering causes the engine to fail-closed (`UNKNOWN`).
-- 🛑 **OWASP SSRF Protection**: Custom DNS pre-resolver blocks RFC 1918 private IPs, loopback (`127.0.0.1`), carrier-grade NAT, and cloud metadata endpoints (`169.254.169.254`).
-- 👤 **Least-Privilege Containers**: Unprivileged user (`UID 10001:GID 10001`), `cap_drop: [ALL]`, read-only root filesystems, and temporary scratch allocations via memory-backed `tmpfs`.
-- 🔑 **Cryptographic Authentication**: Argon2 password hashing with HaveIBeenPwned API validation, HS256 JWT tokens with sub-millisecond atomic Redis blacklisting.
-
----
-
-## 8. Manifest V3 Chrome Extension
-
-SCYTHE includes an enterprise Manifest V3 browser extension for live endpoint protection:
-
-<p align="center">
-  <img src="dashboard/assets/extension_preview.png" alt="Extension Preview" width="400" onerror="this.style.display='none'"/>
-</p>
-
-### Key Capabilities
-- **Real-Time Toolbar Shield**: Automatic passive background inspection of top-level navigations with live toolbar color badges (`SAFE`, `CAUTION`, `BLOCKED`).
-- **Rigid 440px Viewport Architecture**: Engineered with strict CSS grid containment (`repeat(2, minmax(0, 1fr))`), ellipsis text-overflow truncation, and `overflow-x: hidden !important` to guarantee zero layout deformation across high-DPI displays.
-- **Deterministic SSL Detection**: Direct scheme analysis guarantees immediate and accurate SSL badges (`Encrypted (HTTPS)` vs `Unencrypted (HTTP)`).
-- **Local Shield Active Fallback**: When backend connectivity is offline, automatically switches to local heuristic inspection, alerting the user without crashing or blocking legitimate work.
-- **One-Click Deep Detonation**: Analyst button triggers immediate server-side headless detonation.
-
----
-
-## 9. Quick Start & Deployment Guide
+## ⚡ Quick Start
 
 ### Prerequisites
-- **Docker Engine** 24.x+ with Compose v2
-- **Python** 3.11+ (for local scripts and testing)
-- **Hardware Minimum**: 4 CPU cores, 8 GB RAM, 10 GB disk space
 
-### Production Deployment (Single-Command)
+| Tool | Minimum Version | Download |
+|---|---|---|
+| Docker Desktop | 24+ (with Compose v2) | [docker.com/get-started](https://www.docker.com/get-started/) |
+| Git | 2.x | [git-scm.com](https://git-scm.com) |
+| Node.js *(extension only)* | 20+ | [nodejs.org](https://nodejs.org) |
+
+---
+
+### 🐧 Linux / 🍎 macOS
 
 ```bash
-# 1. Clone repository
+# 1. Clone
 git clone https://github.com/armaan-1207/SCYTHE.git
 cd SCYTHE
 
-# 2. Configure environment credentials
+# 2. Create secrets file (never commit this)
 cp .env.production.example .env
-# Edit .env to supply secure passwords and secrets
+#    Open .env and fill in every *_PASSWORD and SECRET_KEY field
 
-# 3. Launch full 13-container mesh
-docker compose --profile models --profile shadow up -d
+# 3. Build and start the full stack
+docker compose up -d --build --wait
 
-# 4. Confirm container health status
+# 4. Verify all 13 containers are healthy
 docker compose ps
+
+# 5. Open the dashboard
+open https://localhost   # macOS
+xdg-open https://localhost   # Linux
 ```
 
-Access the Analyst Web Portal at **`https://localhost:8443/dashboard/`**.
+> [!NOTE]
+> On first run, ClamAV downloads its virus definitions (~300 MB). The `clamav` service takes ~2–3 minutes to become healthy. All other services wait for it automatically.
 
 ---
 
-## 10. API Reference & Contract Examples
+### 🪟 Windows (PowerShell)
 
-### Quick URL Scan (`POST /api/scans/quick`)
+```powershell
+# 1. Clone
+git clone https://github.com/armaan-1207/SCYTHE.git
+cd SCYTHE
 
-Sub-10ms fast classification using Candidate Fusion V31:
+# 2. Create secrets file
+Copy-Item .env.production.example .env
+# Edit .env — fill in every *_PASSWORD and SECRET_KEY field
 
-```bash
-curl -k -X POST https://localhost:8443/api/scans/quick \
-  -H "Authorization: Bearer <YOUR_JWT_TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "http://secure-login-apple-support.top/auth/verify"}'
+# 3. Build and start
+docker compose up -d --build --wait
+
+# 4. Verify
+docker compose ps
+
+# 5. Open dashboard
+Start-Process "https://localhost"
 ```
 
-```json
-{
-  "scan_id": "9b12a87c-3f41-4e2b-8a90-7c5e2190db55",
-  "url": "http://secure-login-apple-support.top/auth/verify",
-  "risk_score": 99.98,
-  "risk_level": "BLOCKED",
-  "model_version": "candidate_fusion_v31",
-  "is_placeholder": false,
-  "is_whitelisted": false,
-  "latency_ms": 8.74
-}
-```
-
-### Deep Detonation Scan (`POST /api/scans/url`)
-
-Triggers isolated gVisor Chromium sandbox with full HAR analysis:
-
-```bash
-curl -k -X POST https://localhost:8443/api/scans/url \
-  -H "Authorization: Bearer <YOUR_JWT_TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://phantom-app-4eu8.vercel.app/login"}'
-```
+> [!TIP]
+> On Windows, use **Docker Desktop with WSL 2 backend** for best performance. Make sure WSL 2 integration is enabled for your distro in Docker Desktop Settings.
 
 ---
 
-## 11. Verification, CI Gates & Test Coverage
+### 🔑 Required `.env` Keys
 
-SCYTHE maintains **491 automated tests (100% pass rate)** executed via GitHub Actions on every push:
+```env
+SECRET_KEY=<64-char hex>              # JWT signing key
+SCYTHE_DB_PASSWORD=<strong-password>
+POSTGRES_ROOT_PASSWORD=<strong-password>
+REDIS_PASSWORD=<strong-password>
+REDIS_SECURITY_PASSWORD=<strong-password>
+SANDBOX_RUNNER_SECRET=<strong-password>
+BACKUP_ENCRYPTION_KEY=<strong-password>
 
+ENVIRONMENT=development               # or: production
+CORS_ALLOWED_ORIGINS=https://localhost
+ALLOWED_HOSTS=localhost,127.0.0.1
 ```
-[CI MATRIX PASSING]
-├── verify.yml / quality                  ✅ PASS (Ruff, Actionlint, Extension syntax)
-├── verify.yml / source-security          ✅ PASS (Bandit SAST, Gitleaks, pip-audit)
-├── verify.yml / backend                  ✅ PASS (309 pytest suites, URL contracts)
-├── verify.yml / sandbox                  ✅ PASS (13 SSRF, egress proxy & HAR tests)
-└── verify.yml / compose-browser-workflow ✅ PASS (Playwright E2E + Trivy image scan)
-```
 
+Generate strong secrets with:
 ```bash
-# Execute backend & contract unit tests (309 tests)
-PYTHONPATH=containers/backend python -m pytest containers/backend/tests -v
+# Linux / macOS
+python3 -c "import secrets; print(secrets.token_hex(32))"
 
-# Execute script, deployment, and security gates (143 tests)
-python -m pytest scripts/tests -v
-
-# Execute SAST, secret, and dependency audits
-python scripts/security_scan.py --checks secrets sast deps --output security-results
+# Windows PowerShell
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
 ---
 
-## 12. Repository Structure
+### Loading the Chrome Extension
 
-```text
+1. Open **Chrome** → `chrome://extensions`
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** → select the `chrome-extension/` folder
+4. Click the SCYTHE shield icon → **Sign In** to your local instance
+
+---
+
+### Useful Commands
+
+```bash
+# View live logs
+docker compose logs -f backend
+
+# Run all backend tests
+docker compose exec backend python -m pytest tests services/email/tests -q
+
+# Run script/tooling tests
+python -m pytest scripts/tests -q
+
+# Stop the stack
+docker compose down
+
+# Full teardown (removes volumes)
+docker compose down -v
+```
+
+---
+
+## 📁 Project Structure
+
+```
 SCYTHE/
-├── .github/workflows/verify.yml    # Comprehensive GitHub Actions CI matrix
+├── .github/
+│   └── workflows/
+│       └── verify.yml              # CI: backend, sandbox, quality, source-security
+│
+├── chrome-extension/               # Manifest V3 browser extension
+│   ├── manifest.json
+│   ├── background.js               # Service worker — scan triggers & WebSocket
+│   ├── popup.js / popup.html       # Verdict UI with risk badge & detail panel
+│   ├── auth-bridge.js              # JWT auth bridge (content script)
+│   ├── content.js / bdr.js         # Page analysis content scripts
+│   ├── warning.html / warning.js   # Full-page phishing warning
+│   └── icons/                      # Green / orange / red verdict icons
+│
 ├── containers/
-│   ├── backend/                    # FastAPI gateway, Celery workers & services
-│   │   ├── ai_engine/              # MobileCLIP vision head & LightGBM runtime
-│   │   ├── consistency_engine/     # DOM vs. SSL vs. Brand cross-validation
-│   │   ├── email_engine/           # EML/MSG parsing, attachment extraction
-│   │   ├── services/model_features/# 28-Signal URL feature extraction (Contract V3)
-│   │   └── tests/                  # 309 unit, integration & security test suites
-│   ├── nginx/                      # TLS 1.3 reverse proxy, rate limits, CSP
-│   └── sandbox/                    # Ephemeral Playwright runner & SSRF guard
-├── chrome-extension/               # Manifest V3 browser extension (440px UI)
-├── dashboard/                      # Web-based analyst dashboard
-├── models/releases/                # Cryptographically sealed release bundles
-│   ├── candidate_fusion_v30/       # Reference benchmark release
-│   └── candidate_fusion_v31/       # Active Production: 28-signal booster
-├── scripts/                        # Model training, benchmarking & audit tools
-│   ├── tests/                      # 143 test suite regression checks
-│   └── security_scan.py            # SAST, secret leak & dependency audit runner
-├── docker-compose.yml              # 13-container production orchestration mesh
-└── README.md                       # Comprehensive platform documentation
+│   ├── backend/                    # FastAPI application
+│   │   ├── main.py                 # App entry point, middleware, WebSocket
+│   │   ├── config.py               # Settings (Pydantic BaseSettings)
+│   │   ├── risk_fusion.py          # Feature vector construction & model dispatch
+│   │   ├── api/
+│   │   │   ├── routes.py           # URL scan endpoints
+│   │   │   └── email_routes.py     # Email scan endpoints
+│   │   ├── auth/                   # JWT, Argon2, HIBP, lockout
+│   │   ├── ai_engine/              # OCR, vision (MobileCLIP), DOM extractor, NLP
+│   │   ├── consistency_engine/     # Brand/visual/OCR mismatch detection
+│   │   ├── cyberintel/             # Threat-feed lookups
+│   │   ├── email_engine/           # MIME parser, IMAP poller, URL extraction
+│   │   ├── services/
+│   │   │   ├── model_features/
+│   │   │   │   └── url_features.py # 28-feature URL extractor (V3 contract)
+│   │   │   ├── model_release.py    # Checksum-verified model bundle loader
+│   │   │   └── sandbox_runner_svc.py
+│   │   ├── tasks/                  # Celery task definitions
+│   │   ├── models/                 # LightGBM .txt + metrics.json + calibration
+│   │   ├── schemas/                # Pydantic request/response schemas
+│   │   ├── database/               # SQLAlchemy models + Alembic migrations
+│   │   ├── tests/                  # 309 backend tests
+│   │   ├── requirements.txt        # Pinned + hashed production deps
+│   │   └── Dockerfile / Dockerfile.worker / Dockerfile.shadow
+│   │
+│   ├── sandbox/                    # Playwright detonation container
+│   │   ├── backend/                # Sandbox API
+│   │   └── tests/                  # 13 SSRF / egress / HAR tests
+│   │
+│   ├── nginx/                      # Hardened Nginx + TLS config
+│   ├── postgres/                   # DB init scripts
+│   └── vendor/                     # Hardened Redis image
+│
+├── scripts/                        # Tooling, training & research scripts
+│   ├── security_scan.py            # Gitleaks + Bandit + pip-audit gate
+│   ├── lint_changed.py             # Ruff gate on changed files only
+│   ├── test_extension_auth.cjs     # Node.js extension regression tests
+│   ├── train_v31_28feature_booster.py
+│   ├── train_expanded_visual_head_v31.py
+│   └── tests/                      # 143+ script-level tests
+│
+├── docker-compose.yml              # 13-container development stack
+├── docker-compose.prod.yml         # Production overrides
+├── Makefile                        # Common dev shortcuts
+└── DEPLOYMENT_CHECKLIST.md        # Production go-live checklist
 ```
 
 ---
 
-## 📄 License
+## 🔬 ML Model — `candidate_fusion_v31`
 
-Licensed under the [Apache License 2.0](LICENSE).
-SCYTHE — Designed for mission-critical enterprise cyber defense.
+### URL Feature Contract V3 (28 features)
+
+| # | Feature | Description |
+|---|---|---|
+| 1 | `url_length` | Total URL character count |
+| 2 | `host_length` | Hostname character count |
+| 3 | `is_https` | HTTPS scheme flag |
+| 4 | `is_ip_host` | IP address instead of domain |
+| 5 | `subdomain_count` | Number of subdomain labels |
+| 6 | `hyphen_count` | Hyphens in hostname |
+| 7 | `digit_count` | Digits in full URL |
+| 8 | `special_count` | Special characters in URL |
+| 9 | `at_symbol` | `@` present in URL |
+| 10 | `question_mark_count` | Query string count |
+| 11 | `path_length` | URL path length |
+| 12 | `query_length` | Query string length |
+| 13 | `has_punycode` | Punycode / IDN encoding |
+| 14 | `url_shortener_used` | Known shortener domain |
+| 15 | `is_bogon_space` | RFC-1918 / bogon IP host |
+| 16 | `is_paas_subdomain` | PaaS platform (Vercel, Netlify…) |
+| 17 | `subdomain_entropy` | Shannon entropy of subdomain |
+| 18 | `brand_in_subdomain_mismatch` | Protected brand in subdomain ≠ registrable domain |
+| 19 | `tld_abuse_risk` | High-abuse TLD score |
+| 20 | `digit_ratio_host` | Digit density in hostname |
+| 21 | `digit_ratio_url` | Digit density in full URL |
+| 22 | `vowel_ratio_domain` | Vowel ratio (DGA signal) |
+| 23 | `directory_depth` | Path segment depth |
+| 24 | `path_longest_token_length` | Longest token in path |
+| 25 | `has_credential_keyword` | Sensitive keyword (`login`, `verify`…) |
+| 26 | `consecutive_special_chars` | Runs of consecutive special chars |
+| 27 | `non_standard_port` | Non-80/443 port in URL |
+| 28 | `tld_in_subdomain` | TLD string appearing inside subdomain |
+
+### Model Performance
+
+| Metric | Validation | Holdout (21 997 URLs) |
+|---|---|---|
+| ROC-AUC | 0.9906 | **0.9824** |
+| PR-AUC | — | 0.9891 |
+| Precision | 99.6% | 99.6% |
+| Recall | 96.4% | 94.2% |
+| F1 | 98.0% | 96.8% |
+| FP per 10 000 benign | 25 | 25 |
+
+**Training corpus**: 428 222 URLs · **Trees**: 600 · **Feature extraction**: ~107 µs/URL · **Inference**: ~2.71 µs/URL
+
+---
+
+## 🧰 Tech Stack
+
+### Backend
+| Component | Technology |
+|---|---|
+| API Framework | **FastAPI** + Uvicorn (async, ASGI) |
+| Task Queue | **Celery** 5.4 with Redis broker |
+| Database | **PostgreSQL** 16 (SQLAlchemy + Alembic migrations) |
+| Cache / Broker | **Redis** 7.2 (hardened Alpine image) |
+| ML Inference | **LightGBM** (gradient-boosted trees, 28 features) |
+| Visual AI | **MobileCLIP S0** (Apple) + PyTorch Neural MLP |
+| OCR | **Tesseract** via pytesseract |
+| Email Parsing | **mail-parser** + custom IMAP poller |
+| AV Scanning | **ClamAV** daemon |
+| Browser Automation | **Playwright** (Chromium, isolated sandbox) |
+| Auth | **JWT** (HS256) + **Argon2** password hashing |
+| Logging | **structlog** (JSON in production) |
+
+### Infrastructure
+| Component | Technology |
+|---|---|
+| Containerisation | **Docker Compose** v2 (13 services) |
+| Reverse Proxy | **Nginx** (TLS 1.3, HSTS, hardened) |
+| Container Security | `cap_drop: ALL`, UID 10001, `no-new-privileges`, read-only rootfs |
+| Secret Management | Environment variables via `.env` (never committed) |
+
+### Chrome Extension
+| Component | Technology |
+|---|---|
+| Manifest | **MV3** (service worker background) |
+| Auth | JWT bridge via `auth-bridge.js` content script |
+| Comms | WebSocket + REST to SCYTHE backend |
+| UI | Vanilla JS / CSS, light + dark themes |
+
+### CI / Quality
+| Component | Technology |
+|---|---|
+| Lint | **Ruff** 0.15 (changed-files gate) |
+| Workflow lint | **actionlint** 1.7.12 |
+| Secret scanning | **Gitleaks** 8.30 |
+| SAST | **Bandit** 1.9 |
+| Dependency audit | **pip-audit** 2.10 |
+| Tests | **pytest** (491+ total: 309 backend + 143 scripts + 13 sandbox + 1 lint) |
+
+---
+
+## 📡 API Reference
+
+All endpoints require `Authorization: Bearer <jwt>` except `/auth/*` and `/`.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Health check |
+| `POST` | `/auth/register` | Register a new user |
+| `POST` | `/auth/login` | Obtain JWT token |
+| `POST` | `/auth/refresh` | Refresh JWT token |
+| `POST` | `/scan/quick` | URL-only phishing score (sub-10 ms) |
+| `POST` | `/scan/full` | Full pipeline: sandbox + vision + consistency + fusion |
+| `GET` | `/scan/{id}` | Retrieve scan result by ID |
+| `GET` | `/scan/history` | Paginated scan history |
+| `POST` | `/email/analyze` | Analyze raw `.eml` / MIME email |
+| `GET` | `/email/history` | Email analysis history |
+| `WS` | `/ws/scan/{id}` | Live scan progress WebSocket stream |
+
+---
+
+## 🌐 Chrome Extension
+
+The **SCYTHE Threat Shield** extension (Manifest V3) provides real-time phishing protection directly in the browser.
+
+```
+chrome-extension/
+├── background.js     # Service worker: intercepts navigation, dispatches scans
+├── popup.js          # Verdict badge (green/orange/red) + detail panel
+├── auth-bridge.js    # Content script: injects JWT auth headers
+├── content.js        # Page DOM analysis
+├── bdr.js            # Brand detection & risk signalling
+├── warning.html      # Full-page block screen for high-risk URLs
+└── config.js         # Backend endpoint configuration
+```
+
+**How it works:**
+1. `background.js` intercepts `webNavigation.onCompleted` and fires a quick scan
+2. The popup shows the live verdict badge with score and confidence
+3. For high-risk verdicts, `warning.html` replaces the page
+4. Auth state is managed via the JWT bridge — no credentials touch the DOM
+
+---
+
+## 🔐 CI / Security
+
+### GitHub Actions (`verify.yml`)
+
+| Job | What it checks |
+|---|---|
+| `backend` | 309 backend + email regression tests (pytest) |
+| `sandbox` | 13 SSRF / egress / HAR isolation tests |
+| `quality` | Actionlint, Ruff lint (changed files), JS syntax + extension auth regression |
+| `source-security` | Gitleaks secret scan, Bandit SAST, pip-audit dependency CVE gate |
+| `compose-browser-workflow` | Manual — full Playwright E2E + Trivy image scan |
+
+### Security Posture
+
+- ✅ **0** Bandit HIGH/MEDIUM findings
+- ✅ **0** Gitleaks credential leaks
+- ✅ **0** unmitigated CVEs (documented rationale for all ignored advisories)
+- ✅ All containers: `cap_drop: ALL`, UID 10001, `no-new-privileges: true`
+- ✅ Sandbox isolated on `sandbox_net` with **no route** to `scythe_net`
+- ✅ Docker socket access via scoped proxy (`CONTAINERS=1`, `IMAGES=1` only)
+- ✅ TLS 1.3 only, HSTS, `X-Frame-Options`, `Referrer-Policy` enforced
+- ✅ Rate-limiting, account lockout, HIBP breach detection on auth endpoints
+
+---
+
+## 📊 Test Coverage
+
+```
+Backend tests      309   (API, auth, model, email, rate-limit, lockout, backup)
+Sandbox tests       13   (SSRF, egress-proxy, HAR redaction)
+Script tests       143   (security scan, lint gate, model release, qualification)
+Lint test            1   (changed-file lint gate regression)
+─────────────────────
+Total             491+
+```
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repo and create a feature branch
+2. Run the full test suite: `python -m pytest scripts/tests containers/backend/tests -q`
+3. Ensure lint passes: `python scripts/lint_changed.py`
+4. Ensure security passes: `python scripts/security_scan.py --checks secrets sast deps`
+5. Open a pull request — CI runs all gates automatically
+
+---
+
+## 👥 Authors
+
+| Contributor | Role |
+|---|---|
+| **armaan-1207** | Core architecture, ML pipeline, backend, Chrome extension |
+| **Harshi-coder17** | Test infrastructure, lint gate, CI improvements |
+
+---
+
+<div align="center">
+
+Made with ☕ and far too many CVE advisories.
+
+**SCYTHE** · MIT License
+
+</div>
