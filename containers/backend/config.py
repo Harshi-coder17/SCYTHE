@@ -327,6 +327,23 @@ class Settings(BaseSettings):
         "amazon.com",
         "wikipedia.org",
         "wikimedia.org",
+        "whatsapp.com",
+        "facebook.com",
+        "meta.com",
+        "instagram.com",
+        "youtube.com",
+        "twitter.com",
+        "x.com",
+        "linkedin.com",
+        "reddit.com",
+        "netflix.com",
+        "chatgpt.com",
+        "openai.com",
+        "claude.ai",
+        "discord.com",
+        "spotify.com",
+        "zoom.us",
+        "telegram.org",
     ]
 
     @field_validator("SUPERUSER_EMAILS", "TRUSTED_ALLOWLIST_DOMAINS", mode="before")

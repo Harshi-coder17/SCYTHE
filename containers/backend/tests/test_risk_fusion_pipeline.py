@@ -21,7 +21,7 @@ from risk_fusion import (
 )
 
 
-EXPECTED_15_FEATURES = [
+EXPECTED_18_FEATURES = [
     "url_length",
     "host_length",
     "is_https",
@@ -37,7 +37,11 @@ EXPECTED_15_FEATURES = [
     "has_punycode",
     "url_shortener_used",
     "is_bogon_space",
+    "is_paas_subdomain",
+    "subdomain_entropy",
+    "brand_in_subdomain_mismatch",
 ]
+EXPECTED_15_FEATURES = EXPECTED_18_FEATURES[:15]
 
 
 def test_feature_columns_match_schema_json():
@@ -45,7 +49,7 @@ def test_feature_columns_match_schema_json():
     if schema_path.is_file():
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         assert FEATURE_COLUMNS == schema["feature_matrix_columns"]
-    assert FEATURE_COLUMNS == EXPECTED_15_FEATURES
+    assert FEATURE_COLUMNS == EXPECTED_18_FEATURES
 
 
 def test_build_feature_vector_from_url():
@@ -53,7 +57,7 @@ def test_build_feature_vector_from_url():
     features.update(url="https://sub.example.com/login?token=abc", is_https=1, is_ip_host=0,
                     subdomain_count=1, is_bogon_space=0)
     vector = build_feature_vector(features)
-    assert len(vector) == 15
+    assert len(vector) == 18
     assert all(isinstance(v, (int, float)) for v in vector)
     # is_https should be 1.0
     assert vector[FEATURE_COLUMNS.index("is_https")] == 1.0
@@ -70,7 +74,7 @@ def test_build_feature_vector_from_nested_browser_features_and_cyberintel():
     features.update(browser_features={"final_url": "http://192.168.1.1/admin"},
                     cyberintel={"is_bogon_space": 1}, is_ip_host=1, is_bogon_space=1)
     vector = build_feature_vector(features)
-    assert len(vector) == 15
+    assert len(vector) == 18
     assert vector[FEATURE_COLUMNS.index("is_https")] == 0.0
     assert vector[FEATURE_COLUMNS.index("is_ip_host")] == 1.0
     assert vector[FEATURE_COLUMNS.index("is_bogon_space")] == 1.0
@@ -101,9 +105,10 @@ def test_build_feature_vector_rejects_missing_and_invalid_values():
 def test_build_feature_vector_requires_exact_list_length_and_finite_values():
     with pytest.raises(ValueError, match="invalid_feature_count"):
         build_feature_vector([1.0, 2.0, 3.0])
-    assert build_feature_vector([0.0] * 15) == [0.0] * 15
+    assert build_feature_vector([0.0] * 18) == [0.0] * 18
+    assert build_feature_vector([0.0] * 15) == [0.0] * 18
     with pytest.raises(ValueError, match="invalid_feature_value"):
-        build_feature_vector([0.0] * 14 + [float("inf")])
+        build_feature_vector([0.0] * 17 + [float("inf")])
 
 
 def test_legacy_loader_never_loads_direct_models(monkeypatch):
@@ -123,7 +128,7 @@ def test_legacy_artifact_loader_rejects_every_format(tmp_path):
 
 def test_predict_probability_when_model_not_available(monkeypatch):
     monkeypatch.setattr(risk_fusion, "model", "MODEL_NOT_AVAILABLE")
-    prob = predict_probability([0.0] * 15)
+    prob = predict_probability([0.0] * 18)
     assert prob is None
 
 
@@ -133,7 +138,7 @@ def test_predict_probability_with_booster(monkeypatch):
     del mock_booster.predict_proba  # ensure predict_proba is not present
     monkeypatch.setattr(risk_fusion, "model", mock_booster)
 
-    prob = predict_probability([0.0] * 15)
+    prob = predict_probability([0.0] * 18)
     assert prob == pytest.approx(0.725)
     mock_booster.predict.assert_called_once()
 
@@ -144,7 +149,7 @@ def test_predict_probability_with_sklearn_classifier(monkeypatch):
     mock_clf.predict_proba.return_value = [[0.2, 0.8]]
     monkeypatch.setattr(risk_fusion, "model", mock_clf)
 
-    prob = predict_probability([0.0] * 15)
+    prob = predict_probability([0.0] * 18)
     assert prob == pytest.approx(0.8)
     mock_clf.predict_proba.assert_called_once()
 
@@ -154,10 +159,10 @@ def test_predict_probability_clamps_to_zero_one(monkeypatch):
     del mock_booster.predict_proba
     mock_booster.predict.return_value = [1.5]
     monkeypatch.setattr(risk_fusion, "model", mock_booster)
-    assert predict_probability([0.0] * 15) == 1.0
+    assert predict_probability([0.0] * 18) == 1.0
 
     mock_booster.predict.return_value = [-0.5]
-    assert predict_probability([0.0] * 15) == 0.0
+    assert predict_probability([0.0] * 18) == 0.0
 
 
 def test_predict_probability_handles_exceptions_gracefully(monkeypatch):
@@ -166,7 +171,7 @@ def test_predict_probability_handles_exceptions_gracefully(monkeypatch):
     mock_booster.predict.side_effect = RuntimeError("Prediction explosion")
     monkeypatch.setattr(risk_fusion, "model", mock_booster)
 
-    prob = predict_probability([0.0] * 15)
+    prob = predict_probability([0.0] * 18)
     assert prob is None
 
 
@@ -175,7 +180,7 @@ def test_predict_probability_rejects_incomplete_or_nonfinite_vectors(monkeypatch
     del mock_booster.predict_proba
     monkeypatch.setattr(risk_fusion, "model", mock_booster)
     assert predict_probability([0.0, 1.0]) is None
-    assert predict_probability([0.0] * 14 + [float("nan")]) is None
+    assert predict_probability([0.0] * 17 + [float("nan")]) is None
     mock_booster.predict.assert_not_called()
 
 
@@ -268,12 +273,13 @@ def test_run_risk_fusion_rejects_missing_url_without_dispatch():
 
 def test_risk_fusion_engine_compute_keeps_disabled_result_unknown():
     engine = RiskFusionEngine()
-    report = engine.compute(
-        cyberintel={"target": "https://safe.com", "iocs": []},
-        browser_features={"url": "https://safe.com"},
-        sandbox_features={},
-        consistency_report={"cloaking_suspected": False},
-    )
+    with patch("config.settings.MODEL_RELEASE_ENABLED", False):
+        report = engine.compute(
+            cyberintel={"target": "https://safe.com", "iocs": []},
+            browser_features={"url": "https://safe.com"},
+            sandbox_features={},
+            consistency_report={"cloaking_suspected": False},
+        )
     assert report["is_placeholder"] is True
     assert report["risk_score"] is None
     assert report["severity"] == "UNKNOWN"

@@ -39,6 +39,10 @@ regexes = [
   # themselves say "NOT-A-REAL-Credential".
   '''Sandbox-Probe-NOT-A-REAL-Credential-1!''',
   '''sandbox-probe@example-research\.invalid''',
+
+  # False positive: JavaScript property `s.base64EncodedScriptCount` in old
+  # dashboard report component matched the HashiCorp Vault token pattern (s.<24chars>).
+  '''s\.base64EncodedScriptCount''',
 ]
 
 # Explicitly-named placeholder secrets from committed example/template

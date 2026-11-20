@@ -13,7 +13,7 @@ from pathlib import Path
 import sys
 
 from services.model_features.url_features import (
-    FEATURE_NAMES, FEATURE_NAMES_V1, FEATURE_NAMES_V2, build_url_feature_vector
+    FEATURE_NAMES, FEATURE_NAMES_V1, FEATURE_NAMES_V2, FEATURE_NAMES_V3, build_url_feature_vector
 )
 
 PREPROCESSING_VERSION = "dataset-960x401-topcrop-apple-mobileclip-s0-resize256-center256-totensor-fp32-v1"
@@ -202,11 +202,14 @@ def _url_score(root, descriptor, contract, raw_url):
     if backend == "lightgbm_native_booster":
         import lightgbm
         import numpy as np
-        if contract_features not in (FEATURE_NAMES_V1, FEATURE_NAMES_V2, FEATURE_NAMES):
+        if contract_features not in (FEATURE_NAMES_V1, FEATURE_NAMES_V2, FEATURE_NAMES_V3, FEATURE_NAMES):
             raise ValueError("url_contract_mismatch")
         if key not in _NATIVE_CACHE:
             model = lightgbm.Booster(model_file=str(path))
-            if (model.num_feature() != len(contract_features) or tuple(model.feature_name()) != contract_features
+            feature_names = tuple(model.feature_name())
+            expected_generic = tuple(f"Column_{i}" for i in range(len(contract_features)))
+            if (model.num_feature() != len(contract_features)
+                    or (feature_names != contract_features and feature_names != expected_generic)
                     or not str(model.dump_model().get("objective", "")).startswith("binary")):
                 raise ValueError("url_model_mismatch")
             _NATIVE_CACHE[key] = model

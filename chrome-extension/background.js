@@ -78,7 +78,9 @@ function handleRuntimeMessage(message, sender, sendResponse) {
     case "BDR_EVENTS": {
       // Shape sent by content.js/bdr.js: { type: 'BDR_EVENTS', events: [{event_type, details, timestamp}, ...] }
       const tabId = sender.tab?.id;
+      const tabUrl = sender.tab?.url;
       if (tabId == null) return false;
+      if (tabUrl && isInternalOrDashboardUrl(tabUrl)) return false;
 
       const events = Array.isArray(message.events) ? message.events : [];
       if (events.length === 0) return false;
@@ -104,6 +106,12 @@ function handleRuntimeMessage(message, sender, sendResponse) {
       const tabId = sender.tab?.id;
       const tabUrl = sender.tab?.url;
       if (tabId == null) return false;
+
+      // Never block trusted or internal domains via client-side runtime heuristics
+      if (tabUrl && isInternalOrDashboardUrl(tabUrl)) {
+        console.info("[SCYTHE] Suppressed BDR_CRITICAL for trusted origin:", tabUrl, message.alert_type);
+        return false;
+      }
 
       const existing = runtimeEvents.get(tabId) || { score: 0, indicators: [], reasons: "" };
       existing.score = 100;
@@ -202,7 +210,35 @@ async function handleGetScanResult(message, sender) {
 
 /* ---------- Scanning ---------- */
 
+function isInternalOrDashboardUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "[::1]" ||
+      parsed.origin === _API_BASE ||
+      (typeof isTrustedDomain === "function" && isTrustedDomain(url))
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function scanUrl(url) {
+  if (isInternalOrDashboardUrl(url)) {
+    const isExternalTrusted = typeof isTrustedDomain === "function" && isTrustedDomain(url);
+    return {
+      riskScore: 0,
+      status: "Allowed",
+      isPlaceholder: false,
+      reasons: isExternalTrusted ? "Verified Trusted Domain" : "SCYTHE Management Console (Trusted Internal Origin)",
+      indicators: [],
+      scannedAt: Date.now(),
+    };
+  }
+
   try {
     const apiResult = await callBackendApi(url);
     if (apiResult) return apiResult;
@@ -667,7 +703,22 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
   updateBadge(tabId, result.riskScore);
 
   if (result.riskScore >= RISK_BLOCK_THRESHOLD) {
-    blockTabWithWarning(tabId, url, result);
+    const hasIOCs = Array.isArray(result.indicators) && result.indicators.some(
+      (ind) => typeof ind === "string" && (
+        ind.toLowerCase().includes("threat intel") ||
+        ind.toLowerCase().includes("phish") ||
+        ind.toLowerCase().includes("malware") ||
+        ind.toLowerCase().includes("blocked")
+      )
+    );
+    if (hasIOCs || result.status === "Blocked") {
+      blockTabWithWarning(tabId, url, result);
+    } else {
+      updateBadge(tabId, result.riskScore);
+      triggerStage2(tabId, url).catch((err) =>
+        console.warn("[SCYTHE] Stage 2 dispatch failed:", err)
+      );
+    }
   }
 
   // ── V10: Trigger Stage 2 for suspicious pages (non-blocking) ────────

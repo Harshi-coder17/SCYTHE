@@ -12,7 +12,15 @@ let score = 0;
 // Utility Functions
 // -------------------------
 
+function pageIsTrusted() {
+    if (typeof isTrustedDomain === 'function') {
+        return isTrustedDomain(location.href);
+    }
+    return false;
+}
+
 function addIndicator(name, points) {
+    if (pageIsTrusted()) return;
     if (!indicators.includes(name)) {
         indicators.push(name);
         score += points;
@@ -20,7 +28,7 @@ function addIndicator(name, points) {
 }
 
 function sendResults() {
-
+    if (pageIsTrusted()) return;
     score = Math.min(score, 100);
 
     const events = indicators.map(ind => ({
@@ -233,6 +241,7 @@ new MutationObserver(() => {
 
         });
 
+    detectBitBOverlays();
 });
 
 observer.observe(document.documentElement, {
@@ -243,10 +252,40 @@ observer.observe(document.documentElement, {
 });
 
 // -------------------------
+// 11. Browser-in-the-Browser (BitB) Detection
+// -------------------------
+
+function detectBitBOverlays() {
+    if (pageIsTrusted()) return;
+    const candidates = document.querySelectorAll('div, section, dialog');
+    for (const el of candidates) {
+        try {
+            const style = window.getComputedStyle(el);
+            const isFloating = style.position === 'fixed' || style.position === 'absolute';
+            const z = parseInt(style.zIndex, 10) || 0;
+            if (isFloating && z >= 1000 && el.offsetWidth >= 320 && el.offsetHeight >= 250) {
+                const hasCreds = el.querySelectorAll('input[type="password"], input[type="email"], input[autocomplete*="password"]').length > 0;
+                const text = (el.innerText || '').toLowerCase();
+                const hasFakeUrl = /https?:\/\//i.test(text) ||
+                                  el.querySelector('[class*="address"], [class*="url-bar"], [class*="fake-bar"], [class*="browser-bar"], [class*="window-title"]');
+                const hasWindowControls = el.querySelector('[class*="close"], [class*="minimize"], [class*="maximize"], [class*="window-control"]');
+                if (hasCreds && (hasFakeUrl || hasWindowControls)) {
+                    addIndicator("Browser-in-the-Browser (BitB) simulated window detected", 45);
+                    break;
+                }
+            }
+        } catch(e) {}
+    }
+}
+
+detectBitBOverlays();
+
+// -------------------------
 // Critical Detection
 // -------------------------
 
 if (
+    !pageIsTrusted() &&
     location.protocol === "http:" &&
     passwordFields.length
 ) {

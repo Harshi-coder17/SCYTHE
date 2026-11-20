@@ -1,0 +1,673 @@
+{
+  "suite_name": "SCYTHE_400K_URL_PARALLEL_BENCHMARK",
+  "dataset_summary": {
+    "total_raw": 451277,
+    "total_unique": 429920,
+    "benign_count": 281470,
+    "phish_count": 148450,
+    "phish_ratio": 0.3453,
+    "sources": {
+      "uci_phiusiil": 214918,
+      "url_phish_v2": 115002,
+      "philegit_100k": 100000
+    }
+  },
+  "model_benchmarks_400k": {
+    "Production (v26 / Bundle)": {
+      "model_path": "C:\\Users\\armaa\\Desktop\\Project details\\SCYTHE\\containers\\backend\\models\\release_v21\\url_classifier.txt",
+      "features_used": 15,
+      "inference_seconds": 1.678,
+      "inference_speed_per_sec": 256242.4,
+      "metrics_at_50": {
+        "accuracy": 0.802,
+        "precision": 0.6602,
+        "recall": 0.8788,
+        "f1_score": 0.754,
+        "fpr": 0.2385,
+        "specificity": 0.7615,
+        "roc_auc": 0.8947,
+        "pr_auc": 0.8586,
+        "brier": 0.1514,
+        "tp": 130453,
+        "fp": 67135,
+        "tn": 214335,
+        "fn": 17997,
+        "total": 429920
+      },
+      "operating_table": [
+        {
+          "threshold": 0.2,
+          "recall": 0.9725,
+          "precision": 0.3673,
+          "fpr": 0.8835,
+          "f1": 0.5332,
+          "tp": 144362,
+          "fp": 248692
+        },
+        {
+          "threshold": 0.3,
+          "recall": 0.9551,
+          "precision": 0.465,
+          "fpr": 0.5796,
+          "f1": 0.6255,
+          "tp": 141785,
+          "fp": 163133
+        },
+        {
+          "threshold": 0.4,
+          "recall": 0.9278,
+          "precision": 0.5842,
+          "fpr": 0.3482,
+          "f1": 0.717,
+          "tp": 137731,
+          "fp": 98013
+        },
+        {
+          "threshold": 0.5,
+          "recall": 0.8788,
+          "precision": 0.6602,
+          "fpr": 0.2385,
+          "f1": 0.754,
+          "tp": 130453,
+          "fp": 67135
+        },
+        {
+          "threshold": 0.6,
+          "recall": 0.7845,
+          "precision": 0.7267,
+          "fpr": 0.1556,
+          "f1": 0.7545,
+          "tp": 116455,
+          "fp": 43788
+        },
+        {
+          "threshold": 0.7,
+          "recall": 0.6438,
+          "precision": 0.812,
+          "fpr": 0.0786,
+          "f1": 0.7182,
+          "tp": 95579,
+          "fp": 22127
+        },
+        {
+          "threshold": 0.8,
+          "recall": 0.5809,
+          "precision": 0.8772,
+          "fpr": 0.0429,
+          "f1": 0.6989,
+          "tp": 86231,
+          "fp": 12073
+        },
+        {
+          "threshold": 0.85,
+          "recall": 0.5473,
+          "precision": 0.9134,
+          "fpr": 0.0273,
+          "f1": 0.6845,
+          "tp": 81243,
+          "fp": 7698
+        },
+        {
+          "threshold": 0.9,
+          "recall": 0.4985,
+          "precision": 0.9476,
+          "fpr": 0.0145,
+          "f1": 0.6533,
+          "tp": 74006,
+          "fp": 4093
+        }
+      ],
+      "source_breakdown": {
+        "philegit_100k": {
+          "accuracy": 0.8917,
+          "precision": 0.8739,
+          "recall": 0.9155,
+          "f1_score": 0.8942,
+          "fpr": 0.1321,
+          "specificity": 0.8679,
+          "roc_auc": 0.9454,
+          "pr_auc": 0.9563,
+          "brier": 0.1055,
+          "tp": 45776,
+          "fp": 6607,
+          "tn": 43393,
+          "fn": 4224,
+          "total": 100000
+        },
+        "uci_phiusiil": {
+          "accuracy": 0.8687,
+          "precision": 0.804,
+          "recall": 0.8666,
+          "f1_score": 0.8341,
+          "fpr": 0.13,
+          "specificity": 0.87,
+          "roc_auc": 0.9148,
+          "pr_auc": 0.887,
+          "brier": 0.1308,
+          "tp": 70938,
+          "fp": 17293,
+          "tn": 115765,
+          "fn": 10922,
+          "total": 214918
+        },
+        "url_phish_v2": {
+          "accuracy": 0.5993,
+          "precision": 0.2411,
+          "recall": 0.8281,
+          "f1_score": 0.3735,
+          "fpr": 0.4393,
+          "specificity": 0.5607,
+          "roc_auc": 0.8369,
+          "pr_auc": 0.739,
+          "brier": 0.2298,
+          "tp": 13739,
+          "fp": 43235,
+          "tn": 55177,
+          "fn": 2851,
+          "total": 115002
+        }
+      }
+    },
+    "Production (v30 Unified)": {
+      "model_path": "C:\\Users\\armaa\\Desktop\\Project details\\SCYTHE\\models\\releases\\candidate_fusion_v30\\url_classifier.txt",
+      "features_used": 18,
+      "inference_seconds": 1.137,
+      "inference_speed_per_sec": 378135.3,
+      "metrics_at_50": {
+        "accuracy": 0.82,
+        "precision": 0.6619,
+        "recall": 0.9786,
+        "f1_score": 0.7897,
+        "fpr": 0.2636,
+        "specificity": 0.7364,
+        "roc_auc": 0.8637,
+        "pr_auc": 0.6901,
+        "brier": 0.178,
+        "tp": 145279,
+        "fp": 74200,
+        "tn": 207270,
+        "fn": 3171,
+        "total": 429920
+      },
+      "operating_table": [
+        {
+          "threshold": 0.2,
+          "recall": 0.9833,
+          "precision": 0.6577,
+          "fpr": 0.2699,
+          "f1": 0.7882,
+          "tp": 145967,
+          "fp": 75981
+        },
+        {
+          "threshold": 0.3,
+          "recall": 0.9816,
+          "precision": 0.66,
+          "fpr": 0.2667,
+          "f1": 0.7893,
+          "tp": 145715,
+          "fp": 75062
+        },
+        {
+          "threshold": 0.4,
+          "recall": 0.9797,
+          "precision": 0.6612,
+          "fpr": 0.2648,
+          "f1": 0.7895,
+          "tp": 145433,
+          "fp": 74522
+        },
+        {
+          "threshold": 0.5,
+          "recall": 0.9786,
+          "precision": 0.6619,
+          "fpr": 0.2636,
+          "f1": 0.7897,
+          "tp": 145279,
+          "fp": 74200
+        },
+        {
+          "threshold": 0.6,
+          "recall": 0.9772,
+          "precision": 0.6624,
+          "fpr": 0.2626,
+          "f1": 0.7896,
+          "tp": 145068,
+          "fp": 73922
+        },
+        {
+          "threshold": 0.7,
+          "recall": 0.9761,
+          "precision": 0.6628,
+          "fpr": 0.2619,
+          "f1": 0.7895,
+          "tp": 144905,
+          "fp": 73712
+        },
+        {
+          "threshold": 0.8,
+          "recall": 0.9748,
+          "precision": 0.6631,
+          "fpr": 0.2613,
+          "f1": 0.7893,
+          "tp": 144714,
+          "fp": 73535
+        },
+        {
+          "threshold": 0.85,
+          "recall": 0.9733,
+          "precision": 0.663,
+          "fpr": 0.2609,
+          "f1": 0.7887,
+          "tp": 144485,
+          "fp": 73436
+        },
+        {
+          "threshold": 0.9,
+          "recall": 0.9713,
+          "precision": 0.6631,
+          "fpr": 0.2602,
+          "f1": 0.7882,
+          "tp": 144195,
+          "fp": 73246
+        }
+      ],
+      "source_breakdown": {
+        "philegit_100k": {
+          "accuracy": 0.9889,
+          "precision": 0.9928,
+          "recall": 0.9849,
+          "f1_score": 0.9888,
+          "fpr": 0.0071,
+          "specificity": 0.9929,
+          "roc_auc": 0.9966,
+          "pr_auc": 0.9969,
+          "brier": 0.0094,
+          "tp": 49246,
+          "fp": 357,
+          "tn": 49643,
+          "fn": 754,
+          "total": 100000
+        },
+        "uci_phiusiil": {
+          "accuracy": 0.9886,
+          "precision": 0.9933,
+          "recall": 0.9767,
+          "f1_score": 0.9849,
+          "fpr": 0.0041,
+          "specificity": 0.9959,
+          "roc_auc": 0.9968,
+          "pr_auc": 0.9969,
+          "brier": 0.0095,
+          "tp": 79952,
+          "fp": 543,
+          "tn": 132515,
+          "fn": 1908,
+          "total": 214918
+        },
+        "url_phish_v2": {
+          "accuracy": 0.3582,
+          "precision": 0.1799,
+          "recall": 0.9693,
+          "f1_score": 0.3035,
+          "fpr": 0.7448,
+          "specificity": 0.2552,
+          "roc_auc": 0.5023,
+          "pr_auc": 0.1401,
+          "brier": 0.6394,
+          "tp": 16081,
+          "fp": 73300,
+          "tn": 25112,
+          "fn": 509,
+          "total": 115002
+        }
+      }
+    },
+    "Scaled 428k Booster": {
+      "model_path": "C:\\Users\\armaa\\Desktop\\Project details\\lightgbm_dataset\\v27_all_urls_scaled\\url_classifier_428k.txt",
+      "features_used": 18,
+      "inference_seconds": 4.326,
+      "inference_speed_per_sec": 99377.6,
+      "metrics_at_50": {
+        "accuracy": 0.9091,
+        "precision": 0.8201,
+        "recall": 0.9438,
+        "f1_score": 0.8776,
+        "fpr": 0.1092,
+        "specificity": 0.8908,
+        "roc_auc": 0.9772,
+        "pr_auc": 0.9611,
+        "brier": 0.0606,
+        "tp": 140107,
+        "fp": 30737,
+        "tn": 250733,
+        "fn": 8343,
+        "total": 429920
+      },
+      "operating_table": [
+        {
+          "threshold": 0.2,
+          "recall": 0.9889,
+          "precision": 0.7266,
+          "fpr": 0.1963,
+          "f1": 0.8377,
+          "tp": 146795,
+          "fp": 55245
+        },
+        {
+          "threshold": 0.3,
+          "recall": 0.9843,
+          "precision": 0.7424,
+          "fpr": 0.1801,
+          "f1": 0.8464,
+          "tp": 146119,
+          "fp": 50699
+        },
+        {
+          "threshold": 0.4,
+          "recall": 0.9586,
+          "precision": 0.797,
+          "fpr": 0.1288,
+          "f1": 0.8704,
+          "tp": 142302,
+          "fp": 36247
+        },
+        {
+          "threshold": 0.5,
+          "recall": 0.9438,
+          "precision": 0.8201,
+          "fpr": 0.1092,
+          "f1": 0.8776,
+          "tp": 140107,
+          "fp": 30737
+        },
+        {
+          "threshold": 0.6,
+          "recall": 0.9264,
+          "precision": 0.8386,
+          "fpr": 0.094,
+          "f1": 0.8803,
+          "tp": 137520,
+          "fp": 26470
+        },
+        {
+          "threshold": 0.7,
+          "recall": 0.8558,
+          "precision": 0.8861,
+          "fpr": 0.058,
+          "f1": 0.8707,
+          "tp": 127040,
+          "fp": 16331
+        },
+        {
+          "threshold": 0.8,
+          "recall": 0.7158,
+          "precision": 0.9748,
+          "fpr": 0.0098,
+          "f1": 0.8255,
+          "tp": 106263,
+          "fp": 2750
+        },
+        {
+          "threshold": 0.85,
+          "recall": 0.7003,
+          "precision": 0.9816,
+          "fpr": 0.0069,
+          "f1": 0.8174,
+          "tp": 103959,
+          "fp": 1954
+        },
+        {
+          "threshold": 0.9,
+          "recall": 0.6791,
+          "precision": 0.9874,
+          "fpr": 0.0046,
+          "f1": 0.8048,
+          "tp": 100814,
+          "fp": 1282
+        }
+      ],
+      "source_breakdown": {
+        "philegit_100k": {
+          "accuracy": 0.9775,
+          "precision": 0.9984,
+          "recall": 0.9565,
+          "f1_score": 0.977,
+          "fpr": 0.0015,
+          "specificity": 0.9985,
+          "roc_auc": 0.9981,
+          "pr_auc": 0.9986,
+          "brier": 0.0196,
+          "tp": 47824,
+          "fp": 75,
+          "tn": 49925,
+          "fn": 2176,
+          "total": 100000
+        },
+        "uci_phiusiil": {
+          "accuracy": 0.9733,
+          "precision": 0.9993,
+          "recall": 0.9307,
+          "f1_score": 0.9638,
+          "fpr": 0.0004,
+          "specificity": 0.9996,
+          "roc_auc": 0.9972,
+          "pr_auc": 0.9974,
+          "brier": 0.0246,
+          "tp": 76185,
+          "fp": 55,
+          "tn": 133003,
+          "fn": 5675,
+          "total": 214918
+        },
+        "url_phish_v2": {
+          "accuracy": 0.7296,
+          "precision": 0.3447,
+          "recall": 0.9703,
+          "f1_score": 0.5087,
+          "fpr": 0.311,
+          "specificity": 0.689,
+          "roc_auc": 0.9765,
+          "pr_auc": 0.9429,
+          "brier": 0.1637,
+          "tp": 16098,
+          "fp": 30607,
+          "tn": 67805,
+          "fn": 492,
+          "total": 115002
+        }
+      }
+    }
+  },
+  "holdout_benchmark_7082": {
+    "Production (v26 / Bundle)": {
+      "accuracy": 0.7974,
+      "precision": 0.594,
+      "recall": 0.9483,
+      "f1_score": 0.7304,
+      "fpr": 0.2641,
+      "specificity": 0.7359,
+      "roc_auc": 0.9422,
+      "pr_auc": 0.9267,
+      "brier": 0.1836,
+      "tp": 1944,
+      "fp": 1329,
+      "tn": 3703,
+      "fn": 106,
+      "total": 7082
+    },
+    "Production (v30 Unified)": {
+      "accuracy": 0.9932,
+      "precision": 0.9771,
+      "recall": 1.0,
+      "f1_score": 0.9884,
+      "fpr": 0.0095,
+      "specificity": 0.9905,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0,
+      "brier": 0.0109,
+      "tp": 2050,
+      "fp": 48,
+      "tn": 4984,
+      "fn": 0,
+      "total": 7082
+    },
+    "Scaled 428k Booster": {
+      "accuracy": 0.8797,
+      "precision": 0.7828,
+      "recall": 0.8088,
+      "f1_score": 0.7956,
+      "fpr": 0.0914,
+      "specificity": 0.9086,
+      "roc_auc": 0.8654,
+      "pr_auc": 0.8478,
+      "brier": 0.1615,
+      "tp": 1658,
+      "fp": 460,
+      "tn": 4572,
+      "fn": 392,
+      "total": 7082
+    }
+  },
+  "challenge_evasion_tests": [
+    {
+      "url": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+      "description": "Enterprise SSO (Microsoft)",
+      "true_label": 0,
+      "v26_prob": 0.9767,
+      "v30_prob": 0.9997,
+      "scaled_428k_prob": 0.9936
+    },
+    {
+      "url": "https://accounts.google.com/signin/v2/identifier",
+      "description": "Enterprise SSO (Google)",
+      "true_label": 0,
+      "v26_prob": 0.8397,
+      "v30_prob": 0.9996,
+      "scaled_428k_prob": 0.9949
+    },
+    {
+      "url": "https://github.com/login",
+      "description": "Enterprise Developer (GitHub)",
+      "true_label": 0,
+      "v26_prob": 0.994,
+      "v30_prob": 0.9992,
+      "scaled_428k_prob": 0.9668
+    },
+    {
+      "url": "https://portal.azure.com/",
+      "description": "Cloud Management (Azure)",
+      "true_label": 0,
+      "v26_prob": 0.0837,
+      "v30_prob": 0.9971,
+      "scaled_428k_prob": 0.1442
+    },
+    {
+      "url": "https://www.wikipedia.org/",
+      "description": "Top Informational (Wikipedia)",
+      "true_label": 0,
+      "v26_prob": 0.2835,
+      "v30_prob": 0.0127,
+      "scaled_428k_prob": 0.0079
+    },
+    {
+      "url": "https://www.amazon.com/gp/css/homepage.html",
+      "description": "E-Commerce Portal (Amazon)",
+      "true_label": 0,
+      "v26_prob": 0.7819,
+      "v30_prob": 0.9996,
+      "scaled_428k_prob": 0.4745
+    },
+    {
+      "url": "https://9anime.org.lv",
+      "description": "Streaming Media (9anime)",
+      "true_label": 0,
+      "v26_prob": 0.3832,
+      "v30_prob": 0.0334,
+      "scaled_428k_prob": 0.0169
+    },
+    {
+      "url": "http://paypal-verification-account.vercel.app/login.html",
+      "description": "PaaS Phish (Vercel)",
+      "true_label": 1,
+      "v26_prob": 0.739,
+      "v30_prob": 0.9997,
+      "scaled_428k_prob": 0.9997
+    },
+    {
+      "url": "https://cibc-online-portal.pages.dev/auth/update",
+      "description": "PaaS Phish (Cloudflare Pages)",
+      "true_label": 1,
+      "v26_prob": 0.7379,
+      "v30_prob": 0.9996,
+      "scaled_428k_prob": 0.9993
+    },
+    {
+      "url": "https://metamask-recovery.workers.dev/",
+      "description": "PaaS Phish (Cloudflare Workers)",
+      "true_label": 1,
+      "v26_prob": 0.7441,
+      "v30_prob": 0.9954,
+      "scaled_428k_prob": 0.9999
+    },
+    {
+      "url": "https://secure-apple-id.firebaseapp.com/",
+      "description": "PaaS Phish (Firebase)",
+      "true_label": 1,
+      "v26_prob": 0.7028,
+      "v30_prob": 0.9864,
+      "scaled_428k_prob": 0.9998
+    },
+    {
+      "url": "http://192.168.1.1/admin/login.php",
+      "description": "IP Hostname Admin",
+      "true_label": 1,
+      "v26_prob": 0.9222,
+      "v30_prob": 0.9997,
+      "scaled_428k_prob": 0.999
+    },
+    {
+      "url": "http://45.33.32.156/banking/auth",
+      "description": "Public Raw IP Phish",
+      "true_label": 1,
+      "v26_prob": 0.982,
+      "v30_prob": 0.9997,
+      "scaled_428k_prob": 0.9994
+    },
+    {
+      "url": "http://xn--pypal-4ve.com/account/login",
+      "description": "Cyrillic IDN Homoglyph",
+      "true_label": 1,
+      "v26_prob": 0.7423,
+      "v30_prob": 0.9997,
+      "scaled_428k_prob": 0.9595
+    },
+    {
+      "url": "https://bit.ly/3xY89zQ",
+      "description": "Obfuscated URL Shortener",
+      "true_label": 1,
+      "v26_prob": 0.9998,
+      "v30_prob": 0.9993,
+      "scaled_428k_prob": 0.9999
+    },
+    {
+      "url": "https://phantom-app-4eu8.vercel.app/",
+      "description": "Active PaaS Live Attack",
+      "true_label": 1,
+      "v26_prob": 0.9845,
+      "v30_prob": 0.9922,
+      "scaled_428k_prob": 1.0
+    }
+  ],
+  "live_api_benchmark": {
+    "total_requests": 50,
+    "successful_requests": 5,
+    "total_seconds": 1.707,
+    "requests_per_second": 29.3,
+    "latency_p50_ms": 73.9,
+    "latency_p95_ms": 793.9,
+    "latency_p99_ms": 1283.1
+  },
+  "total_elapsed_seconds": 56.44,
+  "timestamp": "2026-11-14T11:16:59Z"
+}

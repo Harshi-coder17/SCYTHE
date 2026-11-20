@@ -1,3 +1,8 @@
+function getGridItem(el) {
+  if (!el) return null;
+  if (typeof el.closest === "function") return getGridItem(el);
+  return el.parentElement || null;
+}
 // popup.js
 // Logic for the extension's popup.html — pulls scan data for the active tab,
 // renders it into the UI, and wires up the action buttons, theme toggle, and live protection.
@@ -23,23 +28,58 @@ async function init() {
   // ── Dismiss pulsating alert as soon as the user opens the popup ──────────
   // The background service worker is animating the icon for this tab.
   // Now that the user clicked the extension icon, we stop the pulse.
-  if (typeof chrome !== "undefined" && chrome.runtime) {
-    chrome.runtime.sendMessage({ type: "POPUP_OPENED", tabId: tab.id }).catch(() => {});
+  if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+    try {
+      const p = chrome.runtime.sendMessage({ type: "POPUP_OPENED", tabId: tab.id });
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch {}
   }
 
-  // Display URL in top hero card
+  // Display URL in top hero card & grid
   const hostname = safeHostname(tab.url);
-  document.getElementById("heroUrl").textContent = hostname;
-  document.getElementById("gridSiteUrl").textContent = hostname;
+  const heroUrlEl = document.getElementById("heroUrl");
+  const gridSiteEl = document.getElementById("gridSiteUrl");
+  if (heroUrlEl) {
+    heroUrlEl.textContent = hostname;
+    heroUrlEl.title = tab.url || hostname;
+  }
+  if (gridSiteEl) {
+    gridSiteEl.textContent = hostname;
+    gridSiteEl.title = tab.url || hostname;
+  }
+
+  // Pre-populate SSL status directly from tab URL
+  const isHttpsInit = tab.url ? tab.url.startsWith("https://") : true;
+  const isHttpInit = tab.url ? tab.url.startsWith("http://") : false;
+  const isInternalInit = tab.url ? (tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://") || tab.url.startsWith("about:") || tab.url.startsWith("file://")) : false;
+  const initSSL = document.getElementById("gridSSLStatus");
+  if (initSSL) {
+    if (isHttpInit) {
+      initSSL.textContent = "Unencrypted (HTTP)";
+      initSSL.title = "Unencrypted plain HTTP connection (Insecure)";
+      const item = getGridItem(initSSL);
+      if (item) item.className = "grid-item blocked";
+    } else if (isInternalInit) {
+      initSSL.textContent = "Internal Page";
+      initSSL.title = "Local or browser internal page";
+      const item = getGridItem(initSSL);
+      if (item) item.className = "grid-item";
+    } else {
+      initSSL.textContent = "Encrypted (HTTPS)";
+      initSSL.title = "Verified HTTPS SSL/TLS encryption";
+      const item = getGridItem(initSSL);
+      if (item) item.className = "grid-item allowed";
+    }
+  }
 
   try {
     // Ask the background/service worker for the scan result of this tab.
     const result = await sendMessage({ type: "GET_SCAN_RESULT", tabId: tab.id, url: tab.url });
 
-    renderResult(result, hostname);
+    renderResult(result, hostname, tab.url);
   } catch (err) {
     console.error("Scan lookup failed:", err);
-    renderError("Could not retrieve scan results for this page.", hostname);
+    renderError("Could not retrieve scan results for this page.", hostname, tab.url);
   }
 
   wireButtons(tab);
@@ -62,20 +102,32 @@ function wireThemeToggle() {
     }
     
     chrome.storage?.sync?.set({ theme: newTheme }, () => {
-      chrome.runtime.sendMessage({ type: "THEME_CHANGED", theme: newTheme }).catch(() => {});
+      try {
+        const p = chrome.runtime?.sendMessage?.({ type: "THEME_CHANGED", theme: newTheme });
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch {}
     });
   });
 }
 
 function applyStoredTheme() {
   if (typeof chrome === "undefined" || !chrome.storage || !chrome.storage.sync) {
-    const theme = localStorage.getItem("theme") === "light" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", theme);
+    let theme = "dark";
+    try {
+      if (typeof localStorage !== "undefined" && localStorage) {
+        theme = localStorage.getItem("theme") === "light" ? "light" : "dark";
+      }
+    } catch {}
+    if (document.documentElement && document.documentElement.setAttribute) {
+      document.documentElement.setAttribute("data-theme", theme);
+    }
     return;
   }
   chrome.storage?.sync?.get(["theme"], (result) => {
     const theme = result?.theme === "light" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", theme);
+    if (document.documentElement && document.documentElement.setAttribute) {
+      document.documentElement.setAttribute("data-theme", theme);
+    }
   });
 }
 
@@ -194,64 +246,186 @@ function updatePopupLogos(severityClass) {
   });
 }
 
-function renderResult(data, hostname) {
+function showStatusBanner(type, text) {
+  const banner = document.getElementById("statusBanner");
+  const bannerText = document.getElementById("statusBannerText");
+  if (!banner || !bannerText) return;
+  banner.className = `status-banner ${type || ""}`.trim();
+  bannerText.textContent = text;
+  banner.style.display = "flex";
+}
+
+function hideStatusBanner() {
+  const banner = document.getElementById("statusBanner");
+  if (banner) banner.style.display = "none";
+}
+
+function renderResult(data, hostname, currentUrl) {
   if (!data) {
-    renderError("No scan data available.", hostname);
+    renderError("No scan data available.", hostname, currentUrl);
     return;
   }
 
-  if (data.isPlaceholder || typeof data.riskScore !== "number" || !Number.isFinite(data.riskScore)) {
-    renderError("Model verdict unavailable. Sign in through Dashboard and connect the extension in Settings.", hostname);
-    const title = document.getElementById("heroStatusTitle");
-    const badge = document.getElementById("heroStatusBadge");
-    const rating = document.getElementById("securityScoreRating");
-    if (title) title.textContent = "VERDICT UNAVAILABLE";
-    if (badge) badge.textContent = "UNKNOWN";
-    if (rating) rating.textContent = "—";
-    return;
-  }
-
-  const { riskScore = 0, status = "Unknown", reasons, indicators = [] } = data;
-  const securityScore = Math.max(0, 100 - riskScore);
-
-  // References to DOM elements
   const hShield = document.getElementById("heroShieldWrapper");
   const hTitle = document.getElementById("heroStatusTitle");
   const hBadge = document.getElementById("heroStatusBadge");
   const gRating = document.getElementById("securityScoreRating");
 
   const gridSSL = document.getElementById("gridSSLStatus");
-  const gridSSLIcon = document.getElementById("gridSSLIcon");
   const gridRep = document.getElementById("gridReputationStatus");
-  const gridRepIcon = document.getElementById("gridReputationIcon");
   const gridThreat = document.getElementById("gridThreatsStatus");
-  const gridThreatIcon = document.getElementById("gridThreatsIcon");
 
   const toggleContainer = document.getElementById("protectionToggleContainer");
   const backBtn = document.getElementById("backBtn");
 
-  // Determine severity tier based on riskScore
+  const isHttps = currentUrl ? currentUrl.startsWith("https://") : true;
+  const isHttp = currentUrl ? currentUrl.startsWith("http://") : false;
+  const isInternal = currentUrl ? (currentUrl.startsWith("chrome://") || currentUrl.startsWith("chrome-extension://") || currentUrl.startsWith("about:") || currentUrl.startsWith("file://")) : false;
+
+  // ── Scenario A: Backend Offline / Unverified / Local Heuristics ──────────
+  if (data.isPlaceholder || typeof data.riskScore !== "number" || !Number.isFinite(data.riskScore)) {
+    const errorMsg = data.reasons || "Model verdict unavailable. Ensure backend is reachable and connect the extension in Settings.";
+
+    // Always pre-populate SSL Status cleanly from currentUrl
+    if (gridSSL) {
+            if (isHttp) {
+        gridSSL.textContent = "Unencrypted (HTTP)";
+        gridSSL.title = "Unencrypted plain HTTP connection (Insecure)";
+        const item = getGridItem(gridSSL);
+        if (item) item.className = "grid-item blocked";
+      } else if (isInternal) {
+        gridSSL.textContent = "Internal Page";
+        gridSSL.title = "Local or browser internal page";
+        const item = getGridItem(gridSSL);
+        if (item) item.className = "grid-item";
+      } else {
+        gridSSL.textContent = "Encrypted (HTTPS)";
+        gridSSL.title = "Verified HTTPS SSL/TLS encryption";
+        const item = getGridItem(gridSSL);
+        if (item) item.className = "grid-item allowed";
+      }
+    }
+
+    // If local heuristic scan provided observations, display clean summary
+    if (typeof data.heuristicScore === "number") {
+      const indicators = Array.isArray(data.indicators) ? data.indicators : [];
+      const heuristicSecScore = Math.max(0, Math.round(100 - data.heuristicScore));
+
+      let heuristicSeverity = "allowed";
+      let heroTitleText = "LOCAL SHIELD ACTIVE";
+      let heroBadgeText = "LOCAL SCAN | LOW RISK";
+      let ratingText = "GOOD (LOCAL)";
+      let colorVar = "--success";
+      let repText = "Local Check OK";
+      let repTooltip = "No suspicious patterns detected by local heuristic inspection";
+
+      if (data.heuristicScore >= 70) {
+        heuristicSeverity = "blocked";
+        heroTitleText = "SUSPICIOUS SITE";
+        heroBadgeText = "LOCAL SHIELD | HIGH RISK";
+        ratingText = "CRITICAL (LOCAL)";
+        colorVar = "--danger";
+        repText = "Suspicious Signs";
+        repTooltip = indicators.join("; ") || "High risk characteristics flagged by local heuristics";
+      } else if (data.heuristicScore >= 30) {
+        heuristicSeverity = "caution";
+        heroTitleText = "CAUTION SITE";
+        heroBadgeText = "LOCAL SHIELD | CAUTION";
+        ratingText = "CAUTION (LOCAL)";
+        colorVar = "--warning";
+        repText = "Caution Signs";
+        repTooltip = indicators.join("; ") || "Suspicious patterns flagged by local heuristics";
+      }
+
+      // Hero
+      if (hShield) hShield.className = `hero-shield-wrapper ${heuristicSeverity}`;
+      updatePopupLogos(heuristicSeverity);
+      if (hTitle) {
+        hTitle.textContent = heroTitleText;
+        hTitle.className = `hero-status-title ${heuristicSeverity}`;
+      }
+      if (hBadge) {
+        hBadge.textContent = heroBadgeText;
+        hBadge.className = `hero-status-badge ${heuristicSeverity}`;
+      }
+
+      // Gauge
+      setGaugeScore(heuristicSecScore, colorVar);
+      if (gRating) {
+        gRating.textContent = ratingText;
+        gRating.className = `gauge-sub-label ${heuristicSeverity}`;
+      }
+
+      // Reputation
+      if (gridRep) {
+        gridRep.textContent = repText;
+        gridRep.title = repTooltip;
+        const item = getGridItem(gridRep);
+        if (item) item.className = `grid-item ${heuristicSeverity}`;
+      }
+
+      // Threats Box: Concise text (e.g. "Clean Scan", "Zero Threats", or "X Signals Flagged")
+      if (gridThreat) {
+        if (indicators.length > 0) {
+          gridThreat.textContent = `${indicators.length} Signal${indicators.length > 1 ? "s" : ""} Flagged`;
+          gridThreat.title = indicators.join("; ");
+          const item = getGridItem(gridThreat);
+          if (item) item.className = `grid-item ${heuristicSeverity}`;
+        } else {
+          gridThreat.textContent = "Clean Scan";
+          gridThreat.title = "No suspicious characteristics found by local heuristic inspection.";
+          const item = getGridItem(gridThreat);
+          if (item) item.className = "grid-item allowed";
+        }
+      }
+
+      // Banner explaining backend status
+      showStatusBanner("info", "Cloud AI Offline • Local Shield Active");
+
+      // Footer
+      if (toggleContainer) toggleContainer.style.display = "flex";
+      if (backBtn) backBtn.style.display = "none";
+    } else {
+      // Complete fallback when no heuristics available
+      renderError(errorMsg, hostname, currentUrl);
+      showStatusBanner("warning", "Cloud AI Offline • Connect Dashboard");
+    }
+    return;
+  }
+
+  // ── Scenario B: Authoritative Cloud AI / LightGBM Verified Verdict ────────
+  hideStatusBanner();
+
+  const { riskScore = 0, status = "Unknown", reasons, indicators = [] } = data;
+  const securityScore = Math.max(0, Math.round(100 - riskScore));
+
   let severityClass = "allowed";
   let displayTitle = "SAFE SITE";
-  let displayBadge = "SECURE | LOW RISK";
+  let displayBadge = "AI VERIFIED | LOW RISK";
   let displayRating = "EXCELLENT";
   let colorVar = "--success";
+  let repText = "Highly Trusted";
+  let threatsText = "Clean Scan";
 
   if (riskScore >= 70) {
     severityClass = "blocked";
     displayTitle = "DANGEROUS SITE";
-    displayBadge = "UNSAFE | HIGH RISK";
+    displayBadge = "AI VERIFIED | HIGH RISK";
     displayRating = "CRITICAL";
     colorVar = "--danger";
+    repText = "Untrusted Domain";
+    threatsText = `${indicators.length || 1} Threat(s) Found`;
   } else if (riskScore >= 30) {
     severityClass = "caution";
     displayTitle = "SUSPICIOUS SITE";
-    displayBadge = "WARNING | MEDIUM RISK";
+    displayBadge = "AI VERIFIED | MEDIUM RISK";
     displayRating = "CAUTION";
     colorVar = "--warning";
+    repText = "Low Trust Domain";
+    threatsText = `${indicators.length || 1} Suspicious Signal(s)`;
   }
 
-  // 1. Update Hero Status Area + Logo Images
+  // Hero Status Area + Logos
   if (hShield) hShield.className = `hero-shield-wrapper ${severityClass}`;
   updatePopupLogos(severityClass);
   if (hTitle) {
@@ -263,54 +437,49 @@ function renderResult(data, hostname) {
     hBadge.className = `hero-status-badge ${severityClass}`;
   }
 
-  // 2. Set Gauge Arc Progress
+  // Gauge Progress
   setGaugeScore(securityScore, colorVar);
   if (gRating) {
     gRating.textContent = displayRating;
     gRating.className = `gauge-sub-label ${severityClass}`;
   }
 
-  // 3. Populate 2x2 Details Grid
-  // SSL Check (Local HTTP check)
-  const isHttps = window.location ? !hostname.startsWith("localhost") && !hostname.startsWith("127.0.0.1") : true; // Local extension checks
-  const httpCheck = indicators.some(ind => ind.includes("HTTP") || ind.includes("not encrypted"));
-  
+  // 2x2 Details Grid
+  const httpCheck = indicators.some((ind) => ind.includes("HTTP") || ind.includes("not encrypted"));
   if (gridSSL) {
-    if (httpCheck) {
+    if (httpCheck || isHttp) {
       gridSSL.textContent = "Unencrypted (HTTP)";
-      gridSSL.parentNode.parentNode.className = "grid-item blocked";
+      gridSSL.title = "Unencrypted plain HTTP connection (Insecure)";
+      const item = getGridItem(gridSSL);
+      if (item) item.className = "grid-item blocked";
+    } else if (isInternal) {
+      gridSSL.textContent = "Internal Page";
+      gridSSL.title = "Local or browser internal page";
+      const item = getGridItem(gridSSL);
+      if (item) item.className = "grid-item";
     } else {
       gridSSL.textContent = "Encrypted (HTTPS)";
-      gridSSL.parentNode.parentNode.className = "grid-item allowed";
+      gridSSL.title = "Verified HTTPS SSL/TLS encryption";
+      const item = getGridItem(gridSSL);
+      if (item) item.className = "grid-item allowed";
     }
   }
 
-  // Reputation Check
   if (gridRep) {
-    if (riskScore >= 70) {
-      gridRep.textContent = "Untrusted Domain";
-      gridRep.parentNode.parentNode.className = "grid-item blocked";
-    } else if (riskScore >= 30) {
-      gridRep.textContent = "Low Trust Domain";
-      gridRep.parentNode.parentNode.className = "grid-item caution";
-    } else {
-      gridRep.textContent = "Highly Trusted";
-      gridRep.parentNode.parentNode.className = "grid-item allowed";
-    }
+    gridRep.textContent = repText;
+    gridRep.title = `Domain reputation verified by SCYTHE multi-tier pipeline: ${repText}`;
+    const item = getGridItem(gridRep);
+    if (item) item.className = `grid-item ${severityClass}`;
   }
 
-  // Threats found Check
   if (gridThreat) {
-    if (indicators.length > 0) {
-      gridThreat.textContent = `${indicators.length} Threat${indicators.length > 1 ? 's' : ''} Found`;
-      gridThreat.parentNode.parentNode.className = `grid-item ${severityClass}`;
-    } else {
-      gridThreat.textContent = "Clean Scan";
-      gridThreat.parentNode.parentNode.className = "grid-item allowed";
-    }
+    gridThreat.textContent = threatsText;
+    gridThreat.title = reasons || (indicators.length > 0 ? indicators.join("; ") : "Zero malicious signals detected across all inspection tiers");
+    const item = getGridItem(gridThreat);
+    if (item) item.className = `grid-item ${severityClass}`;
   }
 
-  // 4. Update Footer state (Toggle vs Go Back)
+  // Footer Actions
   if (riskScore >= 70) {
     if (toggleContainer) toggleContainer.style.display = "none";
     if (backBtn) backBtn.style.display = "inline-flex";
@@ -320,9 +489,9 @@ function renderResult(data, hostname) {
   }
 }
 
-function renderError(message, hostname) {
+function renderError(message, hostname, currentUrl) {
   setGaugeScore(null, "--border");
-  
+
   const hShield = document.getElementById("heroShieldWrapper");
   const hTitle = document.getElementById("heroStatusTitle");
   const hBadge = document.getElementById("heroStatusBadge");
@@ -331,15 +500,15 @@ function renderError(message, hostname) {
   if (hShield) hShield.className = "hero-shield-wrapper";
   updatePopupLogos("default");
   if (hTitle) {
-    hTitle.textContent = "SCAN OFFLINE";
+    hTitle.textContent = "VERDICT UNAVAILABLE";
     hTitle.className = "hero-status-title";
   }
   if (hBadge) {
-    hBadge.textContent = "UNABLE TO VERIFY";
+    hBadge.textContent = "UNKNOWN";
     hBadge.className = "hero-status-badge";
   }
   if (gRating) {
-    gRating.textContent = "ERROR";
+    gRating.textContent = "OFFLINE";
     gRating.className = "gauge-sub-label";
   }
 
@@ -347,11 +516,45 @@ function renderError(message, hostname) {
   const gridRep = document.getElementById("gridReputationStatus");
   const gridThreat = document.getElementById("gridThreatsStatus");
 
-  if (gridSSL) gridSSL.textContent = "—";
-  if (gridRep) gridRep.textContent = "—";
-  if (gridThreat) gridThreat.textContent = message || "Connection Failed";
+  const isHttps = currentUrl ? currentUrl.startsWith("https://") : true;
+  const isHttp = currentUrl ? currentUrl.startsWith("http://") : false;
+  const isInternal = currentUrl ? (currentUrl.startsWith("chrome://") || currentUrl.startsWith("chrome-extension://") || currentUrl.startsWith("about:") || currentUrl.startsWith("file://")) : false;
 
-  // Re-enable toggle but hide back button
+  if (gridSSL) {
+    if (isHttp) {
+      gridSSL.textContent = "Unencrypted (HTTP)";
+      gridSSL.title = "Unencrypted plain HTTP connection (Insecure)";
+      const item = getGridItem(gridSSL);
+      if (item) item.className = "grid-item blocked";
+    } else if (isInternal) {
+      gridSSL.textContent = "Internal Page";
+      gridSSL.title = "Local or browser internal page";
+      const item = getGridItem(gridSSL);
+      if (item) item.className = "grid-item";
+    } else {
+      gridSSL.textContent = "Encrypted (HTTPS)";
+      gridSSL.title = "Verified HTTPS SSL/TLS encryption";
+      const item = getGridItem(gridSSL);
+      if (item) item.className = "grid-item allowed";
+    }
+  }
+
+  if (gridRep) {
+    gridRep.textContent = "—";
+    gridRep.title = "Reputation data unavailable offline";
+    const item = getGridItem(gridRep);
+    if (item) item.className = "grid-item";
+  }
+
+  if (gridThreat) {
+    gridThreat.textContent = "Verdict Unavailable";
+    gridThreat.title = message || "Cannot reach SCYTHE analysis engine";
+    const item = getGridItem(gridThreat);
+    if (item) item.className = "grid-item";
+  }
+
+  showStatusBanner("warning", "Cloud AI Offline • Connect Dashboard");
+
   const toggleContainer = document.getElementById("protectionToggleContainer");
   const backBtn = document.getElementById("backBtn");
   if (toggleContainer) toggleContainer.style.display = "flex";

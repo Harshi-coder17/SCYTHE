@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import subprocess
-import sys
-import time
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("azure_cloud_test")
@@ -20,9 +19,10 @@ RESOURCE_GROUP = "SCYTHE-HARVESTER-RG"
 VM_NAME = "scythe-harvester-vm"
 
 def run_az(cmd: list[str], timeout: int = 300) -> dict | str:
-    full_cmd = ["az"] + cmd
+    az_bin = shutil.which("az") or "az"
+    full_cmd = [az_bin] + cmd
     logger.info("Executing: %s", " ".join(full_cmd))
-    res = subprocess.run(full_cmd, capture_output=True, text=True, timeout=timeout, shell=True)
+    res = subprocess.run(full_cmd, capture_output=True, text=True, timeout=timeout, shell=False)
     if res.returncode != 0:
         logger.error("Azure CLI error: %s", res.stderr)
         raise RuntimeError(f"Azure CLI failed: {res.stderr}")

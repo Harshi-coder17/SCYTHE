@@ -1,7 +1,8 @@
 """Extract MobileCLIP-S0 embeddings for consolidated_fleet_v1 images.
 Saves .npy files to embedding_cache/consolidated_fleet_v1/<image_sha256>.npy
 """
-import sys, time, os
+import sys
+import time
 from pathlib import Path
 from PIL import Image
 import torch
@@ -45,7 +46,7 @@ for i in range(0, len(to_process), BATCH_SIZE):
                 img_rgb = img.convert("RGB")
                 batch_tensors.append(preprocess(img_rgb))
                 valid_paths.append(p)
-        except Exception as e:
+        except Exception:
             continue
             
     if not batch_tensors:

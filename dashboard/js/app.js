@@ -219,8 +219,9 @@ function reportPage() {
     if (!uuid(value)) throw new Error("Enter a valid UUID scan ID.");
     const data = await request(`/scans/${value}`); remember(value);
     clearInterval(polling);
-    if (!data.risk_report && !/failed|unavailable|done|complete/i.test(data.status || "") && refreshCount < 60) {
-      polling = setTimeout(() => { refreshCount += 1; guarded(load); }, 5000);
+    const isTerminal = /alert_pipeline_done|failed|unavailable|complete/i.test(data.status || "") || Boolean(data.risk_report);
+    if (!isTerminal && refreshCount < 60) {
+      polling = setTimeout(() => { refreshCount += 1; guarded(load); }, 3000);
     }
     output.replaceChildren(node("p", `Status: ${data.status || "unavailable"}`, "badge"), node("p", data.url || "File scan"), verdict(data.risk_report || data), details(data));
     if (!data.risk_report) output.append(node("p", "A final risk report is not available yet. Refresh while the scan is processing.", "muted"));

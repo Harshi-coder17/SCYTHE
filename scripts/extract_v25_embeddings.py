@@ -1,7 +1,8 @@
 """Extract MobileCLIP-S0 embeddings for candidate_fusion_v25_qualification and holdout images.
 Saves .npy files to embedding_cache/v25_cohorts/<image_sha256>.npy
 """
-import sys, time, os
+import sys
+import time
 from pathlib import Path
 from PIL import Image
 import torch

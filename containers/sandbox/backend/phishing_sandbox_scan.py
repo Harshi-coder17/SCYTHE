@@ -713,6 +713,44 @@ DOM_SNAPSHOT_SCRIPT = """
     m => (m.getAttribute('http-equiv') || '').toLowerCase() === 'refresh'
   );
 
+  // -- BitB (Browser-in-the-Browser) Heuristic --
+  const potentialModals = qsa('div, iframe, section, dialog').filter(el => {
+    try {
+      const style = window.getComputedStyle(el);
+      const isFixedOrAbs = style.position === 'fixed' || style.position === 'absolute';
+      const zIndex = parseInt(style.zIndex, 10) || 0;
+      return isFixedOrAbs && zIndex > 1000 && el.offsetWidth > 320 && el.offsetHeight > 250;
+    } catch(e) { return false; }
+  });
+
+  let bitbDetected = false;
+  let bitbDetails = null;
+  for (const modal of potentialModals) {
+    const hasCreds = modal.querySelectorAll('input[type="password"], input[type="email"], input[autocomplete*="password"]').length > 0;
+    const modalText = (modal.innerText || '').toLowerCase();
+    const hasFakeBar = /https?:\/\//i.test(modalText) ||
+                       modal.querySelector('[class*="address"], [class*="url-bar"], [class*="fake-bar"], [class*="browser-bar"], [class*="window-title"]');
+    const hasWindowControls = modal.querySelector('[class*="close"], [class*="minimize"], [class*="maximize"], [class*="window-control"]');
+    if (hasCreds && (hasFakeBar || hasWindowControls)) {
+      bitbDetected = true;
+      bitbDetails = "Simulated browser window with credential input detected inside DOM overlay";
+      break;
+    }
+  }
+
+  // -- Captcha & Cloudflare Turnstile Cloaking Shield Heuristic --
+  const hasTurnstile = !!(
+    document.querySelector('.cf-turnstile, iframe[src*="challenges.cloudflare.com"], div#turnstile-wrapper, script[src*="challenges.cloudflare.com/turnstile"]')
+  );
+  const hasRecaptcha = !!(
+    document.querySelector('.g-recaptcha, iframe[src*="google.com/recaptcha"], iframe[src*="recaptcha.net"]')
+  );
+  const hasHCaptcha = !!(
+    document.querySelector('.h-captcha, iframe[src*="hcaptcha.com"]')
+  );
+  const captchaDetected = hasTurnstile || hasRecaptcha || hasHCaptcha;
+  const captchaType = hasTurnstile ? "cloudflare_turnstile" : (hasRecaptcha ? "recaptcha" : (hasHCaptcha ? "hcaptcha" : null));
+
   return {
     page_title: document.title || "",
     page_language: document.documentElement.lang || null,
@@ -737,6 +775,10 @@ DOM_SNAPSHOT_SCRIPT = """
     inline_script_text: inlineScriptText,
 
     counters: window.__scanCounters || {},
+    bitb_detected: bitbDetected,
+    bitb_details: bitbDetails,
+    captcha_cloaking_detected: captchaDetected,
+    captcha_type: captchaType,
   };
 }
 """
@@ -1443,11 +1485,15 @@ async def scan_url(url, timeout_ms=45000, viewport=(1366, 768), request_id=None,
             # HEURISTIC: feeds the orchestrator's "unresolved interactivity"
             # modifier (doc suggestion #5) — true only if a challenge was
             # seen AND nobody/nothing cleared it within the wait window.
-            "unresolved_interactivity": challenge_detected and not challenge_resolved,
+            "unresolved_interactivity": bool((challenge_detected and not challenge_resolved) or dom.get("captcha_cloaking_detected", False)),
             # Not part of the original 9-table schema — additive field.
             # {"brand": str, "similarity": float} or None. See brand_phash.py;
             # None whenever no reference_hashes.json is configured.
             "brand_impersonation_match": brand_match,
+            "bitb_detected": bool(dom.get("bitb_detected", False)),
+            "bitb_details": dom.get("bitb_details"),
+            "captcha_cloaking_detected": bool(dom.get("captcha_cloaking_detected", False)),
+            "captcha_type": dom.get("captcha_type"),
         },
         # Table names in the real schema: evasion_techniques and
         # security_headers, not the earlier shorthand names.
@@ -1750,6 +1796,21 @@ def main():
         recorder.rows = result.pop("network_har", [])
         recorder.total = result.pop("network_har_total", 0)
         recorder.write(os.path.join(args.output_dir, "network.har"))
+
+        # Persist sandbox.html DOM snapshot directly to output dir for ConsistencyEngine
+        dom_source = result.get("dom", {}).get("page_source")
+        if dom_source:
+            sandbox_html_path = os.path.join(args.output_dir, "sandbox.html")
+            try:
+                with open(sandbox_html_path, "w", encoding="utf-8", errors="replace") as f:
+                    f.write(dom_source)
+                try:
+                    os.chmod(sandbox_html_path, 0o664)  # nosec B103
+                except OSError:
+                    pass
+                print(f"Wrote DOM snapshot to {sandbox_html_path}")
+            except Exception as e:
+                logger.warning("Failed to persist sandbox.html: %s", e)
 
         json_path = os.path.join(args.output_dir, f"scan_{scan_id}.json")
         _atomic_write_json(json_path, result)

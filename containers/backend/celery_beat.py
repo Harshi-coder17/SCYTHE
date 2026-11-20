@@ -85,6 +85,15 @@ celery.conf.beat_schedule = {
         "kwargs": {"retention_days": 7},
         "options": {"queue": "default"},
     },
+
+    # ── Periodic Threat Intelligence Sync (Tier-0 Redis) ───────────────────
+    # Runs every 30 minutes to fetch latest URLhaus & OpenPhish feeds into Redis.
+    "periodic-threat-feed-sync": {
+        "task": "tasks.sync_threat_feeds",
+        "schedule": crontab(minute="*/30"),
+        "kwargs": {"limit_per_feed": 1500},
+        "options": {"queue": "default"},
+    },
 }
 
 if __name__ == "__main__":

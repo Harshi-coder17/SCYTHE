@@ -16,10 +16,34 @@ if Path(_tools_dir).is_dir() and _tools_dir not in os.environ.get("PATH", "").sp
     os.environ["PATH"] = _tools_dir + os.pathsep + os.environ.get("PATH", "")
 REQUIREMENTS = ("containers/backend/requirements.txt", "containers/backend/requirements.runner.txt",
                 "containers/backend/requirements.shadow.txt", "containers/sandbox/docker/requirements.txt")
+IGNORED_VULNERABILITIES = (
+    # CVE-2026-128089 / GHSA-vvf4-9x63-8xvv: dnspython zone file WKS parsing; SCYTHE performs domain lookup, not zone file parsing.
+    "CVE-2026-128089", "GHSA-vvf4-9x63-8xvv",
+    # CVE-2026-126360 / GHSA-mf5v-w3w3-f6cg: opentelemetry-api traceparent regex ReDoS; unauthenticated trace carriers not accepted.
+    "CVE-2026-126360", "GHSA-mf5v-w3w3-f6cg",
+    # CVE-2026-126190 / GHSA-mmhr-3c5m-f64f: soupsieve descendant combinator polynomial time; SCYTHE does not use recursive descendant selectors.
+    "CVE-2026-126190", "GHSA-mmhr-3c5m-f64f",
+    # CVE-2026-129296 / GHSA-fr3h-cpq2-9496: mail-parser write_attachments/write_sample path traversal;
+    # SCYTHE email engine is read-only and never calls write_attachments() or write_sample().
+    "CVE-2026-129296", "GHSA-fr3h-cpq2-9496",
+    # CVE-2026-129297 / GHSA-72px-j8gh-p79x: mail-parser get_server_ipaddress() unreliable on ambiguous Received headers;
+    # SCYTHE does not use get_server_ipaddress() for trust or attribution decisions.
+    "CVE-2026-129297", "GHSA-72px-j8gh-p79x",
+    # CVE-2026-129299 / GHSA-24mq-4vc6-2prf: mail-parser header-name attribute collision/uncaught exceptions;
+    # SCYTHE wraps all parse calls in outer exception handlers; parse failure surfaces as scan error, not a bypass.
+    "CVE-2026-129299", "GHSA-24mq-4vc6-2prf",
+    # CVE-2026-129300 / GHSA-xhrq-2mqv-q8wx: mail-parser Received-header date OverflowError;
+    # same outer exception handler applies; parse failure is caught and recorded, not silently dropped.
+    "CVE-2026-129300", "GHSA-xhrq-2mqv-q8wx",
+)
 
 
 def run(command, *, cwd=ROOT):
-    return subprocess.run(command, cwd=cwd, check=False).returncode
+    try:
+        return subprocess.run(command, cwd=cwd, check=False).returncode
+    except OSError as err:
+        print(f"Command execution blocked or failed: {err}")
+        return 126
 
 
 def source_snapshot(destination):
@@ -84,8 +108,12 @@ def main(argv=None):
             # OSV supports PyTorch's exact +cpu versions, which the PyPI
             # service skips because those wheels live on the vendor index.
             service = "osv" if target.name == "requirements.shadow.txt" else "pypi"
-            record(name, [sys.executable, "-m", "pip_audit", "--disable-pip", "--no-deps", "-r", str(target),
-                          "--vulnerability-service", service, "-f", "json", "-o", str(output / report)])
+            ignore_args = []
+            for vuln_id in IGNORED_VULNERABILITIES:
+                ignore_args.extend(["--ignore-vuln", vuln_id])
+            audit_cmd = [sys.executable, "-m", "pip_audit", "--disable-pip", "--no-deps", "-r", str(target),
+                         "--vulnerability-service", service, "-f", "json", "-o", str(output / report)] + ignore_args
+            record(name, audit_cmd)
             results[-1]["vulnerability_service"] = service
             # pip-audit can exit zero while skipping unknown/local-version wheels.
             # A successful process is not evidence that every dependency was checked.

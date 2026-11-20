@@ -9,7 +9,9 @@ Integrates all cohorts:
 - V25 Qualification & Holdout Cohorts (extracted npy files)
 Total: >55,000 representations.
 """
-import json, time, hashlib, pathlib
+import json
+import hashlib
+import pathlib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
