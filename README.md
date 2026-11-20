@@ -479,14 +479,7 @@ Total             491+
 
 ---
 
-## 👥 Authors
 
-| Contributor | Role |
-|---|---|
-| **armaan-1207** | Core architecture, ML pipeline, backend, Chrome extension |
-| **Harshi-coder17** | Test infrastructure, lint gate, CI improvements |
-
----
 
 <div align="center">
 
