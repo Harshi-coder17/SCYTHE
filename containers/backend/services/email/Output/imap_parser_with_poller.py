@@ -1,7 +1,6 @@
 import json
 import os
 from datetime import datetime
-from dotenv import load_dotenv
 
 from email_security_engine.fetchers.imap_poller import IMAPFetcher
 

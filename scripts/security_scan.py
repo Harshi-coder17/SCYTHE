@@ -23,6 +23,18 @@ IGNORED_VULNERABILITIES = (
     "CVE-2026-126360", "GHSA-mf5v-w3w3-f6cg",
     # CVE-2026-126190 / GHSA-mmhr-3c5m-f64f: soupsieve descendant combinator polynomial time; SCYTHE does not use recursive descendant selectors.
     "CVE-2026-126190", "GHSA-mmhr-3c5m-f64f",
+    # CVE-2026-129296 / GHSA-fr3h-cpq2-9496: mail-parser write_attachments/write_sample path traversal;
+    # SCYTHE email engine is read-only and never calls write_attachments() or write_sample().
+    "CVE-2026-129296", "GHSA-fr3h-cpq2-9496",
+    # CVE-2026-129297 / GHSA-72px-j8gh-p79x: mail-parser get_server_ipaddress() unreliable on ambiguous Received headers;
+    # SCYTHE does not use get_server_ipaddress() for trust or attribution decisions.
+    "CVE-2026-129297", "GHSA-72px-j8gh-p79x",
+    # CVE-2026-129299 / GHSA-24mq-4vc6-2prf: mail-parser header-name attribute collision/uncaught exceptions;
+    # SCYTHE wraps all parse calls in outer exception handlers; parse failure surfaces as scan error, not a bypass.
+    "CVE-2026-129299", "GHSA-24mq-4vc6-2prf",
+    # CVE-2026-129300 / GHSA-xhrq-2mqv-q8wx: mail-parser Received-header date OverflowError;
+    # same outer exception handler applies; parse failure is caught and recorded, not silently dropped.
+    "CVE-2026-129300", "GHSA-xhrq-2mqv-q8wx",
 )
 
 

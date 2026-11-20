@@ -6,7 +6,11 @@ Executes the full 5-stage pipeline mandated by PROJECT_v10.pdf:
 - Stage 4: Consistency Engine Cross-Validation (Brand vs SSL vs DOM)
 - Stage 5: Risk Fusion Engine & Wilson 95% Confidence Bounds
 """
-import sys, time, json, pathlib, math
+import sys
+import time
+import json
+import pathlib
+import math
 import numpy as np
 
 ROOT = pathlib.Path(r"C:\Users\armaa\Desktop\Project details\SCYTHE")
@@ -166,7 +170,8 @@ for idx, s in enumerate(test_scenarios, 1):
     
     expected_verdict = "BLOCK" if s["true_label"] == 1 else "ALLOW"
     passed = (verdict == expected_verdict)
-    if not passed: all_correct = False
+    if not passed:
+        all_correct = False
     
     status_icon = "PASS" if passed else "FAIL"
     print(f"[{idx}/5] {s['id']}: [{status_icon}]")

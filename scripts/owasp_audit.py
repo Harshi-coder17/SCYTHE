@@ -13,9 +13,6 @@ A10: SSRF & IP Bogon Filtering
 """
 from __future__ import annotations
 
-import ast
-import json
-import os
 import re
 from pathlib import Path
 
@@ -46,7 +43,7 @@ def audit_a02_crypto():
     if jwt_file.is_file():
         code = jwt_file.read_text(encoding="utf-8")
         has_hs256 = "HS256" in code
-        has_none_block = "none" not in code.lower()
+        _has_none_block = "none" not in code.lower()
         print(f"  JWT algorithm pinned to HS256: {has_hs256}")
     
     # Check password hashing
@@ -85,12 +82,12 @@ def audit_a03_injection():
             pass
 
     print(f"  Potential SQL Injection (raw string interpolation in SQL): {len(raw_sqli)}")
-    for f, l, s in raw_sqli:
-        print(f"    - {f}:{l} -> {s}")
+    for f, line_no, s in raw_sqli:
+        print(f"    - {f}:{line_no} -> {s}")
 
     print(f"  Command Injection (shell=True in subprocess): {len(shell_injections)}")
-    for f, l, s in shell_injections:
-        print(f"    - {f}:{l} -> {s}")
+    for f, line_no, s in shell_injections:
+        print(f"    - {f}:{line_no} -> {s}")
 
 def audit_a05_misconfiguration():
     print("\n[A05: Security Misconfiguration]")
@@ -115,8 +112,8 @@ def audit_a08_integrity():
             if "pickle.load" in line or "joblib.load" in line:
                 unsafe_deserializers.append((p.name, i, line.strip()))
     print(f"  Unsafe Python deserializers (pickle/joblib) in production: {len(unsafe_deserializers)}")
-    for f, l, s in unsafe_deserializers:
-        print(f"    - {f}:{l} -> {s}")
+    for f, line_no, s in unsafe_deserializers:
+        print(f"    - {f}:{line_no} -> {s}")
 
     # Check trust anchor and sha256 verification
     mr = BACKEND / "services" / "model_release.py"

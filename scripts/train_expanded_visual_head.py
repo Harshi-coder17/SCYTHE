@@ -11,7 +11,9 @@ Integrates all authentic cohorts + spatial crop augmentations + fleet captures:
 Grand Total: >50,000 to 60,000+ visual training representations.
 Strict zero-domain-leakage held-out evaluation on canonical test split.
 """
-import json, time, hashlib, pathlib
+import json
+import hashlib
+import pathlib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -332,7 +334,7 @@ if test_auc >= 0.92:
     print(f"\nUpdated primary visual_classifier.json with Expanded Master model! SHA: {sha_primary}")
 
 print("\n" + "=" * 70)
-print(f"SUCCESS! Expanded Master Visual Model Saved:")
+print("SUCCESS! Expanded Master Visual Model Saved:")
 print(f"  Artifact: {out_json}")
 print(f"  SHA-256:  {sha_json}")
 print(f"  Weights:  {OUT_DIR / 'visual_mlp_expanded.pt'}")

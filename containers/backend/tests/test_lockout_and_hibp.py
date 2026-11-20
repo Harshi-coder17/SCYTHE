@@ -3,7 +3,6 @@ Comprehensive unit tests for account lockout, HIBP k-anonymity checks,
 password migration paths, and XSS HTML sanitization across the backend.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 import urllib.error
 
@@ -15,7 +14,6 @@ from auth.security import (
     check_pwned_password,
     record_legacy_bcrypt_metric,
     record_hibp_failure_metric,
-    verify_password_with_migration,
 )
 from api.routes import _sanitize_html_content
 
@@ -79,7 +77,7 @@ def test_check_pwned_password_k_anonymity_match():
     # We mock the return line to match whatever suffix hashlib computes for "testpwned"
     import hashlib
     sha1 = hashlib.sha1(b"testpwned").hexdigest().upper()  # nosec B324
-    prefix, suffix = sha1[:5], sha1[5:]
+    _prefix, suffix = sha1[:5], sha1[5:]
 
     mock_response.read.return_value = f"00000000000000000000000000000000000:10\n{suffix}:1337\n11111111111111111111111111111111111:5\n".encode("utf-8")
 

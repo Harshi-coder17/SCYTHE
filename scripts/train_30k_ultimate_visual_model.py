@@ -6,10 +6,12 @@ Integrates all pre-extracted cohorts:
 - Zenodo Import v1: 833 images
 Total: 22,753 authentic screenshots
 """
-import json, time, hashlib, pathlib
+import json
+import hashlib
+import pathlib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, average_precision_score, confusion_matrix, recall_score, precision_score, f1_score
+from sklearn.metrics import roc_auc_score, average_precision_score, recall_score, precision_score, f1_score
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -113,7 +115,7 @@ X_test = np.array(test_X, dtype=np.float32)
 y_test = np.array(test_y, dtype=np.int32)
 
 print("\n" + "=" * 65)
-print(f"TOTAL DATASET SUMMARY:")
+print("TOTAL DATASET SUMMARY:")
 print(f"  Training cohort:  {len(X_train):,} images (phish: {int(y_train.sum()):,}, benign: {int((y_train==0).sum()):,})")
 print(f"  Held-out test:    {len(X_test):,} images (phish: {int(y_test.sum()):,}, benign: {int((y_test==0).sum()):,})")
 print(f"  GRAND TOTAL:      {len(X_train) + len(X_test):,} images")
@@ -222,7 +224,7 @@ out_v30.write_text(json.dumps(artifact_logistic, indent=2))
 sha_v30 = hashlib.sha256(out_v30.read_bytes()).hexdigest()
 
 print("\n" + "=" * 65)
-print(f"SUCCESS! Scaled 22,753-image visual classifier saved:")
+print("SUCCESS! Scaled 22,753-image visual classifier saved:")
 print(f"  {out_v30}")
 print(f"  SHA-256: {sha_v30}")
 print("=" * 65)
